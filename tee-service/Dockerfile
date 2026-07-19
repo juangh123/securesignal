@@ -34,5 +34,6 @@ COPY . .
 # Expose port
 EXPOSE 8000
 
-# Start server
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Start server — honor the PORT env injected by hosts like Render
+# (default 8000 for local/docker-compose use)
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
