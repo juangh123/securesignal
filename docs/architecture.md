@@ -24,8 +24,9 @@ The flow is as follows:
 4. **Processing**: Inside the service:
    - The payload is decrypted with the TEE's private key (`eciespy`), which is
      sourced from `TEE_PRIVATE_KEY` and never leaves the service.
-   - Prices are fetched from the Flare Time Series Oracle (FTSO) through the
-     `FtsoV2Reader` contract. There is **no silent fallback**: read failures
+   - Prices are read directly from the canonical Coston2 `FtsoV2` contract
+     (resolved via FlareContractRegistry); `FtsoV2Reader` is only an on-chain
+     reference contract. There is **no silent fallback**: read failures
      raise an explicit error. Fixture prices are used only when
      `ANALYSIS_OFFLINE=1` is set, and are flagged as
      `price_source: "offline-fixture"`.

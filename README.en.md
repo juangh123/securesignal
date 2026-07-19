@@ -60,9 +60,10 @@ Space integration / LLM setup / troubleshooting):
   Coston2 `FtsoV2` contract via FlareContractRegistry (bytes21 feed IDs, 60s
   TTL cache, 10s RPC timeout) with **no silent fallback to fake prices** —
   failures raise explicit errors. Live-verified (2026-07-19,
-  `ANALYSIS_LIVE_TEST=1 python -m unittest analysis.test_price_provider`):
-  BTC/USD **$64,619.15**, ETH/USD **$1,864.55**, FLR/USD **$0.006566**
-  (feed timestamp 2026-07-19 03:36 UTC, `price_source="coston2-ftso"`).
+  `ANALYSIS_LIVE_TEST=1 python -m unittest analysis.test_price_provider`;
+  full output in `tee-service/ftso-live-test.log`):
+  BTC/USD **$64,649.78**, ETH/USD **$1,866.52**, FLR/USD **$0.006560**
+  (feed timestamp 2026-07-19 04:03 UTC, `price_source="coston2-ftso"`).
   Dev fixture prices are used only under explicit `ANALYSIS_OFFLINE=1` and are
   labeled `price_source: "offline-fixture"`.
 - Local end-to-end integration: **23/23 assertions pass**
@@ -152,7 +153,8 @@ npm run dev
 **Docker one-shot**: `docker compose up --build` starts the same stack — the
 `deploy` init service waits for the chain health check, runs `deploy.ts` and
 `setup-tee.ts`, and only then do `tee-service` and `frontend` start. See the
-comments in `docker-compose.yml`. Compose defaults to `ANALYSIS_OFFLINE=1`
+comments in `docker-compose.yml` (compose file structure-validated; not
+launched on this machine — no local docker). Compose defaults to `ANALYSIS_OFFLINE=1`
 (fixture prices, labeled). For real FTSO reads:
 `ANALYSIS_OFFLINE=0 RPC_URL=https://coston2-api.flare.network/ext/C/rpc docker compose up --build`
 (keep the default when running against a local chain so the relayer matches

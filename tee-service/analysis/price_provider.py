@@ -31,9 +31,10 @@ MODES
      price_usd = value / 10**decimals
 
    Feed ID rule (bytes21): 0x01 || ASCII("<SYM>/USD") right-padded with
-   zero bytes to 21 bytes. The three IDs below are copied verbatim from
-   analysis/engine.py and cross-checked against
-   contracts/scripts/test-ftso.ts (same registry flow in TypeScript).
+   zero bytes to 21 bytes. The three IDs below are defined in this module
+   (the single source of truth since the Stage A engine.py refactor); the
+   BTC ID is cross-checked against contracts/scripts/test-ftso.ts (same
+   registry flow in TypeScript — that script covers BTC only).
 
 FAILURE POLICY
 --------------

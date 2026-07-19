@@ -17,7 +17,7 @@
 3. 前端构造明文 JSON：`{ "client_pubkey": "<会话公钥hex>", "holdings": {...}, "risk_profile": "..." }` → `eciesjs.encrypt(teePubHex, ...)` → base64 → `POST /analyze { task_id, encrypted_data }`
 4. TEE：`eciespy.decrypt(tee_priv, ...)` → 分析 → 结果 JSON → `eciespy.encrypt(client_pubkey, result)` → base64
 5. TEE 计算 `result_hash = keccak256(result_json)`，用 TEE 签名私钥签名 `(task_id, result_hash)` 作为 attestation，并以 relayer 身份调用 `submitResult(task_id, result_hash, attestation)` 上链
-6. 响应：`{ task_id, encrypted_result, attestation, result_hash }`；前端用会话私钥解密、并可对链校验 result_hash
+6. 响应：`{ task_id, encrypted_result, attestation, result_hash, onchain_submitted }`；前端用会话私钥解密、并可对链校验 result_hash
 
 **Attestation（开发期诚实实现）**：结构化 JSON `{ result_hash, task_id, image_digest, tee_address, timestamp, mode: "dev-simulated" }` + TEE secp256k1 签名。合约端 `_verifyAttestation` 用 ecrecover 校验签名者 == 登记的 `teeAddress`。生产接 GCP Confidential Space 的真实 JWT 留 TODO 注释。
 
@@ -71,8 +71,8 @@
 - 在线模式：经 FlareContractRegistry（`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`）解析链上官方 `FtsoV2`，`getFeedById(bytes21)` 读 BTC/ETH/FLR 三个 feed，`value / 10^decimals` 换算；10s RPC 超时、60s TTL 缓存。
 - 失败策略：任何网络/RPC/数据异常抛 `PriceProviderError`，**无静默回退假价**；未知 symbol 在任何网络访问前抛 `ValueError`。
 - 离线模式：仅 `ANALYSIS_OFFLINE=1` 用 fixture 价（BTC 65000 / ETH 3500 / FLR 0.02），`price_source="offline-fixture"` 明确标注非真实市价。
-- 单测：offline 5 例 + mocked online 13 例全过；联机用例 `ANALYSIS_LIVE_TEST=1` 门控。
-- **联机实测（2026-07-19，`LiveCoston2Tests` 通过）**：BTC/USD $64,619.15、ETH/USD $1,864.55、FLR/USD $0.006566；feed 时间戳 2026-07-19 03:36 UTC（新鲜度秒级）；`price_source="coston2-ftso"`。
+- 单测：offline 5 例 + mocked online 14 例全过；联机用例 `ANALYSIS_LIVE_TEST=1` 门控。
+- **联机实测（2026-07-19，`LiveCoston2Tests` 通过，完整输出见 `tee-service/ftso-live-test.log`）**：BTC/USD $64,649.78、ETH/USD $1,866.52、FLR/USD $0.006560；feed 时间戳 2026-07-19 04:03 UTC（新鲜度秒级）；`price_source="coston2-ftso"`。
 
 ## 遗留外部依赖清单（本地无法闭环，接入手册：`docs/deployment.md`）
 

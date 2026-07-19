@@ -247,7 +247,7 @@ export default function Home() {
   const publicClient = usePublicClient()
   const { writeContractAsync } = useWriteContract()
 
-  const [portfolioText, setPortfolioText] = useState('2 BTC, 10 ETH, 5000 USDT')
+  const [portfolioText, setPortfolioText] = useState('0.5 BTC, 2 ETH, 10000 FLR')
   const [riskProfile, setRiskProfile] = useState('moderate')
   const [status, setStatus] = useState('')
   const [error, setError] = useState('')
@@ -422,7 +422,7 @@ export default function Home() {
                 className="w-full p-4 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-600 focus:border-amber-600 text-stone-900 h-32"
                 value={portfolioText}
                 onChange={(e) => setPortfolioText(e.target.value)}
-                placeholder="例如：2 BTC, 10 ETH, 5000 USDT"
+                placeholder="例如：0.5 BTC, 2 ETH, 10000 FLR"
               />
 
               <label className="text-sm font-medium text-stone-700">风险偏好</label>

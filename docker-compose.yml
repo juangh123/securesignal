@@ -67,7 +67,7 @@ services:
     environment:
       # Local dev default: fixture prices, explicitly flagged in responses as
       # price_source="offline-fixture". For real on-chain FTSO reads set
-      # ANALYSIS_OFFLINE=0 and FTSO_READER_ADDRESS to a deployed FtsoV2Reader.
+      # ANALYSIS_OFFLINE=0.
       - ANALYSIS_OFFLINE=${ANALYSIS_OFFLINE:-1}
       - FTSO_READER_ADDRESS=${FTSO_READER_ADDRESS:-}
       - RPC_URL=${RPC_URL:-http://hardhat:8545}

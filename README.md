@@ -44,9 +44,10 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   `analysis_mode: "llm" | "rule-fallback"` 如实标注。未配置 API key 时静默使用规则引擎。
 - **FTSO 真实读价**：`analysis/price_provider.py` 经 FlareContractRegistry 直读 Coston2 官方
   `FtsoV2`（bytes21 feed ID，60s TTL 缓存，10s RPC 超时），**无静默回退假价**——失败显式报错。
-  联机实测（2026-07-19，`ANALYSIS_LIVE_TEST=1 python -m unittest analysis.test_price_provider`）：
-  BTC/USD **$64,619.15**、ETH/USD **$1,864.55**、FLR/USD **$0.006566**
-  （feed 时间戳 2026-07-19 03:36 UTC，`price_source="coston2-ftso"`）。
+  联机实测（2026-07-19，`ANALYSIS_LIVE_TEST=1 python -m unittest analysis.test_price_provider`，
+  完整输出见 `tee-service/ftso-live-test.log`）：
+  BTC/USD **$64,649.78**、ETH/USD **$1,866.52**、FLR/USD **$0.006560**
+  （feed 时间戳 2026-07-19 04:03 UTC，`price_source="coston2-ftso"`）。
   仅当显式 `ANALYSIS_OFFLINE=1` 时使用 dev fixture 价，且标注 `price_source: "offline-fixture"`。
 - 本地端到端集成验证 **23/23 断言通过**（`frontend/e2e/e2e-local-run.log`）：
   起链 → 部署 → 加密 → `/analyze` → 解密 → 链上 resultHash 一致 → ecrecover 一致。
@@ -124,7 +125,7 @@ npm run dev
 
 **Docker 一键起**：`docker compose up --build` 启动同一套栈 —— `deploy` 初始化服务等待链健康检查，
 依次执行 `deploy.ts` 与 `setup-tee.ts`，成功后 `tee-service` 与 `frontend` 才启动。详见
-`docker-compose.yml` 注释。compose 默认 `ANALYSIS_OFFLINE=1`（fixture 价，有标注）；
+`docker-compose.yml` 注释（compose 配置经结构校验，本机无 docker 未实机启动）。compose 默认 `ANALYSIS_OFFLINE=1`（fixture 价，有标注）；
 要真实 FTSO 读价请 `ANALYSIS_OFFLINE=0 RPC_URL=https://coston2-api.flare.network/ext/C/rpc docker compose up --build`
 （注意此时 relayer 指向的链需与地址配置一致，本地链场景请保持默认）。
 
