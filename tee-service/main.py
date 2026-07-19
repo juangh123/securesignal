@@ -23,6 +23,7 @@ import asyncio
 import base64
 import binascii
 import json
+import os
 
 from eth_utils import keccak
 from fastapi import FastAPI, HTTPException
@@ -36,9 +37,21 @@ from flare import contracts as relayer
 
 app = FastAPI(title="SecureSignal TEE Service", version="2.0.0")
 
+# CORS: production sets ALLOWED_ORIGINS to the frontend origin(s), e.g.
+#   ALLOWED_ORIGINS=https://securesignal.vercel.app,https://www.securesignal.io
+# Default keeps local dev working (Next.js dev server on :3000).
+# Note: allow_credentials=True is incompatible with "*" in browsers anyway.
+_allowed_origins = [
+    o.strip()
+    for o in os.getenv(
+        "ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+    ).split(",")
+    if o.strip()
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # tighten in production
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -286,11 +286,50 @@ export LLM_TIMEOUT=30                          # 可选，秒
 
 ---
 
-## 6. 遗留外部依赖（无法在本仓库内闭环）
+## 6. 云端托管（方案 A：Vercel + Render，零成本）
+
+前置：仓库已推送到 GitHub（公开）。
+
+### 6.1 TEE 服务 → Render
+
+仓库根含 `render.yaml`（Blueprint）：Docker 运行时、`dockerContext=./tee-service`、
+健康检查 `/public-key`、非密钥 env 已预填。
+
+1. render.com 注册（可用 GitHub 登录）→ **New → Blueprint** → 选本仓库
+2. 在 Dashboard 手填两个密钥 env（`sync:false`，不会出现在仓库）：
+   - `TEE_PRIVATE_KEY` = 生产 TEE 密钥（与 Coston2 链上 `teeAddress` 对应的那把）
+   - `PRIVATE_KEY` = relayer/部署账户私钥
+3. 部署后得到 `https://securesignal-tee.onrender.com` 形式的 URL，
+   访问 `/public-key` 应返回与链上 `activeTeePublicKey` 一致的 130 位 hex。
+4. 把 Vercel 域名写进 `ALLOWED_ORIGINS`（见 §6.2 第 4 步）。
+
+> 免费档闲置 15 分钟休眠、冷启动 30–60s：演示前先手动访问一次 `/public-key` 预热。
+
+### 6.2 前端 → Vercel
+
+1. vercel.com 注册（GitHub 登录）→ **Add New → Project** → Import 本仓库
+2. **Root Directory 设为 `frontend`**（关键，否则构建失败）
+3. 环境变量：
+   - `NEXT_PUBLIC_PROJECT_ID` = WalletConnect Cloud project id（同本地 `.env.local`）
+   - `NEXT_PUBLIC_TEE_URL` = §6.1 得到的 Render URL
+4. Deploy 得到 `https://<项目>.vercel.app`，回 Render 把该域名写入
+   `ALLOWED_ORIGINS`（CORS 白名单，多域名逗号分隔），触发 tee 服务重新部署
+5. WalletConnect Cloud 后台把 Vercel 域名加入允许列表
+
+### 6.3 托管后复验
+
+- 浏览器打开 Vercel URL → 连接钱包（Coston2）→ 提交分析 → 结果展示
+  （`price_source` 应为 `coston2-ftso`）
+- 或对托管 TEE 跑 `frontend/e2e/e2e-coston2.mjs`（把脚本内 `TEE` 常量改为 Render URL）
+
+---
+
+## 7. 遗留外部依赖（无法在本仓库内闭环）
 
 | 事项 | 阻塞原因 | 入口 |
 |---|---|---|
-| Coston2 真实部署 | 需用户私钥 + faucet 测试币 | §2 |
+| ~~Coston2 真实部署~~ ✅ 已完成（2026-07-19，见 §2.5） | — | §2.5 |
+| 应用托管 | 需用户的 Vercel/Render 账号（免费） | §6 |
 | GCP Confidential Space vTPM attestation | 需 GCP TEE 环境与项目配置 | §3 |
 | 真实 LLM 调用 | 需 `LLM_API_KEY` | §4 |
 | WalletConnect project id | 需 WalletConnect Cloud 账号 | §1.3 |
