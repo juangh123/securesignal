@@ -68,6 +68,7 @@
 
 1. 准备一个新账户（**不要用 hardhat 公开账户，不要复用任何主网账户**），导出私钥。
 2. 打开 Flare 官方 faucet：https://faucet.flare.network ，选择 **Coston2**，粘贴地址领取 C2FLR（用于部署合约与 relayer 上链 gas）。
+   已实测可用（2026-07-19）：每个地址每 24 小时可领 **100 C2FLR**（另可选 10 USDT0 / 10 FXRP）。
 3. 到账确认：https://coston2-explorer.flare.network 查询地址余额。
 
 ### 2.2 配置部署账户
