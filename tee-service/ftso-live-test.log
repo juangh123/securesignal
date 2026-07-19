@@ -1,0 +1,31 @@
+test_live_prices_positive_and_fresh (analysis.test_price_provider.LiveCoston2Tests.test_live_prices_positive_and_fresh) ... ok
+test_fixture_mode_never_touches_network (analysis.test_price_provider.OfflineFixtureTests.test_fixture_mode_never_touches_network) ... ok
+test_fixture_prices_returned (analysis.test_price_provider.OfflineFixtureTests.test_fixture_prices_returned) ... ok
+test_fixture_source_label (analysis.test_price_provider.OfflineFixtureTests.test_fixture_source_label) ... ok
+test_fixture_subset_and_case_normalization (analysis.test_price_provider.OfflineFixtureTests.test_fixture_subset_and_case_normalization) ... ok
+test_unknown_symbol_raises_offline (analysis.test_price_provider.OfflineFixtureTests.test_unknown_symbol_raises_offline) ... ok
+test_cache_expiry_refetches (analysis.test_price_provider.OnlineMockedTests.test_cache_expiry_refetches) ... ok
+test_cache_hit_avoids_second_rpc (analysis.test_price_provider.OnlineMockedTests.test_cache_hit_avoids_second_rpc) ... ok
+test_contract_revert_raises_no_fallback (analysis.test_price_provider.OnlineMockedTests.test_contract_revert_raises_no_fallback) ... ok
+test_decode_scaling_and_call_flow (analysis.test_price_provider.OnlineMockedTests.test_decode_scaling_and_call_flow) ... ok
+test_disconnected_rpc_raises_no_fallback (analysis.test_price_provider.OnlineMockedTests.test_disconnected_rpc_raises_no_fallback) ... ok
+test_invalid_timestamp_raises (analysis.test_price_provider.OnlineMockedTests.test_invalid_timestamp_raises) ... ok
+test_negative_decimals_scaling (analysis.test_price_provider.OnlineMockedTests.test_negative_decimals_scaling) ... ok
+test_nonpositive_value_raises (analysis.test_price_provider.OnlineMockedTests.test_nonpositive_value_raises) ... ok
+test_registry_address_cached (analysis.test_price_provider.OnlineMockedTests.test_registry_address_cached) ... ok
+test_rpc_timeout_is_10_seconds (analysis.test_price_provider.OnlineMockedTests.test_rpc_timeout_is_10_seconds) ... ok
+test_source_label_follows_detected_chain (analysis.test_price_provider.OnlineMockedTests.test_source_label_follows_detected_chain) ... ok
+test_source_label_online (analysis.test_price_provider.OnlineMockedTests.test_source_label_online) ... ok
+test_unknown_symbol_raises_before_any_network (analysis.test_price_provider.OnlineMockedTests.test_unknown_symbol_raises_before_any_network) ... ok
+test_zero_address_registry_raises (analysis.test_price_provider.OnlineMockedTests.test_zero_address_registry_raises) ... ok
+
+----------------------------------------------------------------------
+Ran 20 tests in 15.879s
+
+OK
+
+--- LIVE Coston2 FtsoV2 reads ---
+  BTC/USD: $64,649.780000  (feed ts 1784433800 = 2026-07-19 04:03:20 UTC, age 19s)
+  ETH/USD: $1,866.517000  (feed ts 1784433800 = 2026-07-19 04:03:20 UTC, age 19s)
+  FLR/USD: $0.006560  (feed ts 1784433800 = 2026-07-19 04:03:20 UTC, age 19s)
+  price_source: coston2-ftso
