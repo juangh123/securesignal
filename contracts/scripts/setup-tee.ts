@@ -3,17 +3,34 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * Stage 2 integration helper: register the dev TEE key on the locally
- * deployed AnalysisRegistry via rotateTeeKey (owner-only).
+ * Register the TEE key on the deployed AnalysisRegistry via rotateTeeKey
+ * (owner-only).
  *
- * Uses Hardhat account #1 as the TEE key (well-known dev private key),
- * so tee-service can be started with the same key via TEE_PRIVATE_KEY.
+ * - localhost: uses Hardhat account #1 as the TEE key (well-known dev
+ *   private key), so tee-service can be started with the same key.
+ * - other networks (e.g. coston2): reads the TEE key from env
+ *   TEE_PRIVATE_KEY (never hardcode a production key here), and an optional
+ *   TEE_IMAGE_DIGEST (bytes32 hex; defaults to keccak256("dev-image")).
  *
  *   Account #1 address: 0x70997970C51812dc3A010C7d01b50e0d17dc79C8
  *   Account #1 privkey: 0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
  */
-const TEE_PRIVATE_KEY =
+import { network } from "hardhat";
+
+const DEV_TEE_PRIVATE_KEY =
   "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+
+const TEE_PRIVATE_KEY =
+  network.name === "localhost" || network.name === "hardhat"
+    ? DEV_TEE_PRIVATE_KEY
+    : (() => {
+        const k = process.env.TEE_PRIVATE_KEY;
+        if (!k || !/^0x[0-9a-fA-F]{64}$/.test(k))
+          throw new Error(
+            `network ${network.name}: set TEE_PRIVATE_KEY (0x + 64 hex) in env`
+          );
+        return k;
+      })();
 
 async function main() {
   const [deployer] = await ethers.getSigners();
@@ -35,7 +52,11 @@ async function main() {
   // 65-byte uncompressed public key (0x04 prefix) of the TEE private key
   const teePublicKey = SigningKey_computeUncompressed(TEE_PRIVATE_KEY);
   const teeAddress = new ethers.Wallet(TEE_PRIVATE_KEY).address;
-  const imageDigest = ethers.keccak256(ethers.toUtf8Bytes("dev-image"));
+  const imageDigest =
+    process.env.TEE_IMAGE_DIGEST &&
+    /^0x[0-9a-fA-F]{64}$/.test(process.env.TEE_IMAGE_DIGEST)
+      ? process.env.TEE_IMAGE_DIGEST
+      : ethers.keccak256(ethers.toUtf8Bytes("dev-image"));
 
   console.log("TEE public key (65B uncompressed):", teePublicKey);
   console.log("TEE address:", teeAddress);

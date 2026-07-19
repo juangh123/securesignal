@@ -98,13 +98,29 @@ npx hardhat run scripts/deploy.ts --network coston2
 
 `AnalysisRegistry` 部署后必须执行 owner 调用 `rotateTeeKey(teePublicKey, imageDigest, teeAddress)`，否则 `teeAddress == 0`，所有 `submitResult` 都会因 `_verifyAttestation` 返回 false 而 revert（`"attestation failed"`）。
 
-> ⚠️ **诚实提醒**：`scripts/setup-tee.ts` 当前**硬编码** hardhat dev account #1 作为 TEE 密钥，是 localhost 开发辅助脚本。**直接对 Coston2 运行会把公开密钥登记为生产 TEE 密钥——不要这样做。** 生产登记请按下述方式之一：
+> `scripts/setup-tee.ts` 已支持网络感知：**localhost/hardhat 网络**自动使用 hardhat dev account #1（仅本地）；**其他网络（如 coston2）**必须从 env 读取 `TEE_PRIVATE_KEY`（0x + 64 hex，与 tee-service 的 `TEE_PRIVATE_KEY` 一致），可选 `TEE_IMAGE_DIGEST`（bytes32 hex，缺省为 `keccak256("dev-image")` 占位，生产应改为真实镜像 digest，见 §3.3）：
 >
-> - 复制 `setup-tee.ts` 改造：把 `TEE_PRIVATE_KEY` 改为从 env 读取（与你的 tee-service `TEE_PRIVATE_KEY` 一致），`imageDigest` 改为真实镜像 digest（见 §3.3），再 `npx hardhat run scripts/setup-tee-prod.ts --network coston2`；或
-> - 用任意 web3 工具（ethers 脚本 / explorer 写合约）以 owner 身份直接调 `rotateTeeKey`：
->   - `newPublicKey`：TEE 公钥（65 字节未压缩 hex，`0x04` 前缀；服务启动日志 `[main] TEE public key:` 会打印）
->   - `newImageDigest`：`bytes32` 镜像 digest
->   - `newTeeAddress`：TEE 私钥对应地址（启动日志 `[main] TEE address:` 会打印）
+> ```bash
+> TEE_PRIVATE_KEY=0x<TEE私钥> npx hardhat run scripts/setup-tee.ts --network coston2
+> ```
+>
+> 脚本会回读链上 `activeTeePublicKey` / `expectedImageDigest` / `teeAddress` 并逐一比对。
+> 也可用任意 web3 工具（ethers 脚本 / explorer 写合约）以 owner 身份直接调 `rotateTeeKey`：
+>
+> - `newPublicKey`：TEE 公钥（65 字节未压缩 hex，`0x04` 前缀；服务启动日志 `[main] TEE public key:` 会打印）
+> - `newImageDigest`：`bytes32` 镜像 digest
+> - `newTeeAddress`：TEE 私钥对应地址（启动日志 `[main] TEE address:` 会打印）
+
+### 2.5 已部署实例（Coston2，2026-07-19）
+
+| 项 | 值 |
+|---|---|
+| AnalysisRegistry | `0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531` |
+| FtsoV2Reader | `0xe60745669C54b66F67ae85Ce031D4bDED4311163` |
+| 解析的官方 FtsoV2 | `0xC4e9c78EA53db782E28f28Fdf80BaF59336B304d` |
+| 登记 TEE 地址 | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
+| rotateTeeKey tx | `0x072f47e57a34e530eab2d5d007908ce141c958bf11f94587f9b48aa475cd02d9` |
+| 冒烟测试 | `frontend/e2e/e2e-coston2.mjs` 12/12 通过（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
 
 脚本执行后会回读链上 `activeTeePublicKey` / `expectedImageDigest` / `teeAddress` 做一致性校验。
 

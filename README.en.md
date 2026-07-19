@@ -174,12 +174,14 @@ In the current dev build, steps 2–3 use the placeholder digest registered by
 `setup-tee.ts`; real vTPM measurement is the TODO above.
 
 ## Live Demo
-> ⚠️ Not yet deployed — placeholders below.
-- App: https://... *(pending deployment)*
+- **Contracts (Coston2 testnet, chainId 114) — deployed & verified end-to-end (2026-07-19)**:
+  - AnalysisRegistry: [`0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531`](https://coston2-explorer.flare.network/address/0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531)
+  - FtsoV2Reader: [`0xe60745669C54b66F67ae85Ce031D4bDED4311163`](https://coston2-explorer.flare.network/address/0xe60745669C54b66F67ae85Ce031D4bDED4311163)
+  - Registered TEE address: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
+  - Production smoke test **12/12 passing** (`frontend/e2e/e2e-coston2.mjs`): real FTSO prices (`price_source="coston2-ftso"`), attestation ecrecover == TEE address, on-chain status=Verified
+- App: https://... *(pending hosting)*
 - Video (4 min): https://... *(pending recording)*
-- Contracts (Flare Mainnet): *(pending deployment)*
-  - AnalysisRegistry: `0x...`
-  - (Coston2 test deployment: `0x...`)
+- Contracts (Flare Mainnet): *(not deployed)*
 
 ## Roadmap
 1. **Q3 2026**: real GCP Confidential Space vTPM attestation; wallet

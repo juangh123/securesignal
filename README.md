@@ -140,12 +140,14 @@ npm run dev
 当前 dev 构建中第 2–3 步用的是 `setup-tee.ts` 登记的占位 digest；真实 vTPM 度量是上述 TODO。
 
 ## Live Demo
-> ⚠️ 待部署 / Not yet deployed — placeholders below.
-- App: https://... *(待部署)*
+- **Contracts（Coston2 测试网，chainId 114）— 已部署并端到端验证（2026-07-19）**：
+  - AnalysisRegistry: [`0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531`](https://coston2-explorer.flare.network/address/0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531)
+  - FtsoV2Reader: [`0xe60745669C54b66F67ae85Ce031D4bDED4311163`](https://coston2-explorer.flare.network/address/0xe60745669C54b66F67ae85Ce031D4bDED4311163)
+  - 登记 TEE 地址: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
+  - 生产冒烟测试 **12/12 通过**（`frontend/e2e/e2e-coston2.mjs`）：真实 FTSO 喂价、attestation ecrecover == TEE 地址、链上 status=Verified
+- App: https://... *(待托管)*
 - Video (4 min): https://... *(待录制)*
-- Contracts (Flare Mainnet): *(待部署)*
-  - AnalysisRegistry: `0x...`
-  - (Coston2 test deployment: `0x...`)
+- Contracts (Flare Mainnet): *(未部署)*
 
 ## Roadmap
 1. **Q3 2026**：真实 GCP Confidential Space vTPM attestation；钱包自动导入持仓；FAssets (FXRP) 分析
