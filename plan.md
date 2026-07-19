@@ -78,9 +78,9 @@
 
 | 事项 | 阻塞原因 | 手册章节 |
 |---|---|---|
-| Coston2 真实部署 | 需用户私钥 + faucet 测试币 | deployment.md §2 |
+| ~~Coston2 真实部署~~ ✅ **已完成 2026-07-19**：AnalysisRegistry `0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531`、FtsoV2Reader `0xe60745669C54b66F67ae85Ce031D4bDED4311163`、登记 TEE `0xEe4975C290FBF46757A1D90F02c3CF555163556E`；生产冒烟测试 12/12 通过（`frontend/e2e/e2e-coston2.mjs`，真实 FTSO 喂价 + 链上 Verified） | 已完成 | deployment.md §2.5 |
 | GCP Confidential Space vTPM attestation | 需 GCP TEE 环境；改造锚点：`tee-service/attestation/vtpm.py` docstring TODO、`AnalysisRegistry.sol` `_verifyAttestation` TODO | deployment.md §3 |
 | 真实 LLM 调用 | 需 `LLM_API_KEY`（信任模型注意事项见手册 §4.2） | deployment.md §4 |
-| `scripts/setup-tee.ts` 生产化 | 当前硬编码 hardhat dev account #1，仅 localhost 可用；Coston2 需改造为 env 读密钥或手动 `rotateTeeKey` | deployment.md §2.4 |
+| ~~`scripts/setup-tee.ts` 生产化~~ ✅ 已完成：脚本已网络感知（localhost 用 dev key，其余网络走 `TEE_PRIVATE_KEY`/`TEE_IMAGE_DIGEST` env） | 已完成 | deployment.md §2.4 |
 | WalletConnect project id | 需 WalletConnect Cloud 账号（前端必填 env） | deployment.md §1.3 |
 | Live Demo（App / 视频 / 主网合约） | 依赖上述部署完成 | README「Live Demo」节 |
