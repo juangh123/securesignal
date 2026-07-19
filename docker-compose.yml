@@ -1,0 +1,101 @@
+# SecureSignal local dev stack.
+#
+#   docker compose up --build
+#
+# Boot order: hardhat (local chain) -> deploy (one-shot init: deploy contracts
+# + register the dev TEE key, writes both contract-addresses.json files)
+# -> tee-service + frontend.
+#
+# NOTE: the private keys below are Hardhat's well-known public dev accounts.
+# They are safe for local development ONLY — never reuse them elsewhere.
+
+services:
+  hardhat:
+    image: node:20
+    working_dir: /app/contracts
+    volumes:
+      - ./contracts:/app/contracts
+      # Anonymous volume keeps the Windows host's node_modules out of the
+      # Linux container (native modules would otherwise break).
+      - /app/contracts/node_modules
+    command: >
+      bash -c "npm install && npx hardhat node --hostname 0.0.0.0"
+    ports:
+      - "8545:8545"
+    healthcheck:
+      # JSON-RPC probe: chain is ready once eth_chainId answers.
+      test:
+        - CMD-SHELL
+        - >-
+          node -e "fetch('http://127.0.0.1:8545',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',method:'eth_chainId',params:[],id:1})}).then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      # npm install on first boot can take minutes; don't count failures yet.
+      start_period: 180s
+
+  deploy:
+    # One-shot initialization service: waits for the chain, deploys the
+    # contracts, then registers the dev TEE key (rotateTeeKey). Exits 0 on
+    # success; tee-service and frontend wait for that.
+    image: node:20
+    working_dir: /app/contracts
+    volumes:
+      - ./contracts:/app/contracts
+      - /app/contracts/node_modules
+      # deploy.ts writes contract-addresses.json into both of these.
+      - ./tee-service/config:/app/tee-service/config
+      - ./frontend/src/config:/app/frontend/src/config
+    command: >
+      bash -c "npm install &&
+      npx hardhat run scripts/deploy.ts --config hardhat.compose.config.ts --network localhost &&
+      npx hardhat run scripts/setup-tee.ts --config hardhat.compose.config.ts --network localhost"
+    depends_on:
+      hardhat:
+        condition: service_healthy
+    restart: "no"
+
+  tee-service:
+    build:
+      context: ./tee-service
+    ports:
+      - "8000:8000"
+    volumes:
+      # Pick up the contract addresses written by the deploy service at
+      # runtime (the image only contains the build-time copy).
+      - ./tee-service/config:/app/config
+    environment:
+      # Local dev default: fixture prices, explicitly flagged in responses as
+      # price_source="offline-fixture". For real on-chain FTSO reads set
+      # ANALYSIS_OFFLINE=0 and FTSO_READER_ADDRESS to a deployed FtsoV2Reader.
+      - ANALYSIS_OFFLINE=${ANALYSIS_OFFLINE:-1}
+      - FTSO_READER_ADDRESS=${FTSO_READER_ADDRESS:-}
+      - RPC_URL=${RPC_URL:-http://hardhat:8545}
+      # Hardhat dev account #1 — the TEE key registered by setup-tee.ts.
+      - TEE_PRIVATE_KEY=${TEE_PRIVATE_KEY:-0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d}
+      # Hardhat dev account #0 — deployer/owner, used as the result relayer.
+      - PRIVATE_KEY=${PRIVATE_KEY:-0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80}
+      # Matches the digest setup-tee.ts registers on-chain in dev.
+      - TEE_IMAGE_DIGEST=${TEE_IMAGE_DIGEST:-dev}
+    depends_on:
+      deploy:
+        condition: service_completed_successfully
+
+  frontend:
+    image: node:20
+    working_dir: /app/frontend
+    volumes:
+      - ./frontend:/app/frontend
+      - /app/frontend/node_modules
+    command: >
+      bash -c "rm -rf .next && npm install && npm run dev -- -H 0.0.0.0"
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_TEE_URL=${NEXT_PUBLIC_TEE_URL:-http://localhost:8000}
+      # NEXT_PUBLIC_PROJECT_ID is intentionally NOT set here: it is supplied
+      # by frontend/.env.local (mounted into the container), so compose never
+      # overrides the real WalletConnect project id with a dummy value.
+    depends_on:
+      deploy:
+        condition: service_completed_successfully

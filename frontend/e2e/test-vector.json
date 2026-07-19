@@ -1,0 +1,7 @@
+{
+  "description": "SecureSignal cross-stack ECIES test vector (plan.md 统一加密协议规范). Stage 2: Python/eciespy must decrypt ciphertext_base64 with tee_private_key_hex back to plaintext.",
+  "tee_private_key_hex": "0000000000000000000000000000000000000000000000000000000000000001",
+  "tee_public_key_hex": "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+  "plaintext": "{\"client_pubkey\":\"04c6047f9441ed7d6d3045406e95c07cd85c778e4b8cef3ca7abac09b95c709ee51ae168fea63dc339a3c58419466ceaeef7f632653266d0e1236431a950cfe52a\",\"holdings\":{\"BTC\":2,\"ETH\":10,\"USDT\":5000},\"risk_profile\":\"moderate\"}",
+  "ciphertext_base64": "BEJRfRPEcdXjKGESFn3lqAvR/saONb87y4/3sS65l7xLYd76USA2leKaxacCe3k4QhAALwM9HpJuHjL7RPyZA/Py2WrtyHfU9HCTYV0hKMgBfW1eh4tI5uJxE7a5A4GM1CLLOL3ZyvCkJxYMV9oAfdIol0xeGTCpJ/G9/pXTEihUtv0050Alh2VorZNDDOvOgXL8AQVg2ZBjCIt+ILJd4vmLDcrbffncQSQE6EraPqf9LcqyHW8AsO+KPpp3D/eiRhw5Awm4wjb6LIvZhwvrZn37FiLNxLDOp+PNvca/c5++g1wFQGgOi8sIOc552YAxNjzH83BTn3J+mliXeu9Zp5jwa6JzS1fl5UPbpGCayD0C1CNuwhJc50CT4cj0pbiD6vMGxK3LC+/nsYtv95yWrzYtdAVqs5mBZYt1"
+}

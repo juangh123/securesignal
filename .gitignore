@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+frontend/.next/
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+dist/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Env & secrets
+.env
+.env.local
+
+# Logs
+*.log
+
+# Backups & temp
+*.bak
+
+# OS
+Thumbs.db
+Desktop.ini
