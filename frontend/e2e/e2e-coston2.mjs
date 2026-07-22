@@ -62,7 +62,7 @@ const strip0x = (h) => (h.startsWith('0x') ? h.slice(2) : h);
 console.log('Registry:', REGISTRY, '| network:', addresses.network, '| account:', account.address);
 
 const holdings = { BTC: 0.5, ETH: 2, FLR: 10000 };
-const label = 'Coston2 live case';
+// const label = 'Coston2 live case';
 
 // 1. Cross-check TEE public key: on-chain vs service
 const onchainPub = await publicClient.readContract({
