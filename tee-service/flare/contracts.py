@@ -113,7 +113,12 @@ def submit_result(
         }
     )
     signed = account.sign_transaction(tx)
-    tx_hash = w3.eth.send_raw_transaction(signed.raw_transaction)
+    # eth-account <0.13.x uses rawTransaction (camelCase); web3 v7 docs use
+    # raw_transaction. Support both for forward/backward compatibility.
+    raw_tx = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction", None)
+    if raw_tx is None:
+        raise RuntimeError("SignedTransaction has neither raw_transaction nor rawTransaction attribute")
+    tx_hash = w3.eth.send_raw_transaction(raw_tx)
     receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
     if receipt.status != 1:
         raise RuntimeError(

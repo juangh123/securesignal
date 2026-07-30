@@ -25,6 +25,10 @@ import binascii
 import json
 import os
 
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from eth_utils import keccak
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -87,8 +91,12 @@ async def startup_event():
 
 @app.get("/public-key")
 async def public_key():
-    """TEE ECIES public key: 65B uncompressed hex, 04 prefix, no 0x."""
-    return {"public_key": tee_keys.get_public_key_hex()}
+    """TEE ECIES public key: 65B uncompressed hex, 04 prefix, no 0x.
+    Also returns the derived Ethereum address for on-chain registration."""
+    return {
+        "public_key": tee_keys.get_public_key_hex(),
+        "address": tee_keys.get_tee_address(),
+    }
 
 
 @app.post("/analyze", response_model=AnalysisResponse)

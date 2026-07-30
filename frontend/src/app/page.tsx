@@ -299,10 +299,17 @@ export default function Home() {
         )
       }
 
-      // 3. Generate session key pair (private key never leaves the browser).
+      // 3. Retrieve or generate session key pair (private key never leaves the browser).
       go(3)
       setStatus('3/7 生成会话密钥对…')
-      const session = generateSessionKeyPair()
+      let session: ReturnType<typeof generateSessionKeyPair>;
+      const cachedSession = sessionStorage.getItem('securesignal_session_key')
+      if (cachedSession) {
+        session = JSON.parse(cachedSession)
+      } else {
+        session = generateSessionKeyPair()
+        sessionStorage.setItem('securesignal_session_key', JSON.stringify(session))
+      }
 
       // 4. Build plaintext per protocol and encrypt for the TEE.
       setStatus('4/7 本地加密持仓数据（ECIES / secp256k1）…')
@@ -415,6 +422,9 @@ export default function Home() {
 
           {isConnected ? (
             <div className="flex flex-col gap-4">
+              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-3 rounded-lg mb-2">
+                <strong>信任边界提示：</strong> 由于接入通用大模型机制（非机密推理API），提交数据的核心价值字段（如持仓数量、币种）将被作为 Prompt 被透明发送至模型推理方，脱离 TEE 的保密范畴。仅针对 TEE 至用户浏览器的传输过程具有机密保护。
+              </div>
               <label className="text-sm font-medium text-stone-700">
                 持仓（敏感数据，仅在浏览器本地加密后送出）
               </label>

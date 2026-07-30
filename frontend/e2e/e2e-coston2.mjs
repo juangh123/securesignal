@@ -23,7 +23,7 @@ import { dirname, join } from 'path';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
 const RPC = 'https://coston2-api.flare.network/ext/C/rpc';
-const TEE = 'http://127.0.0.1:8000';
+const TEE = 'https://securesignal-tee-i6vs.onrender.com';
 
 const coston2 = defineChain({
   id: 114,

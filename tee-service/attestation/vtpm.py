@@ -34,11 +34,30 @@ https://cloud.google.com/confidential-computing/confidential-space/docs/attestat
 import json
 import os
 import time
+import urllib.request
+import urllib.error
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
 
 from crypto.keys import get_private_key_hex, get_tee_address
+
+def fetch_attestation_jwt(audience: str, nonce: str) -> str:
+    """
+    Fetch OIDC Attestation JWT from Google Cloud Confidential Space metadata server.
+    Binds the provided nonce (e.g. hash of task_id + result_hash) to the token's eat_nonce claim.
+    """
+    if os.environ.get("ENV") != "prod":
+        return "simulate-gcp-jwt-token"
+        
+    url = f"http://metadata.google.internal/computeMetadata/v1/instance/attributes/attestation-token?audience={audience}&nonce={nonce}"
+    req = urllib.request.Request(url, headers={"Metadata-Flavor": "Google"})
+    try:
+        with urllib.request.urlopen(req, timeout=5.0) as response:
+            return response.read().decode("utf-8")
+    except urllib.error.URLError as e:
+        print(f"Failed to fetch attestation JWT from metadata server: {e}")
+        return ""
 
 
 def sign_result(task_id: int, result_hash: str) -> str:
@@ -88,6 +107,16 @@ def generate_attestation_token(
         image_digest = os.environ.get("TEE_IMAGE_DIGEST", "dev")
 
     signature = sign_result(task_id, result_hash)
+    
+    import hashlib
+    # Compute nonce for JWT: keccak256 or simple sha256 of task_id and result_hash
+    # Here we use sha256 for simplicity to bind to eat_nonce
+    nonce_data = f"{task_id}:{result_hash}".encode('utf-8')
+    nonce = hashlib.sha256(nonce_data).hexdigest()
+    
+    jwt_token = fetch_attestation_jwt(audience="Flare_SecureSignal", nonce=nonce)
+    
+    mode_str = "gcp-confidential-space" if os.environ.get("ENV") == "prod" else "dev-simulated"
 
     token = {
         "task_id": task_id,
@@ -95,7 +124,8 @@ def generate_attestation_token(
         "image_digest": image_digest,
         "tee_address": tee_address,
         "timestamp": int(time.time()),
-        "mode": "dev-simulated",
+        "mode": mode_str,
         "signature": signature,
+        "jwt": jwt_token,
     }
     return json.dumps(token, separators=(",", ":"))

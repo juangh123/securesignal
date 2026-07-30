@@ -16,6 +16,12 @@ export interface SessionKeyPair {
   publicKeyHex: string
 }
 
+export interface TeePayload {
+  client_pubkey: string;
+  holdings: Record<string, number>;
+  risk_profile: string;
+}
+
 /** Generate a fresh per-session secp256k1 key pair. */
 export function generateSessionKeyPair(): SessionKeyPair {
   const sk = new PrivateKey()
@@ -30,22 +36,24 @@ export function generateSessionKeyPair(): SessionKeyPair {
  * @param teePubHex TEE public key, 65-byte uncompressed hex ("04" prefix, no "0x")
  * @param payloadObj plaintext object per protocol:
  *        { client_pubkey: string, holdings: Record<string, number>, risk_profile: string }
- * @returns base64 of (ephemeral pubkey || nonce || tag || ciphertext)
+ * @returns hex string of (ephemeral pubkey || nonce || tag || ciphertext)
  */
-export function encryptForTee(teePubHex: string, payloadObj: unknown): string {
+export function encryptForTee(teePubHex: string, payloadObj: TeePayload): string {
   const plaintext = new TextEncoder().encode(JSON.stringify(payloadObj))
   const ciphertext = encrypt(teePubHex, plaintext)
-  return uint8ToBase64(ciphertext)
+  // return as hex to match python behavior instead of base64
+  return '0x' + Buffer.from(ciphertext).toString('hex');
 }
 
 /**
  * Decrypt the TEE's encrypted_result with the session private key.
  * @param sessionPrivHex session private key hex (no 0x)
- * @param ciphertextB64 base64 wire payload from the TEE
+ * @param ciphertextHex hex wire payload from the TEE
  * @returns parsed result object
  */
-export function decryptResult<T = unknown>(sessionPrivHex: string, ciphertextB64: string): T {
-  const ciphertext = base64ToUint8(ciphertextB64)
+export function decryptResult<T = unknown>(sessionPrivHex: string, ciphertextHex: string): T {
+  const cleanHex = ciphertextHex.replace(/^0x/i, '');
+  const ciphertext = Buffer.from(cleanHex, 'hex');
   const plaintext = decrypt(sessionPrivHex, ciphertext)
   return JSON.parse(new TextDecoder().decode(plaintext)) as T
 }
@@ -53,22 +61,4 @@ export function decryptResult<T = unknown>(sessionPrivHex: string, ciphertextB64
 /** Normalize a public key hex for comparison: strip 0x, lowercase. */
 export function normalizePubKeyHex(hex: string): string {
   return hex.replace(/^0x/i, '').toLowerCase()
-}
-
-function uint8ToBase64(bytes: Uint8Array): string {
-  let binary = ''
-  const CHUNK = 0x8000
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
-  }
-  return btoa(binary)
-}
-
-function base64ToUint8(b64: string): Uint8Array {
-  const binary = atob(b64)
-  const bytes = new Uint8Array(binary.length)
-  for (let i = 0; i < binary.length; i++) {
-    bytes[i] = binary.charCodeAt(i)
-  }
-  return bytes
 }
