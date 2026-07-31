@@ -1,8 +1,5 @@
-# Render Blueprint — SecureSignal TEE 服务（方案 A）
-# 使用方式：Render Dashboard → New → Blueprint → 选择本仓库，或在 New Web Service
-# 时选择 Docker 运行时并指向 tee-service/ 目录。
-# 密钥类 env 不入库（sync: false），在 Render Dashboard 手动填写。
-
+﻿# Render Blueprint 鈥?SecureSignal TEE 鏈嶅姟锛堟柟妗?A锛?# 浣跨敤鏂瑰紡锛歊ender Dashboard 鈫?New 鈫?Blueprint 鈫?閫夋嫨鏈粨搴擄紝鎴栧湪 New Web Service
+# 鏃堕€夋嫨 Docker 杩愯鏃跺苟鎸囧悜 tee-service/ 鐩綍銆?# 瀵嗛挜绫?env 涓嶅叆搴擄紙sync: false锛夛紝鍦?Render Dashboard 鎵嬪姩濉啓銆?
 services:
   - type: web
     name: securesignal-tee
@@ -15,11 +12,11 @@ services:
       - key: RPC_URL
         value: https://coston2-api.flare.network/ext/C/rpc
       - key: TEE_IMAGE_DIGEST
-        value: dev # 接真实 vTPM 后改为镜像 digest（deployment.md §3.3）
-      - key: ALLOWED_ORIGINS
-        # 部署 Vercel 后改为：https://<你的项目>.vercel.app
-        value: http://localhost:3000
+        value: dev # 鎺ョ湡瀹?vTPM 鍚庢敼涓洪暅鍍?digest锛坉eployment.md 搂3.3锛?      - key: ALLOWED_ORIGINS
+        # 閮ㄧ讲 Vercel 鍚庢敼涓猴細https://<浣犵殑椤圭洰>.vercel.app
+        value: https://securesignal-hackathon.vercel.app,http://localhost:3000,http://localhost:3001
       - key: TEE_PRIVATE_KEY
-        sync: false # TEE 签名/解密密钥（0x + 64 hex），dashboard 手填
+        sync: false # TEE 绛惧悕/瑙ｅ瘑瀵嗛挜锛?x + 64 hex锛夛紝dashboard 鎵嬪～
       - key: PRIVATE_KEY
-        sync: false # relayer 上链账户（与 contracts/.env 同一部署账户），dashboard 手填
+        sync: false # relayer 涓婇摼璐︽埛锛堜笌 contracts/.env 鍚屼竴閮ㄧ讲璐︽埛锛夛紝dashboard 鎵嬪～
+
