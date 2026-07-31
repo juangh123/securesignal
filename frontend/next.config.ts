@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     return config;
   },
+  turbopack: {},
 };
 
 export default nextConfig;

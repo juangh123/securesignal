@@ -26,3 +26,9 @@ __pycache__/
 # OS
 Thumbs.db
 Desktop.ini
+
+tee-service/venv/
+
+tmp/
+tmp */
+deploy*.log
