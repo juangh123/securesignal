@@ -1,4 +1,4 @@
-# SecureSignal 🔐📊
+﻿# SecureSignal 🔐📊
 
 > 隐私保护 AI 投资组合顾问 — powered by Flare Confidential Compute
 
@@ -141,11 +141,11 @@ npm run dev
 
 ## Live Demo
 - **Contracts（Coston2 测试网，chainId 114）— 已部署并端到端验证（2026-07-19）**：
-  - AnalysisRegistry: [`0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531`](https://coston2-explorer.flare.network/address/0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531)
-  - FtsoV2Reader: [`0xe60745669C54b66F67ae85Ce031D4bDED4311163`](https://coston2-explorer.flare.network/address/0xe60745669C54b66F67ae85Ce031D4bDED4311163)
+  - AnalysisRegistry: [`0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`](https://coston2-explorer.flare.network/address/0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482)
+  - FtsoV2Reader: [`0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`](https://coston2-explorer.flare.network/address/0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a)
   - 登记 TEE 地址: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
   - 生产冒烟测试 **12/12 通过**（`frontend/e2e/e2e-coston2.mjs`）：真实 FTSO 喂价、attestation ecrecover == TEE 地址、链上 status=Verified
-- App: https://... *(待托管)*
+- App: https://securesignal-hackathon.vercel.app
 - Video (4 min): https://... *(待录制)*
 - Contracts (Flare Mainnet): *(未部署)*
 
@@ -153,3 +153,4 @@ npm run dev
 1. **Q3 2026**：真实 GCP Confidential Space vTPM attestation；钱包自动导入持仓；FAssets (FXRP) 分析
 2. **Q4 2026**：DAO treasury 多签报告模式
 3. **2027**：申请 Flare 生态 grant；向其他 builder 开放 TEE 分析 API
+
