@@ -1,4 +1,4 @@
-'use client'
+﻿'use client'
 
 import { useState } from 'react'
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
@@ -104,7 +104,7 @@ const ACTION_META: Record<
 > = {
   increase: { icon: '▲', label: '增持', chip: 'bg-emerald-100 text-emerald-800' },
   decrease: { icon: '▼', label: '减持', chip: 'bg-rose-100 text-rose-800' },
-  hold: { icon: '●', label: '持有', chip: 'bg-stone-200 text-stone-700' },
+  hold: { icon: '●', label: '持有', chip: 'bg-slate-800 text-slate-300' },
 }
 
 function fmtUsd(n: number): string {
@@ -180,7 +180,7 @@ function AnalysisModeBadge({ mode }: { mode: AnalysisResult['analysis_mode'] }) 
   if (mode === 'llm') {
     return <Badge className="bg-emerald-100 text-emerald-800">✦ AI 分析（LLM）</Badge>
   }
-  return <Badge className="bg-stone-200 text-stone-700">⚙ 规则回退</Badge>
+  return <Badge className="bg-slate-800 text-slate-300">⚙ 规则回退</Badge>
 }
 
 function PriceSourceBadge({ source }: { source: string }) {
@@ -204,7 +204,7 @@ function StepBar({ step, failedStep }: { step: number; failedStep: number }) {
             ? 'bg-rose-600 text-white'
             : current
               ? 'border-2 border-amber-600 text-amber-700 animate-pulse'
-              : 'bg-stone-200 text-stone-500'
+              : 'bg-slate-800 text-slate-400'
         return (
           <li key={label} className="flex items-center">
             <span
@@ -220,14 +220,14 @@ function StepBar({ step, failedStep }: { step: number; failedStep: number }) {
                     ? 'text-amber-700 font-semibold'
                     : done
                       ? 'text-emerald-700'
-                      : 'text-stone-400'
+                      : 'text-slate-500'
               }`}
             >
               {label}
             </span>
             {i < STEPS.length - 1 && (
               <span
-                className={`mx-2 h-px w-5 ${done ? 'bg-emerald-400' : 'bg-stone-300'}`}
+                className={`mx-2 h-px w-5 ${done ? 'bg-emerald-400' : 'bg-slate-700'}`}
                 aria-hidden
               />
             )}
@@ -405,9 +405,9 @@ export default function Home() {
       : undefined
 
   return (
-    <main className="flex min-h-screen flex-col items-center p-12 bg-stone-100">
+    <main className="flex min-h-screen flex-col items-center p-12 bg-slate-900 text-slate-100">
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
-        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-stone-300 bg-stone-200/80 pb-6 pt-8 backdrop-blur-2xl lg:static lg:w-auto lg:rounded-xl lg:border lg:bg-stone-200 lg:p-4">
+        <p className="fixed left-0 top-0 flex w-full justify-center border-b border-slate-600 bg-slate-800/80 pb-6 pt-8 backdrop-blur-2xl lg:static lg:w-auto lg:rounded-xl lg:border lg:bg-slate-800 lg:p-4">
           SecureSignal - Flare Confidential Compute
         </p>
         <div className="fixed bottom-0 left-0 flex h-48 w-full items-end justify-center lg:static lg:h-auto lg:w-auto">
@@ -418,26 +418,26 @@ export default function Home() {
 
       <div className="relative flex place-items-center flex-col gap-8 w-full max-w-2xl mt-12">
         <div className="bg-white p-8 rounded-2xl shadow-xl w-full">
-          <h2 className="text-2xl font-bold mb-6 text-stone-800">Your Portfolio</h2>
+          <h2 className="text-2xl font-bold mb-6 text-slate-200">Your Portfolio</h2>
 
           {isConnected ? (
             <div className="flex flex-col gap-4">
               <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-3 rounded-lg mb-2">
                 <strong>信任边界提示：</strong> 由于接入通用大模型机制（非机密推理API），提交数据的核心价值字段（如持仓数量、币种）将被作为 Prompt 被透明发送至模型推理方，脱离 TEE 的保密范畴。仅针对 TEE 至用户浏览器的传输过程具有机密保护。
               </div>
-              <label className="text-sm font-medium text-stone-700">
+              <label className="text-sm font-medium text-slate-300">
                 持仓（敏感数据，仅在浏览器本地加密后送出）
               </label>
               <textarea
-                className="w-full p-4 border border-stone-300 rounded-lg focus:ring-2 focus:ring-amber-600 focus:border-amber-600 text-stone-900 h-32"
+                className="w-full p-4 border border-slate-600 rounded-lg focus:ring-2 focus:ring-amber-600 focus:border-amber-600 text-slate-100 h-32"
                 value={portfolioText}
                 onChange={(e) => setPortfolioText(e.target.value)}
                 placeholder="例如：0.5 BTC, 2 ETH, 10000 FLR"
               />
 
-              <label className="text-sm font-medium text-stone-700">风险偏好</label>
+              <label className="text-sm font-medium text-slate-300">风险偏好</label>
               <select
-                className="w-full p-3 border border-stone-300 rounded-lg text-stone-900"
+                className="w-full p-3 border border-slate-600 rounded-lg text-slate-100"
                 value={riskProfile}
                 onChange={(e) => setRiskProfile(e.target.value)}
               >
@@ -455,7 +455,7 @@ export default function Home() {
               </button>
 
               {(busy || step > 0) && (
-                <div className="mt-2 p-4 bg-stone-50 border border-stone-200 rounded-lg">
+                <div className="mt-2 p-4 bg-slate-800 border border-slate-700 rounded-lg">
                   <StepBar step={step} failedStep={failedStep} />
                   {busy && status && (
                     <p className="mt-3 text-sm text-amber-800 break-all whitespace-pre-wrap">
@@ -473,14 +473,14 @@ export default function Home() {
               )}
             </div>
           ) : (
-            <div className="text-center py-8 text-stone-500">
+            <div className="text-center py-8 text-slate-400">
               请连接钱包以使用 SecureSignal。
             </div>
           )}
         </div>
 
         {!result && !busy && isConnected && !error && (
-          <div className="w-full border-2 border-dashed border-stone-300 rounded-2xl p-8 text-center text-stone-400 text-sm">
+          <div className="w-full border-2 border-dashed border-slate-600 rounded-2xl p-8 text-center text-slate-500 text-sm">
             分析结果将在此展示 —— 数据全程加密，仅您的会话私钥可解密
           </div>
         )}
@@ -488,7 +488,7 @@ export default function Home() {
         {result && res && (
           <div className="bg-white p-8 rounded-2xl shadow-xl w-full">
             <div className="flex flex-wrap items-center gap-2 mb-6">
-              <h2 className="text-2xl font-bold text-stone-800 mr-auto">TEE 分析结果</h2>
+              <h2 className="text-2xl font-bold text-slate-200 mr-auto">TEE 分析结果</h2>
               <AnalysisModeBadge mode={res.analysis_mode} />
               <PriceSourceBadge source={res.price_source} />
             </div>
@@ -501,20 +501,20 @@ export default function Home() {
                 </p>
               </div>
             ) : (
-              <div className="flex flex-col gap-6 text-sm text-stone-800">
+              <div className="flex flex-col gap-6 text-sm text-slate-200">
                 {/* 总资产 */}
-                <section className="bg-stone-50 border border-stone-200 rounded-xl p-5">
-                  <h3 className="font-semibold text-stone-500 uppercase text-xs mb-1">
+                <section className="bg-slate-800 border border-slate-700 rounded-xl p-5">
+                  <h3 className="font-semibold text-slate-400 uppercase text-xs mb-1">
                     总资产估值
                   </h3>
-                  <p className="text-3xl font-bold text-stone-900">
+                  <p className="text-3xl font-bold text-slate-100">
                     {fmtUsd(res.total_value_usd)}
                   </p>
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {Object.entries(res.prices_used).map(([sym, price]) => (
                       <span
                         key={sym}
-                        className="inline-block px-2 py-0.5 rounded bg-stone-200 text-stone-600 text-xs font-mono"
+                        className="inline-block px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-xs font-mono"
                       >
                         {sym} {fmtUsd(price)}
                       </span>
@@ -524,27 +524,27 @@ export default function Home() {
 
                 {/* 持仓明细 */}
                 <section>
-                  <h3 className="font-semibold text-stone-500 uppercase text-xs mb-2">
+                  <h3 className="font-semibold text-slate-400 uppercase text-xs mb-2">
                     持仓明细
                   </h3>
                   {res.holdings.length === 0 ? (
-                    <p className="text-stone-400">（无持仓数据）</p>
+                    <p className="text-slate-500">（无持仓数据）</p>
                   ) : (
                     <ul className="flex flex-col gap-3">
                       {res.holdings.map((h) => (
                         <li key={h.symbol}>
                           <div className="flex items-baseline justify-between mb-1">
-                            <span className="font-semibold text-stone-800">
+                            <span className="font-semibold text-slate-200">
                               {h.symbol}
-                              <span className="ml-2 font-normal text-stone-500 text-xs">
+                              <span className="ml-2 font-normal text-slate-400 text-xs">
                                 {fmtAmount(h.amount)} 枚 · {fmtUsd(h.value_usd)}
                               </span>
                             </span>
-                            <span className="font-mono text-stone-700">
+                            <span className="font-mono text-slate-300">
                               {h.weight_pct.toFixed(1)}%
                             </span>
                           </div>
-                          <div className="h-2 w-full bg-stone-200 rounded-full overflow-hidden">
+                          <div className="h-2 w-full bg-slate-800 rounded-full overflow-hidden">
                             <div
                               className="h-full bg-amber-600 rounded-full"
                               style={{
@@ -560,17 +560,17 @@ export default function Home() {
 
                 {/* 风险分 */}
                 <section>
-                  <h3 className="font-semibold text-stone-500 uppercase text-xs mb-2">
+                  <h3 className="font-semibold text-slate-400 uppercase text-xs mb-2">
                     风险评分
                   </h3>
                   <div className="flex items-center gap-3">
                     <span className={`text-3xl font-bold ${risk?.text ?? ''}`}>
                       {res.risk_score}
                     </span>
-                    <span className="text-stone-400 text-lg">/ 100</span>
+                    <span className="text-slate-500 text-lg">/ 100</span>
                     {risk && <Badge className={risk.badge}>{risk.label}</Badge>}
                   </div>
-                  <div className="mt-2 h-2 w-full bg-stone-200 rounded-full overflow-hidden">
+                  <div className="mt-2 h-2 w-full bg-slate-800 rounded-full overflow-hidden">
                     <div
                       className={`h-full rounded-full ${risk?.bar ?? 'bg-stone-400'}`}
                       style={{ width: `${Math.min(100, Math.max(0, res.risk_score))}%` }}
@@ -580,11 +580,11 @@ export default function Home() {
 
                 {/* 再平衡建议 */}
                 <section>
-                  <h3 className="font-semibold text-stone-500 uppercase text-xs mb-2">
+                  <h3 className="font-semibold text-slate-400 uppercase text-xs mb-2">
                     再平衡建议
                   </h3>
                   {res.rebalance.length === 0 ? (
-                    <p className="text-stone-400">（无再平衡建议 —— 当前组合已均衡）</p>
+                    <p className="text-slate-500">（无再平衡建议 —— 当前组合已均衡）</p>
                   ) : (
                     <ul className="flex flex-col gap-2">
                       {res.rebalance.map((r, i) => {
@@ -592,7 +592,7 @@ export default function Home() {
                         return (
                           <li
                             key={`${r.symbol}-${i}`}
-                            className="flex items-start gap-3 p-3 bg-stone-50 border border-stone-200 rounded-lg"
+                            className="flex items-start gap-3 p-3 bg-slate-800 border border-slate-700 rounded-lg"
                           >
                             <span
                               className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 ${meta.chip}`}
@@ -600,8 +600,8 @@ export default function Home() {
                               {meta.icon} {meta.label}
                             </span>
                             <div>
-                              <span className="font-semibold text-stone-800">{r.symbol}</span>
-                              <p className="text-stone-600 mt-0.5">{r.reason}</p>
+                              <span className="font-semibold text-slate-200">{r.symbol}</span>
+                              <p className="text-slate-400 mt-0.5">{r.reason}</p>
                             </div>
                           </li>
                         )
@@ -612,21 +612,21 @@ export default function Home() {
 
                 {/* 分析总结 */}
                 <section>
-                  <h3 className="font-semibold text-stone-500 uppercase text-xs mb-2">
+                  <h3 className="font-semibold text-slate-400 uppercase text-xs mb-2">
                     分析总结
                   </h3>
-                  <p className="whitespace-pre-wrap leading-relaxed text-stone-700">
+                  <p className="whitespace-pre-wrap leading-relaxed text-slate-300">
                     {res.summary}
                   </p>
                 </section>
               </div>
             )}
 
-            <hr className="my-6 border-stone-200" />
+            <hr className="my-6 border-slate-700" />
 
-            <div className="flex flex-col gap-5 text-sm text-stone-800">
+            <div className="flex flex-col gap-5 text-sm text-slate-200">
               <section>
-                <h3 className="font-semibold text-stone-500 uppercase text-xs mb-1">任务</h3>
+                <h3 className="font-semibold text-slate-400 uppercase text-xs mb-1">任务</h3>
                 <p>
                   taskId: <span className="font-mono">{result.taskId}</span>
                 </p>
@@ -636,18 +636,18 @@ export default function Home() {
               </section>
 
               <section>
-                <h3 className="font-semibold text-stone-500 uppercase text-xs mb-1">
+                <h3 className="font-semibold text-slate-400 uppercase text-xs mb-1">
                   链上结果哈希（result_hash）
                 </h3>
                 {result.resultHash ? (
                   <p className="font-mono break-all">{result.resultHash}</p>
                 ) : (
-                  <p className="text-stone-400">（响应中无 result_hash 字段）</p>
+                  <p className="text-slate-500">（响应中无 result_hash 字段）</p>
                 )}
               </section>
 
               <section>
-                <h3 className="font-semibold text-stone-500 uppercase text-xs mb-1">
+                <h3 className="font-semibold text-slate-400 uppercase text-xs mb-1">
                   Attestation
                 </h3>
                 {att ? (
@@ -664,7 +664,7 @@ export default function Home() {
                         {att.mode ?? 'unknown'}
                       </span>
                       {att.mode === 'dev-simulated' && (
-                        <span className="ml-2 text-xs text-stone-500">
+                        <span className="ml-2 text-xs text-slate-400">
                           （开发期模拟证明，非生产级 TEE 证据）
                         </span>
                       )}
@@ -691,25 +691,25 @@ export default function Home() {
                       </p>
                     )}
                     {att.signature && (
-                      <p className="break-all text-xs text-stone-500">
+                      <p className="break-all text-xs text-slate-400">
                         签名: <span className="font-mono">{att.signature}</span>
                       </p>
                     )}
                   </div>
                 ) : result.attestationRaw ? (
-                  <pre className="bg-stone-50 p-3 rounded-lg overflow-x-auto text-xs break-all whitespace-pre-wrap">
+                  <pre className="bg-slate-800 p-3 rounded-lg overflow-x-auto text-xs break-all whitespace-pre-wrap">
                     {typeof result.attestationRaw === 'string'
                       ? result.attestationRaw
                       : JSON.stringify(result.attestationRaw, null, 2)}
                   </pre>
                 ) : (
-                  <p className="text-stone-400">（响应中无 attestation 字段）</p>
+                  <p className="text-slate-500">（响应中无 attestation 字段）</p>
                 )}
               </section>
 
-              <details className="text-xs text-stone-500">
+              <details className="text-xs text-slate-400">
                 <summary className="cursor-pointer">查看完整解密结果 JSON</summary>
-                <pre className="bg-stone-50 p-3 rounded-lg overflow-x-auto mt-2">
+                <pre className="bg-slate-800 p-3 rounded-lg overflow-x-auto mt-2">
                   {JSON.stringify(result.result, null, 2)}
                 </pre>
               </details>
@@ -720,3 +720,4 @@ export default function Home() {
     </main>
   )
 }
+
