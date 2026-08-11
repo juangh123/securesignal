@@ -1,0 +1,28 @@
+1
+00:00:00,050 --> 00:00:02,774
+Next, we plan to pull FTSO price feeds
+
+2
+00:00:02,774 --> 00:00:06,127
+directly inside the enclave, add zero-knowledge
+
+3
+00:00:06,127 --> 00:00:09,550
+risk proofs for lending protocols, and launch on
+
+4
+00:00:09,550 --> 00:00:10,597
+Flare mainnet.
+
+5
+00:00:10,597 --> 00:00:11,997
+Try the live demo.
+
+6
+00:00:11,997 --> 00:00:13,192
+Links are below.
+
+7
+00:00:13,192 --> 00:00:14,008
+Thank you!
+

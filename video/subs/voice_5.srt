@@ -1,0 +1,28 @@
+1
+00:00:00,050 --> 00:00:03,641
+At the bottom, the app proves end-to-end integrity.
+
+2
+00:00:03,641 --> 00:00:07,094
+The attestation's result hash matches the decrypted
+
+3
+00:00:07,094 --> 00:00:10,216
+payload, signed by the registered TEE key, and
+
+4
+00:00:10,216 --> 00:00:13,138
+anchored by the registry contract on Flare.
+
+5
+00:00:13,138 --> 00:00:16,100
+Everything you see was built during this hackathon.
+
+6
+00:00:16,100 --> 00:00:19,773
+The TEE engine, the Coston2 contracts, and this
+
+7
+00:00:19,773 --> 00:00:21,304
+encrypted frontend.
+

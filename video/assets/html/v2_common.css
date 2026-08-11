@@ -1,0 +1,18 @@
+*{margin:0;padding:0;box-sizing:border-box}
+@font-face{font-family:"SpaceGrotesk";src:url("../fonts/SpaceGrotesk-Variable.ttf") format("truetype");font-weight:300 700;font-display:block}
+html,body{width:1920px;height:1080px;overflow:hidden}
+body{background:#04060c;color:#e8eefc;font-family:"SpaceGrotesk","Segoe UI",system-ui,sans-serif;position:relative;-webkit-font-smoothing:antialiased}
+
+@keyframes ss-fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes ss-fadeUp{from{opacity:0;transform:translateY(28px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ss-pop{0%{opacity:0;transform:scale(.5)}60%{opacity:1;transform:scale(1.1)}100%{opacity:1;transform:scale(1)}}
+@keyframes ss-shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+@keyframes ss-slideUp{from{opacity:0;transform:translateY(70px)}to{opacity:1;transform:translateY(0)}}
+@keyframes ss-slideIn{from{opacity:0;transform:translateX(90px)}to{opacity:1;transform:translateX(0)}}
+@keyframes ss-slideLeft{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(-80px)}}
+@keyframes ss-shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@keyframes ss-blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes ss-spin{to{transform:rotate(360deg)}}
+@keyframes ss-zoomIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+
+.ss-grad-text{background:linear-gradient(100deg,#ffffff 18%,#9fb6e8 42%,#34d399 66%,#ffffff 92%);background-size:200% auto;-webkit-background-clip:text;background-clip:text;color:transparent;animation:ss-shimmer 5s linear infinite}

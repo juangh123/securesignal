@@ -1,0 +1,44 @@
+1
+00:00:00,050 --> 00:00:03,037
+Getting personalized crypto advice today means
+
+2
+00:00:03,037 --> 00:00:06,342
+handing your full holdings to a centralized service
+
+3
+00:00:06,342 --> 00:00:07,486
+you cannot audit.
+
+4
+00:00:07,486 --> 00:00:11,024
+That exposes you to front-running, privacy leaks,
+
+5
+00:00:11,024 --> 00:00:12,581
+and targeted attacks.
+
+6
+00:00:12,581 --> 00:00:16,471
+SecureSignal runs the analysis entirely inside a
+
+7
+00:00:16,471 --> 00:00:19,646
+Trusted Execution Environment on Flare.
+
+8
+00:00:19,646 --> 00:00:23,104
+Your data is encrypted in the browser, decrypted
+
+9
+00:00:23,104 --> 00:00:26,633
+only inside the enclave, and every result carries
+
+10
+00:00:26,633 --> 00:00:29,103
+a verifiable on-chain attestation.
+
+11
+00:00:29,103 --> 00:00:30,896
+Not even we can see your data.
+

@@ -1,0 +1,39 @@
+﻿<!DOCTYPE html><html><head><meta charset="utf-8"><style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{width:1920px;height:1080px;background:radial-gradient(1200px 700px at 50% 0%,#1e293b 0%,#0f172a 55%,#020617 100%);font-family:"Segoe UI",system-ui,sans-serif;color:#f1f5f9;overflow:hidden;padding:70px 90px}
+h2{font-size:52px;font-weight:800;letter-spacing:-1px}
+h2 span{color:#34d399}
+.tag{font-size:22px;color:#64748b;margin-top:8px;letter-spacing:2px;text-transform:uppercase}
+.flow{display:flex;align-items:stretch;justify-content:space-between;margin-top:80px;gap:0}
+.node{width:340px;border-radius:20px;padding:30px 26px;background:rgba(30,41,59,.75);border:1px solid #334155;position:relative}
+.node .icon{font-size:46px;margin-bottom:14px}
+.node h3{font-size:28px;font-weight:700;margin-bottom:10px}
+.node p{font-size:19px;color:#94a3b8;line-height:1.5}
+.node.tee{border-color:#34d399;background:rgba(6,78,59,.35);box-shadow:0 0 60px rgba(16,185,129,.15)}
+.node.chain{border-color:#fb7185;background:rgba(80,7,36,.3)}
+.arrow{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;min-width:90px}
+.arrow .label{font-size:17px;color:#cbd5e1;background:#1e293b;border:1px solid #475569;border-radius:999px;padding:6px 16px;white-space:nowrap;margin-bottom:10px}
+.arrow .shaft{width:100%;height:3px;background:linear-gradient(90deg,#475569,#94a3b8);position:relative}
+.arrow .shaft::after{content:"";position:absolute;right:-2px;top:-6px;border-left:14px solid #94a3b8;border-top:8px solid transparent;border-bottom:8px solid transparent}
+.note{margin-top:64px;display:flex;gap:24px}
+.pill{flex:1;border:1px solid #334155;border-radius:16px;padding:22px 26px;background:rgba(15,23,42,.6);font-size:20px;color:#cbd5e1;line-height:1.45}
+.pill b{color:#f8fafc}
+.pill .em{color:#34d399;font-weight:700}
+</style></head><body>
+<h2>End-to-End <span>Confidential</span> Pipeline</h2>
+<div class="tag">Flare Confidential Compute · Coston2 Testnet</div>
+<div class="flow">
+  <div class="node"><div class="icon">🦊</div><h3>User Wallet</h3><p>Generates a one-time session key. Holdings are encrypted locally — plaintext never leaves the browser.</p></div>
+  <div class="arrow"><div class="label">1 · ECIES encrypt</div><div class="shaft"></div></div>
+  <div class="node"><div class="icon">🖥️</div><h3>Next.js DApp</h3><p>Registers the analysis task on-chain, then forwards the encrypted payload to the TEE node.</p></div>
+  <div class="arrow"><div class="label">2 · register tx · Coston2</div><div class="shaft"></div></div>
+  <div class="node chain"><div class="icon">⛓️</div><h3>Registry Contract</h3><p>Anchors the task hash and the TEE attestation key on Flare Coston2.</p></div>
+</div>
+<div class="flow" style="margin-top:56px">
+  <div class="node tee"><div class="icon">🛡️</div><h3>TEE Node</h3><p>Decrypts only inside the enclave, runs AI risk analysis, signs the result with the attestation key.</p></div>
+  <div class="arrow"><div class="label">3 · signed + encrypted result</div><div class="shaft"></div></div>
+  <div class="node"><div class="icon">🔓</div><h3>Local Decrypt</h3><p>Result is decrypted with the session key — visible only to the user.</p></div>
+  <div class="arrow"><div class="label">4 · verify hash ✓</div><div class="shaft"></div></div>
+  <div class="node chain"><div class="icon">✅</div><h3>On-Chain Verify</h3><p>result_hash in the attestation is checked against the registry record. Tamper-proof.</p></div>
+</div>
+</body></html>

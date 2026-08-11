@@ -1,0 +1,88 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../assets/html/v2_common.css">
+<style>
+body{background:#04060c}
+#particles{position:fixed;inset:0;width:1920px;height:1080px;z-index:1;opacity:.5}
+.phase1{position:absolute;inset:0;z-index:2;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.phase1.exit{animation:ss-slideLeft .7s ease-in 11.3s forwards}
+.risk-h{font-size:66px;font-weight:700;letter-spacing:-1px;opacity:0;animation:ss-fadeUp .7s ease-out .1s forwards}
+.risk-h span{color:#fb5c7c}
+.cloud{margin-top:36px;width:540px;border:1px solid rgba(251,92,124,.35);border-radius:26px;background:linear-gradient(180deg,rgba(40,14,24,.85),rgba(15,10,18,.92));padding:42px 46px;text-align:center;position:relative;box-shadow:0 0 90px rgba(251,92,124,.12);opacity:0;animation:ss-fadeUp .8s ease-out .8s forwards}
+.cloud .t{font-size:27px;color:#c7d6f5;line-height:1.5;margin-top:18px}
+.cloud .t b{color:#fb5c7c}
+.leak{position:absolute;left:50%;top:44px;width:3px;height:26px;border-radius:2px;background:linear-gradient(180deg,#fb5c7c,rgba(251,92,124,0));opacity:0;animation:leakfall 1.7s linear infinite}
+@keyframes leakfall{0%{opacity:0;transform:translateY(0)}15%{opacity:.85}100%{opacity:0;transform:translateY(130px)}}
+.badges{display:flex;gap:24px;margin-top:54px}
+.badge{opacity:0;padding:18px 30px;border-radius:14px;font-size:24px;font-weight:700;letter-spacing:1.5px;border:1px solid #fb5c7c;background:rgba(120,20,40,.28);color:#ff9fb0;box-shadow:0 0 30px rgba(251,92,124,.18)}
+.b1{animation:ss-pop .5s cubic-bezier(.34,1.56,.64,1) 7.6s forwards,ss-shake .5s ease 7.9s}
+.b2{animation:ss-pop .5s cubic-bezier(.34,1.56,.64,1) 8.3s forwards,ss-shake .5s ease 8.6s}
+.b3{animation:ss-pop .5s cubic-bezier(.34,1.56,.64,1) 9.0s forwards,ss-shake .5s ease 9.3s}
+.alert-ring{position:absolute;left:50%;top:50%;border:3px solid rgba(251,92,124,.5);border-radius:50%;transform:translate(-50%,-50%);opacity:0;animation:ring .9s ease-out 7.6s forwards}
+@keyframes ring{0%{opacity:.9;width:0;height:0}100%{opacity:0;width:1500px;height:1500px}}
+.phase2{position:absolute;inset:0;z-index:3;opacity:0;animation:ss-slideIn .8s ease-out 12.6s forwards}
+.tagline{position:absolute;top:62px;left:0;right:0;text-align:center;font-size:40px;font-weight:700;color:#e8eefc;opacity:0;animation:ss-fadeUp .7s ease-out 12.6s forwards}
+.tagline b{color:#34d399}
+.appshot-wrap{position:absolute;left:50%;top:180px;transform:translateX(-50%);width:1460px;border:2px solid rgba(52,211,153,.4);border-radius:22px;overflow:hidden;box-shadow:0 0 110px rgba(52,211,153,.12);opacity:0;animation:ss-fadeUp .8s ease-out 12.9s forwards}
+.appshot-wrap img{display:block;width:100%;animation:ss-zoom 4s ease-out 25.5s forwards}
+@keyframes ss-zoom{from{transform:scale(1)}to{transform:scale(1.045)}}
+.callouts{position:absolute;left:300px;top:250px;display:flex;flex-direction:column;gap:20px;z-index:4}
+.co{opacity:0;display:flex;align-items:center;gap:16px;background:rgba(4,8,16,.9);border:1px solid rgba(52,211,153,.5);border-radius:999px;padding:16px 30px;font-size:26px;font-weight:600;color:#d1fae5;box-shadow:0 0 30px rgba(52,211,153,.25)}
+.co .n{width:42px;height:42px;border-radius:50%;background:#34d399;color:#03271a;display:flex;align-items:center;justify-content:center;font-size:21px;font-weight:800}
+.co1{animation:ss-fadeIn .5s ease-out 19.7s forwards}
+.co2{animation:ss-fadeIn .5s ease-out 21.0s forwards}
+.co3{animation:ss-fadeIn .5s ease-out 22.3s forwards}
+.punch{position:absolute;inset:0;z-index:5;display:flex;align-items:center;justify-content:center;background:rgba(3,5,10,.62);opacity:0;animation:ss-fadeIn .8s ease-out 29.1s forwards}
+.punch .box{text-align:center}
+.punch .check{width:132px;height:132px;margin:0 auto 30px;opacity:0;animation:ss-pop .6s cubic-bezier(.34,1.56,.64,1) 29.5s forwards;filter:drop-shadow(0 0 30px rgba(52,211,153,.6))}
+.punch .big{font-size:86px;font-weight:700;letter-spacing:-1px}
+.punch .big b{color:#34d399}
+.punch .small{margin-top:18px;font-size:30px;color:#8fa3c8;letter-spacing:2px}
+</style></head><body>
+<canvas id="particles"></canvas>
+<div class="alert-ring"></div>
+<div class="phase1">
+  <div class="risk-h">Your portfolio, handed to a <span>stranger.</span></div>
+  <div class="cloud">
+    <div class="leak" style="left:20%;animation-delay:0s"></div>
+    <div class="leak" style="left:38%;animation-delay:.5s"></div>
+    <div class="leak" style="left:55%;animation-delay:1.1s"></div>
+    <div class="leak" style="left:70%;animation-delay:.2s"></div>
+    <div class="leak" style="left:82%;animation-delay:.8s"></div>
+    <svg width="88" height="70" viewBox="0 0 100 80" fill="none" style="margin:0 auto">
+      <rect x="6" y="6" width="88" height="26" rx="6" stroke="#fb5c7c" stroke-width="3" fill="rgba(251,92,124,.08)"/>
+      <rect x="6" y="44" width="88" height="26" rx="6" stroke="#fb5c7c" stroke-width="3" fill="rgba(251,92,124,.08)"/>
+      <circle cx="24" cy="19" r="4" fill="#fb5c7c"/><circle cx="42" cy="19" r="4" fill="#fb5c7c"/>
+      <circle cx="24" cy="57" r="4" fill="#fb5c7c"/><circle cx="42" cy="57" r="4" fill="#fb5c7c"/>
+    </svg>
+    <div class="t">A centralized service you <b>cannot audit</b></div>
+  </div>
+  <div class="badges">
+    <div class="badge b1">FRONT-RUNNING</div>
+    <div class="badge b2">PRIVACY LEAKS</div>
+    <div class="badge b3">TARGETED ATTACKS</div>
+  </div>
+</div>
+<div class="phase2">
+  <div class="tagline">SecureSignal runs analysis inside a <b>Trusted Execution Environment</b> on Flare</div>
+  <div class="appshot-wrap"><img src="landing.png"></div>
+  <div class="callouts">
+    <div class="co co1"><div class="n">1</div>Encrypted in your browser</div>
+    <div class="co co2"><div class="n">2</div>Decrypted only inside the enclave</div>
+    <div class="co co3"><div class="n">3</div>Verifiable on-chain attestation</div>
+  </div>
+</div>
+<div class="punch"><div class="box">
+  <svg class="check" viewBox="0 0 64 64" fill="none">
+    <path d="M32 4l26 9v17c0 15-10 26-26 30C16 56 6 45 6 30V13Z" stroke="#34d399" stroke-width="4"/>
+    <path d="M21 32l8 8 15-16" stroke="#34d399" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>
+  <div class="big">Not even <b>we</b> can see your data.</div>
+  <div class="small">END-TO-END ENCRYPTED ? ATTESTED ? ON-CHAIN</div>
+</div></div>
+<script src="../assets/html/v2_common.js"></script>
+<script>
+SS.particles(document.getElementById("particles"), { count: 40, color: "rgba(148,163,184,", linkDist: 150 });
+SS.scanlines(0.05);
+SS.vignette();
+</script>
+</body></html>

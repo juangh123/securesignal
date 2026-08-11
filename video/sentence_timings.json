@@ -1,0 +1,149 @@
+{
+  "seg1": [
+    {
+      "start_ms": 50.0,
+      "dur_ms": 1757.0651,
+      "text": "This is SecureSignal."
+    },
+    {
+      "start_ms": 1807.0651,
+      "dur_ms": 5230.9781,
+      "text": "Confidential portfolio intelligence, built on Flare Confidential Compute."
+    }
+  ],
+  "seg2": [
+    {
+      "start_ms": 50.0,
+      "dur_ms": 7436.4129,
+      "text": "Getting personalized crypto advice today means handing your full holdings to a centralized service you cannot audit."
+    },
+    {
+      "start_ms": 7486.4129,
+      "dur_ms": 5095.1086,
+      "text": "That exposes you to front-running, privacy leaks, and targeted attacks."
+    },
+    {
+      "start_ms": 12581.5215,
+      "dur_ms": 7065.2172,
+      "text": "SecureSignal runs the analysis entirely inside a Trusted Execution Environment on Flare."
+    },
+    {
+      "start_ms": 19646.7387,
+      "dur_ms": 9456.5215,
+      "text": "Your data is encrypted in the browser, decrypted only inside the enclave, and every result carries a verifiable on-chain attestation."
+    },
+    {
+      "start_ms": 29103.2603,
+      "dur_ms": 1793.4782,
+      "text": "Not even we can see your data."
+    }
+  ],
+  "seg3": [
+    {
+      "start_ms": 50.0,
+      "dur_ms": 1349.4564,
+      "text": "Here is how it works."
+    },
+    {
+      "start_ms": 1399.4564,
+      "dur_ms": 6902.1737,
+      "text": "The frontend generates a one-time session key, and encrypts your portfolio with the TEE's public key."
+    },
+    {
+      "start_ms": 8301.6302,
+      "dur_ms": 6711.9563,
+      "text": "A registry contract on the Coston2 testnet records the task and the TEE's attestation key."
+    },
+    {
+      "start_ms": 15013.5866,
+      "dur_ms": 9932.065,
+      "text": "Inside the enclave, the TEE node decrypts the payload, runs the risk analysis, signs the result, and encrypts it back to your session key."
+    },
+    {
+      "start_ms": 24945.6517,
+      "dur_ms": 5217.3912,
+      "text": "Finally, the app verifies the signature, and the on-chain result hash."
+    }
+  ],
+  "seg4": [
+    {
+      "start_ms": 50.0,
+      "dur_ms": 1213.5869,
+      "text": "Let's see it live."
+    },
+    {
+      "start_ms": 1263.5869,
+      "dur_ms": 5040.7607,
+      "text": "I connect my wallet on the Coston2 testnet, and enter a sample portfolio."
+    },
+    {
+      "start_ms": 6304.3477,
+      "dur_ms": 6236.4129,
+      "text": "When I click run, the app encrypts everything locally, nothing leaves the browser in plaintext."
+    },
+    {
+      "start_ms": 12540.7606,
+      "dur_ms": 3206.5216,
+      "text": "Now it registers the analysis task on-chain."
+    },
+    {
+      "start_ms": 15747.2823,
+      "dur_ms": 6535.3259,
+      "text": "The encrypted payload goes to the TEE node, which performs the analysis inside the enclave."
+    },
+    {
+      "start_ms": 22282.6082,
+      "dur_ms": 1440.2173,
+      "text": "And here is the result."
+    },
+    {
+      "start_ms": 23722.8256,
+      "dur_ms": 7676.6302,
+      "text": "Risk score, per-asset rebalancing advice, and a summary, decrypted locally, and only visible to me."
+    }
+  ],
+  "seg5": [
+    {
+      "start_ms": 50.0,
+      "dur_ms": 3591.3042,
+      "text": "At the bottom, the app proves end-to-end integrity."
+    },
+    {
+      "start_ms": 3641.3042,
+      "dur_ms": 9497.2824,
+      "text": "The attestation's result hash matches the decrypted payload, signed by the registered TEE key, and anchored by the registry contract on Flare."
+    },
+    {
+      "start_ms": 13138.5867,
+      "dur_ms": 2961.9564,
+      "text": "Everything you see was built during this hackathon."
+    },
+    {
+      "start_ms": 16100.5431,
+      "dur_ms": 5203.8042,
+      "text": "The TEE engine, the Coston2 contracts, and this encrypted frontend."
+    }
+  ],
+  "seg6": [
+    {
+      "start_ms": 50.0,
+      "dur_ms": 10547.8258,
+      "text": "Next, we plan to pull FTSO price feeds directly inside the enclave, add zero-knowledge risk proofs for lending protocols, and launch on Flare mainnet."
+    },
+    {
+      "start_ms": 10597.8258,
+      "dur_ms": 1399.4564,
+      "text": "Try the live demo."
+    },
+    {
+      "start_ms": 11997.2823,
+      "dur_ms": 1195.6521,
+      "text": "Links are below."
+    },
+    {
+      "start_ms": 13192.9345,
+      "dur_ms": 815.2173,
+      "text": "Thank you!"
+    }
+  ]
+}

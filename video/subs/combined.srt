@@ -1,0 +1,196 @@
+1
+00:00:01,750 --> 00:00:03,507
+This is SecureSignal.
+
+2
+00:00:03,507 --> 00:00:07,182
+Confidential portfolio intelligence, built on Flare
+
+3
+00:00:07,182 --> 00:00:08,738
+Confidential Compute.
+
+4
+00:00:08,750 --> 00:00:11,737
+Getting personalized crypto advice today means
+
+5
+00:00:11,737 --> 00:00:15,042
+handing your full holdings to a centralized service
+
+6
+00:00:15,042 --> 00:00:16,186
+you cannot audit.
+
+7
+00:00:16,186 --> 00:00:19,724
+That exposes you to front-running, privacy leaks,
+
+8
+00:00:19,724 --> 00:00:21,281
+and targeted attacks.
+
+9
+00:00:21,281 --> 00:00:25,171
+SecureSignal runs the analysis entirely inside a
+
+10
+00:00:25,171 --> 00:00:28,346
+Trusted Execution Environment on Flare.
+
+11
+00:00:28,346 --> 00:00:31,804
+Your data is encrypted in the browser, decrypted
+
+12
+00:00:31,804 --> 00:00:35,333
+only inside the enclave, and every result carries
+
+13
+00:00:35,333 --> 00:00:37,803
+a verifiable on-chain attestation.
+
+14
+00:00:37,803 --> 00:00:39,596
+Not even we can see your data.
+
+15
+00:00:40,150 --> 00:00:41,499
+Here is how it works.
+
+16
+00:00:41,499 --> 00:00:44,950
+The frontend generates a one-time session key, and
+
+17
+00:00:44,950 --> 00:00:48,401
+encrypts your portfolio with the TEE's public key.
+
+18
+00:00:48,401 --> 00:00:52,163
+A registry contract on the Coston2 testnet records
+
+19
+00:00:52,163 --> 00:00:55,113
+the task and the TEE's attestation key.
+
+20
+00:00:55,113 --> 00:00:58,400
+Inside the enclave, the TEE node decrypts the
+
+21
+00:00:58,400 --> 00:01:02,044
+payload, runs the risk analysis, signs the result,
+
+22
+00:01:02,044 --> 00:01:05,045
+and encrypts it back to your session key.
+
+23
+00:01:05,045 --> 00:01:08,646
+Finally, the app verifies the signature, and the
+
+24
+00:01:08,646 --> 00:01:10,263
+on-chain result hash.
+
+25
+00:01:10,550 --> 00:01:11,763
+Let's see it live.
+
+26
+00:01:11,763 --> 00:01:14,760
+I connect my wallet on the Coston2 testnet,
+
+27
+00:01:14,760 --> 00:01:16,804
+and enter a sample portfolio.
+
+28
+00:01:16,804 --> 00:01:19,792
+When I click run, the app encrypts everything
+
+29
+00:01:19,792 --> 00:01:23,040
+locally, nothing leaves the browser in plaintext.
+
+30
+00:01:23,040 --> 00:01:26,247
+Now it registers the analysis task on-chain.
+
+31
+00:01:26,247 --> 00:01:29,372
+The encrypted payload goes to the TEE node,
+
+32
+00:01:29,372 --> 00:01:32,782
+which performs the analysis inside the enclave.
+
+33
+00:01:32,782 --> 00:01:34,222
+And here is the result.
+
+34
+00:01:34,222 --> 00:01:37,907
+Risk score, per-asset rebalancing advice, and a
+
+35
+00:01:37,907 --> 00:01:41,899
+summary, decrypted locally, and only visible to me.
+
+36
+00:01:42,450 --> 00:01:46,041
+At the bottom, the app proves end-to-end integrity.
+
+37
+00:01:46,041 --> 00:01:49,494
+The attestation's result hash matches the decrypted
+
+38
+00:01:49,494 --> 00:01:52,616
+payload, signed by the registered TEE key, and
+
+39
+00:01:52,616 --> 00:01:55,538
+anchored by the registry contract on Flare.
+
+40
+00:01:55,538 --> 00:01:58,500
+Everything you see was built during this hackathon.
+
+41
+00:01:58,500 --> 00:02:02,173
+The TEE engine, the Coston2 contracts, and this
+
+42
+00:02:02,173 --> 00:02:03,704
+encrypted frontend.
+
+43
+00:02:04,350 --> 00:02:07,074
+Next, we plan to pull FTSO price feeds
+
+44
+00:02:07,074 --> 00:02:10,427
+directly inside the enclave, add zero-knowledge
+
+45
+00:02:10,427 --> 00:02:13,850
+risk proofs for lending protocols, and launch on
+
+46
+00:02:13,850 --> 00:02:14,897
+Flare mainnet.
+
+47
+00:02:14,897 --> 00:02:16,297
+Try the live demo.
+
+48
+00:02:16,297 --> 00:02:17,492
+Links are below.
+
+49
+00:02:17,492 --> 00:02:18,308
+Thank you!
+

@@ -1,0 +1,153 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8">
+<link rel="stylesheet" href="../assets/html/v2_common.css">
+<style>
+body{background:#04060c}
+#particles{position:fixed;inset:0;width:1920px;height:1080px;z-index:1;opacity:.35}
+.kicker{position:absolute;top:34px;left:0;right:0;text-align:center;font-size:19px;letter-spacing:4px;color:#5b729c;text-transform:uppercase;z-index:3;opacity:0;animation:ss-fadeIn .6s ease-out .15s forwards}
+.kicker b{color:#34d399}
+.browser{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:1520px;height:884px;border-radius:18px;border:1px solid #1e2a44;background:#0a101f;box-shadow:0 40px 120px rgba(0,0,0,.6);overflow:hidden;opacity:0;animation:ss-fadeUp .6s ease-out .1s forwards}
+.chrome{height:56px;background:#0d1526;border-bottom:1px solid #1e2a44;display:flex;align-items:center;padding:0 22px;gap:10px}
+.dot{width:13px;height:13px;border-radius:50%}
+.url{flex:1;margin-left:16px;background:#04060c;border:1px solid #1e2a44;border-radius:999px;color:#8fa3c8;font-size:16px;padding:9px 20px;font-family:Consolas,monospace;letter-spacing:.5px}
+.app{padding:36px 46px 0;position:relative}
+.app-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
+.logo{font-size:26px;font-weight:700}
+.logo span{color:#8fa3c8;font-size:18px;font-weight:400}
+.wallet{display:flex;align-items:center;gap:10px;border:1px solid #2a3a5c;border-radius:999px;padding:11px 20px;font-size:16px;color:#c7d6f5;background:#0d1526;transition:border-color .5s,color .5s}
+.wallet .wdot{width:9px;height:9px;border-radius:50%;background:#64748b}
+.wallet.connected{border-color:#34d399;color:#d1fae5}
+.wallet.connected .wdot{background:#34d399;box-shadow:0 0 10px #34d399}
+.port h2{font-size:42px;font-weight:700;margin-bottom:18px}
+.hint{font-size:18px;color:#8fa3c8;margin-bottom:14px}
+.input{background:#0d1526;border:1px solid #2a3a5c;border-radius:14px;padding:19px 24px;font-size:28px;font-family:Consolas,monospace;color:#e8eefc;box-shadow:inset 0 0 24px rgba(0,0,0,.4);transition:border-color .4s,box-shadow .4s}
+.input.focus{border-color:#34d399;box-shadow:0 0 26px rgba(52,211,153,.16)}
+.actions{display:flex;align-items:center;gap:26px;margin-top:26px}
+.run{background:linear-gradient(90deg,#0d9488,#34d399);color:#03271a;border:none;border-radius:14px;font-size:22px;font-weight:800;padding:19px 36px;letter-spacing:.5px;box-shadow:0 8px 30px rgba(52,211,153,.25)}
+.run.click{animation:btnclick .35s ease-out}
+@keyframes btnclick{0%{transform:scale(1)}40%{transform:scale(.93)}100%{transform:scale(1)}}
+.note{font-size:18px;color:#8fa3c8}
+.note b{color:#34d399}
+.steps-panel{position:absolute;left:46px;right:46px;bottom:38px;background:#0d1526;border:1px solid #1e2a44;border-radius:16px;padding:20px 26px;opacity:0;transform:translateY(24px)}
+.steps-panel.show{animation:ss-fadeUp .5s ease-out 6.6s forwards}
+.steps-title{font-size:16px;color:#8fa3c8;margin-bottom:14px}
+.steps-title b{color:#e8eefc}
+.steps{display:flex;gap:13px}
+.step{flex:1;border:1px solid #1e2a44;border-radius:12px;padding:12px 6px;text-align:center;font-size:13.5px;color:#64748b;background:#0a101f;opacity:.55}
+.step .st-ic{font-size:19px;display:block;margin-bottom:6px}
+.step.done{opacity:1;border-color:#34d399;color:#d1fae5;background:rgba(6,40,30,.4)}
+.step.act{border-color:#34d399;color:#34d399;background:rgba(6,40,30,.4);box-shadow:0 0 20px rgba(52,211,153,.15);opacity:1}
+.step.act .st-ic{display:inline-block;animation:ss-spin 1s linear infinite}
+.wallet-modal{position:absolute;inset:0;background:rgba(3,5,10,.72);display:flex;align-items:center;justify-content:center;opacity:0;pointer-events:none}
+.wallet-modal.show{animation:ss-fadeIn .35s ease-out 1.5s forwards}
+.wallet-modal.bye{animation:ss-fadeOut .4s ease-in 5.7s forwards}
+@keyframes ss-fadeOut{from{opacity:1}to{opacity:0}}
+.mm-card{width:540px;background:#0d1526;border:1px solid #2a3a5c;border-radius:22px;padding:38px;text-align:center;transform:scale(.9);opacity:0;animation:ss-pop .5s cubic-bezier(.34,1.56,.64,1) 1.8s forwards;box-shadow:0 30px 80px rgba(0,0,0,.5)}
+.mm-card h3{font-size:26px;margin-bottom:20px}
+.net{font-size:16px;color:#8fa3c8;border:1px solid #1e2a44;border-radius:12px;padding:12px;margin-bottom:16px}
+.mm-row{display:flex;align-items:center;gap:14px;background:#0a101f;border:1px solid #1e2a44;border-radius:12px;padding:14px 18px}
+.fox{font-size:30px}
+.name{font-size:17px;color:#e8eefc;text-align:left}
+.addr{font-size:13.5px;color:#8fa3c8;font-family:Consolas,monospace}
+.result-panel{position:absolute;left:46px;right:46px;top:124px;bottom:172px;background:rgba(10,16,31,.97);border:1px solid rgba(52,211,153,.35);border-radius:18px;padding:30px 38px;box-shadow:0 0 60px rgba(52,211,153,.1);opacity:0;transform:translateY(60px);animation:ss-slideUp .6s ease-out 22.3s forwards;z-index:5}
+.result-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.result-head h2{font-size:27px;font-weight:700}
+.result-head .tag{font-size:14px;color:#64748b;font-family:Consolas,monospace}
+.risk-row{display:flex;gap:22px;margin-bottom:22px}
+.risk-card{flex:1;border:1px solid #1e2a44;border-radius:14px;padding:18px 22px;background:#0b1526;opacity:0;animation:ss-fadeUp .5s ease-out 23.0s forwards}
+.risk-card .k{font-size:14px;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px}
+.risk-card .big{font-size:48px;font-weight:700}
+.risk-card .big .lvl{font-size:20px;font-weight:700;color:#f59e0b;margin-left:10px}
+.bar{height:9px;border-radius:6px;background:#1e293b;margin-top:12px;overflow:hidden}
+.bar i{display:block;height:100%;width:0;border-radius:6px;background:linear-gradient(90deg,#f59e0b,#fbbf24);animation:barfill 1.4s ease-out 23.6s forwards}
+@keyframes barfill{to{width:46%}}
+.table{width:100%;border-collapse:collapse;opacity:0;animation:ss-fadeUp .5s ease-out 24.0s forwards}
+.table th{font-size:13px;color:#64748b;text-align:left;padding:9px 10px;border-bottom:1px solid #1e293b}
+.table td{padding:11px 10px;border-bottom:1px solid #1e293b;font-size:18px}
+.table .sym{font-weight:700}
+.table .pos{color:#34d399}
+.reb{display:flex;gap:16px;margin-top:20px}
+.reb .r{flex:1;border:1px solid #1e2a44;border-radius:14px;padding:16px 18px;background:#0b1526;opacity:0;animation:ss-fadeUp .5s ease-out 25.2s forwards}
+.reb .r:nth-child(2){animation-delay:25.8s}
+.reb .r .act{font-size:19px;font-weight:800;margin-bottom:7px}
+.reb .r.down .act{color:#fb5c7c}
+.reb .r.up .act{color:#34d399}
+.reb .r p{font-size:14.5px;color:#8fa3c8;line-height:1.5}
+.summary{margin-top:20px;font-size:17px;color:#c7d6f5;line-height:1.65;opacity:0;animation:ss-fadeUp .5s ease-out 26.6s forwards}
+</style></head><body>
+<canvas id="particles"></canvas>
+<div class="kicker">Live Demo ? <b>dev-simulated</b> ? data from e2e run</div>
+<div class="browser">
+  <div class="chrome">
+    <div class="dot" style="background:#fb5c7c"></div><div class="dot" style="background:#fbbf24"></div><div class="dot" style="background:#34d399"></div>
+    <div class="url">securesignal-hackathon.vercel.app</div>
+  </div>
+  <div class="app">
+    <div class="app-head">
+      <div class="logo">?? SecureSignal <span>? Flare Confidential Compute</span></div>
+      <div class="wallet" id="walletBtn"><span class="wdot"></span><span id="walletTxt">Connect Wallet</span></div>
+    </div>
+    <div class="port">
+      <h2>Your Portfolio</h2>
+      <div class="hint">Paste or type your holdings ? e.g. <b style="color:#c7d6f5">"0.5 BTC, 2 ETH"</b></div>
+      <div class="input" id="holdings">0.5 BTC, 2 ETH</div>
+      <div class="actions">
+        <button class="run" id="runBtn">Run Confidential Analysis</button>
+        <div class="note">?? <b>Encrypted in browser</b> ? plaintext never leaves this page</div>
+      </div>
+    </div>
+  </div>
+  <div class="steps-panel" id="stepsPanel">
+    <div class="steps-title">Confidential Analysis ? <b>on-chain workflow</b></div>
+    <div class="steps">
+      <div class="step" id="st1"><span class="st-ic">??</span>Encrypt in browser</div>
+      <div class="step" id="st2"><span class="st-ic">??</span>Register on-chain</div>
+      <div class="step" id="st3"><span class="st-ic">??</span>Send to TEE node</div>
+      <div class="step" id="st4"><span class="st-ic">??</span>TEE analysis</div>
+      <div class="step" id="st5"><span class="st-ic">??</span>Decrypt locally</div>
+    </div>
+  </div>
+  <div class="wallet-modal" id="walletModal">
+    <div class="mm-card">
+      <h3>Connect your wallet</h3>
+      <div class="net">MetaMask ? Flare Coston2 Testnet (Chain ID 114)</div>
+      <div class="mm-row"><div class="fox">??</div><div><div class="name">MetaMask</div><div class="addr">0x7099?79C8</div></div></div>
+    </div>
+  </div>
+  <div class="result-panel" id="resultPanel">
+    <div class="result-head"><h2>Analysis Result</h2><div class="tag">task #1 ? 0x1cf7ef8c?9ef ? dev-simulated</div></div>
+    <div class="risk-row">
+      <div class="risk-card"><div class="k">Risk Score</div><div class="big"><span id="riskVal">0</span><span class="lvl">/ 100 ? Medium</span></div><div class="bar"><i></i></div></div>
+      <div class="risk-card"><div class="k">Total Value</div><div class="big"><span id="valVal">$0</span></div></div>
+    </div>
+    <table class="table"><tr><th>Asset</th><th>Amount</th><th>Value (USD)</th><th>Weight</th></tr>
+      <tr><td class="sym">? BTC</td><td>0.5</td><td>$32,500</td><td class="pos"><span id="w1">0%</span></td></tr>
+      <tr><td class="sym">? ETH</td><td>2.0</td><td>$7,000</td><td class="pos"><span id="w2">0%</span></td></tr>
+    </table>
+    <div class="reb">
+      <div class="r down"><div class="act">? Reduce BTC</div><p>BTC is 82.3% of the portfolio ? above the 70% concentration threshold.</p></div>
+      <div class="r up"><div class="act">? Add ETH</div><p>Diversify to lower correlation and reduce overall portfolio risk.</p></div>
+    </div>
+    <div class="summary">With a total value of <b>$39,500</b>, BTC at 82.3% drives most of the risk. The engine recommends trimming BTC and adding ETH to bring the risk score down from 46/100.</div>
+  </div>
+</div>
+<script src="../assets/html/v2_common.js"></script>
+<script>
+SS.particles(document.getElementById("particles"), { count: 30, color: "rgba(96,165,250,", linkDist: 140 });
+SS.scanlines(0.04);
+SS.vignette();
+const $ = id => document.getElementById(id);
+setTimeout(() => $("walletModal").classList.add("show"), 1500);
+setTimeout(() => $("walletModal").classList.add("bye"), 5700);
+setTimeout(() => { $("walletBtn").classList.add("connected"); $("walletTxt").textContent = "0x7099?79C8 ?"; }, 6100);
+setTimeout(() => $("holdings").classList.add("focus"), 6200);
+setTimeout(() => $("runBtn").classList.add("click"), 6300);
+setTimeout(() => { $("stepsPanel").classList.add("show"); $("st1").classList.add("done"); }, 6600);
+const STEP = [[12500, "st2"], [13300, "st3"], [15700, "st4"], [22200, "st5"]];
+STEP.forEach(s => setTimeout(() => { $("st" + (parseInt(s[1].slice(2)) - 1)).classList.remove("act"); $("st" + (parseInt(s[1].slice(2)) - 1)).classList.add("done"); $("st" + parseInt(s[1].slice(2))).classList.add("act"); }, s[0]));
+setTimeout(() => { $("st4").classList.remove("act"); $("st4").classList.add("done"); $("st5").classList.add("done"); $("resultPanel").style.animationDelay = "0s"; }, 22200);
+setTimeout(() => SS.counter($("riskVal"), 46, { dur: 1.4 }), 23000);
+setTimeout(() => SS.counter($("valVal"), 39500, { prefix: "$", dur: 1.8 }), 23200);
+setTimeout(() => SS.counter($("w1"), 82.3, { decimals: 1, suffix: "%", dur: 1.3 }), 24300);
+setTimeout(() => SS.counter($("w2"), 17.7, { decimals: 1, suffix: "%", dur: 1.3 }), 24900);
+</script>
+</body></html>

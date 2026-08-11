@@ -1,0 +1,12 @@
+1
+00:00:00,050 --> 00:00:01,807
+This is SecureSignal.
+
+2
+00:00:01,807 --> 00:00:05,482
+Confidential portfolio intelligence, built on Flare
+
+3
+00:00:05,482 --> 00:00:07,038
+Confidential Compute.
+

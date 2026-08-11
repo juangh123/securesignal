@@ -1,0 +1,40 @@
+1
+00:00:00,050 --> 00:00:01,399
+Here is how it works.
+
+2
+00:00:01,399 --> 00:00:04,850
+The frontend generates a one-time session key, and
+
+3
+00:00:04,850 --> 00:00:08,301
+encrypts your portfolio with the TEE's public key.
+
+4
+00:00:08,301 --> 00:00:12,063
+A registry contract on the Coston2 testnet records
+
+5
+00:00:12,063 --> 00:00:15,013
+the task and the TEE's attestation key.
+
+6
+00:00:15,013 --> 00:00:18,300
+Inside the enclave, the TEE node decrypts the
+
+7
+00:00:18,300 --> 00:00:21,944
+payload, runs the risk analysis, signs the result,
+
+8
+00:00:21,944 --> 00:00:24,945
+and encrypts it back to your session key.
+
+9
+00:00:24,945 --> 00:00:28,546
+Finally, the app verifies the signature, and the
+
+10
+00:00:28,546 --> 00:00:30,163
+on-chain result hash.
+

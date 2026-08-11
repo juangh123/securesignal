@@ -1,0 +1,36 @@
+{
+  "voice": "en-US-AndrewNeural",
+  "rate": "-8%",
+  "segments": [
+    {
+      "idx": 1,
+      "duration_ms": 7100.0,
+      "captions": 3
+    },
+    {
+      "idx": 2,
+      "duration_ms": 30960.0,
+      "captions": 11
+    },
+    {
+      "idx": 3,
+      "duration_ms": 30220.0,
+      "captions": 10
+    },
+    {
+      "idx": 4,
+      "duration_ms": 31460.0,
+      "captions": 11
+    },
+    {
+      "idx": 5,
+      "duration_ms": 21360.0,
+      "captions": 7
+    },
+    {
+      "idx": 6,
+      "duration_ms": 14060.0,
+      "captions": 7
+    }
+  ]
+}
