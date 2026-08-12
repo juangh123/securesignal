@@ -112,3 +112,10 @@ Independent full-stack builder. Built the complete stack from scratch during the
   - Complete Telegram once with network access (proxy/VPN commonly used for foreign services), then log in via QR/code and return to the form.
   - If Telegram is truly unavailable, ask DoraHacks staff in the hackathon channel whether another primary contact is acceptable.
 - WeChat field wants your WeChat ID (not phone number): WeChat -> Me -> profile shows your WeChat ID (e.g. wxid_xxx); set one in WeChat settings if unset.
+
+## 12. Submit page
+- Track *: select **Bounty 2 - Confidential Compute Apps**.
+- Yes/No toggle: read the question above it and answer honestly (likely a rules/disclosure confirmation).
+- Check "I agree to the Terms of Use Agreement and Participant Agreement".
+- Click **Submit for Review**.
+- After submission it enters review; edits are usually still possible until the deadline (2026-08-14 19:59).
