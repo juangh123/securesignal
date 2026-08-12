@@ -97,3 +97,9 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 - Q3 2026: real vTPM attestation, wallet auto-import of holdings, FAssets (FXRP) analysis.
 - Q4 2026: DAO treasury multi-sig report mode.
 - 2027: Flare ecosystem grant; open the TEE analysis API to other builders; launch a Confidential Oracle service on Flare Mainnet.
+
+## 10. Team page
+- Members: the logged-in DoraHacks account is added automatically; use "Invite new members" to add co-builders by DoraHacks handle/nickname/email (if any).
+- Team information * (short description, paste this):
+
+Independent full-stack builder. Built the complete stack from scratch during the hackathon — Solidity contracts, Python TEE engine, and Next.js DApp — with end-to-end verification on Flare Coston2.
