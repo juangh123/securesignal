@@ -5,7 +5,7 @@ import os, re, subprocess, sys
 ROOT = r"F:\AI WORK\Flare Confidential Compute"
 os.chdir(ROOT)
 
-FF = r"C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe"
+FF = r"C:\ffmpeg\ffmpeg.exe"
 
 BLACK = 1.5
 SEGS = [("seg1_title", 8.0), ("seg2_problem", 32.0), ("seg3_arch", 31.0),

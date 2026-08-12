@@ -1,6 +1,6 @@
 # SecureSignal Video Production Guide
 
-> **Final Video Output:** ideo/dist/SecureSignal_demo_1080p.mp4 (2:22, 1080p30, English voiceover + hard subtitles).
+> **Final Video Output (2026-08-12):** ideo/dist/SecureSignal_demo_1080p_v2.mp4 (2:19, 1080p30, English voiceover + hard subtitles). Segments 4/5 now use a REAL screen recording of the live app: wallet connect -> on-chain requestAnalysis -> TEE analysis -> decrypted result + attestation (real Coston2 tx, real FTSO prices).
 
 ## Overview
 
