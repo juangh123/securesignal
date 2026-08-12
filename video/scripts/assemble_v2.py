@@ -2,7 +2,7 @@
 """Assemble SecureSignal v2: xfade transitions + ducked BGM + SFX + styled subs."""
 import os, re, subprocess, sys
 
-ROOT = r"E:\AI WORK\Flare Confidential Compute"
+ROOT = r"F:\AI WORK\Flare Confidential Compute"
 os.chdir(ROOT)
 
 FF = r"C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\Lib\site-packages\imageio_ffmpeg\binaries\ffmpeg-win-x86_64-v7.1.exe"
