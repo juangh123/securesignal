@@ -145,8 +145,10 @@ npm run dev
   - FtsoV2Reader: [`0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`](https://coston2-explorer.flare.network/address/0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a)
   - 登记 TEE 地址: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
   - 生产冒烟测试 **12/12 通过**（`frontend/e2e/e2e-coston2.mjs`）：真实 FTSO 喂价、attestation ecrecover == TEE 地址、链上 status=Verified
-- App: https://securesignal-hackathon.vercel.app
-- Video (4 min): https://... *(待录制)*
+- App: https://securesignal.vercel.app
+- TEE 后端: https://securesignal-tee.onrender.com（`/public-key` 在线，已实测）
+- 演示视频（2:19，英文配音+字幕，含真实 Coston2 交易）: https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
+- TEE 公钥: `04088c6f6e685b84d396521b59d8b8ff794f4d6a27d47d487b716eced258fa76644e36bee0f46525f9920c9b6dd9f9ef1773d6aff610b0f944d29b0624f4cc10b6`
 - Contracts (Flare Mainnet): *(未部署)*
 
 ## Roadmap

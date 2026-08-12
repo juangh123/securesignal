@@ -17,7 +17,7 @@ services:
         value: dev # 接入真实 vTPM 后改为镜像 digest（deployment.md 3.3）
       - key: ALLOWED_ORIGINS
         # 部署 Vercel 后改为：https://<你的项目>.vercel.app
-        value: https://securesignal.vercel.app,https://securesignal-hackathon.vercel.app,https://securesignal-app.vercel.app,http://localhost:3000,http://localhost:3001
+        value: https://securesignal.vercel.app,http://localhost:3000,http://localhost:3001
       - key: TEE_PRIVATE_KEY
         sync: false # TEE 签名/解密密钥（0x + 64 hex），dashboard 手填
       - key: PRIVATE_KEY

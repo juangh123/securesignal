@@ -10,7 +10,7 @@
 
 - [ ] MetaMask 已切换到 **Coston2 测试网**（Chain ID 114），账户内有少量 C2FLR
       （水龙头：https://faucet.flare.network/coston2 ）
-- [ ] 浏览器打开 https://securesignal-hackathon.vercel.app/ 能正常显示（深色新 UI）
+- [ ] 浏览器打开 https://securesignal.vercel.app/ 能正常显示（深色新 UI）
 - [ ] 浏览器窗口 1920x1080 或最大化；按 Ctrl+0 恢复 100% 缩放；隐藏书签栏（Ctrl+Shift+B）
 - [ ] 关闭无关标签页；系统通知开启勿扰模式
 - [ ] OBS：来源选「窗口采集」锁定浏览器窗口；输出 1080p30，码率 8000kbps，格式 mp4

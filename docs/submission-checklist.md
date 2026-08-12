@@ -1,7 +1,7 @@
 # SecureSignal 黑客松提交清单
 
 > Flare Summer Signal Hackathon — Bounty 2: Confidential Compute Apps
-> 状态日期：2026-07-19。✅ = 已完成并有验证证据；⏳ = 等待外部凭据/人工操作。
+> 状态日期：2026-08-13（提交前终检）。提交截止：2026-08-14 19:59（DoraHacks）。✅ = 已完成并有验证证据；⏳ = 等待外部凭据/人工操作。
 
 ## 一、代码与功能（✅ 全部完成）
 
@@ -20,17 +20,17 @@
 | 文档（架构 / 部署手册 / 双语 README） | ✅ | docs/ 三份 + README.md / README.en.md |
 | 版本管理 | ✅ | git init，首次提交 2c6a6ec |
 
-## 二、提交前必须完成的剩余项（⏳ 需要项目所有者操作）
+## 二、提交前必办事项（状态：1–5 已完成）
 
-| # | 事项 | 需要什么 | 指引 |
+| # | 事项 | 状态 | 验证证据 / 指引 |
 |---|---|---|---|
-| 1 | Coston2 测试网部署合约 | 部署者私钥 + faucet 测试币 | `docs/deployment.md` §2（faucet → deploy.ts --network coston2 → setup-tee → 回填地址） |
-| 2 |  tee-service 部署到可公网访问的环境 | 服务器 / 容器平台；生产 env（见 §1 表） | `docs/deployment.md` §1、§2.5 |
-| 3 | 前端部署（Vercel 等） | WalletConnect projectId（已有）+ 平台账号 | `frontend/.env.local` 两变量配到平台 |
-| 4 | 更新 README Live Demo 区块 | 完成 1–3 后填入真实地址与链接 | README.md / README.en.md `Live Demo` 节 |
-| 5 | 录制 4 分钟演示视频 | 部署完成后的可运行环境 | 建议脚本：问题引入(30s) → 架构(45s) → 现场演示加密分析全流程(90s) → 链上验证(45s) → 亮点总结(30s) |
-| 6 | （可选）真实 LLM key | OpenAI 兼容 API key | 设 `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL` 三个 env 即启用 |
-| 7 | （可选，加分项）GCP Confidential Space 真实 vTPM | GCP 账号 + TEE 环境 | `docs/deployment.md` §3 改造路线 |
+| 1 | Coston2 测试网部署合约 | ✅ | AnalysisRegistry `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`、FtsoV2Reader `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`；生产冒烟 12/12（`frontend/e2e/e2e-coston2.mjs`） |
+| 2 | tee-service 部署到可公网访问的环境 | ✅ | https://securesignal-tee.onrender.com（`/public-key` 200，已实测） |
+| 3 | 前端部署（Vercel） | ✅ | https://securesignal.vercel.app（英文 UI，已实测） |
+| 4 | 更新 README Live Demo 区块 | ✅ | README.md / README.en.md 已回填真实链接、合约地址、TEE 公钥与视频链接 |
+| 5 | 录制演示视频 | ✅ | `video/dist/SecureSignal_demo_1080p_v3.mp4`（2:19，1080p，英文配音+字幕，含真实 Coston2 交易） |
+| 6 | （可选）真实 LLM key | ◻ | OpenAI 兼容 key → 设 `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL`；当前线上未配置，走确定性规则引擎回退（已英文化） |
+| 7 | （可选，加分项）GCP Confidential Space 真实 vTPM | ◻ | `docs/deployment.md` §3 改造路线 |
 
 ## 三、评审亮点（提交描述可用）
 
