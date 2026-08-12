@@ -108,4 +108,7 @@ Independent full-stack builder. Built the complete stack from scratch during the
 - Contact info is visible only to DoraHacks staff (BUIDL verification / outreach).
 - Telegram (primary contact): fill your Telegram username, e.g. `@your_handle`.
 - Backup contact *: pick ONE of Discord username / WhatsApp number / WeChat ID that you actually use.
-- If you have no Telegram yet, registering one takes ~1 minute (https://telegram.org) and is the simplest option.
+- Update (2026-08-13): the form ENFORCES the Telegram username ("Please enter Telegram username") and opens a Telegram code/QR verification popup.
+  - Complete Telegram once with network access (proxy/VPN commonly used for foreign services), then log in via QR/code and return to the form.
+  - If Telegram is truly unavailable, ask DoraHacks staff in the hackathon channel whether another primary contact is acceptable.
+- WeChat field wants your WeChat ID (not phone number): WeChat -> Me -> profile shows your WeChat ID (e.g. wxid_xxx); set one in WeChat settings if unset.
