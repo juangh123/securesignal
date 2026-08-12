@@ -36,24 +36,22 @@ export function generateSessionKeyPair(): SessionKeyPair {
  * @param teePubHex TEE public key, 65-byte uncompressed hex ("04" prefix, no "0x")
  * @param payloadObj plaintext object per protocol:
  *        { client_pubkey: string, holdings: Record<string, number>, risk_profile: string }
- * @returns hex string of (ephemeral pubkey || nonce || tag || ciphertext)
+ * @returns base64 of (ephemeral pubkey || nonce || tag || ciphertext)
  */
 export function encryptForTee(teePubHex: string, payloadObj: TeePayload): string {
   const plaintext = new TextEncoder().encode(JSON.stringify(payloadObj))
   const ciphertext = encrypt(teePubHex, plaintext)
-  // return as hex to match python behavior instead of base64
-  return '0x' + Buffer.from(ciphertext).toString('hex');
+  return Buffer.from(ciphertext).toString('base64')
 }
 
 /**
  * Decrypt the TEE's encrypted_result with the session private key.
  * @param sessionPrivHex session private key hex (no 0x)
- * @param ciphertextHex hex wire payload from the TEE
+ * @param ciphertextB64 base64 wire payload from the TEE
  * @returns parsed result object
  */
-export function decryptResult<T = unknown>(sessionPrivHex: string, ciphertextHex: string): T {
-  const cleanHex = ciphertextHex.replace(/^0x/i, '');
-  const ciphertext = Buffer.from(cleanHex, 'hex');
+export function decryptResult<T = unknown>(sessionPrivHex: string, ciphertextB64: string): T {
+  const ciphertext = Buffer.from(ciphertextB64, 'base64')
   const plaintext = decrypt(sessionPrivHex, ciphertext)
   return JSON.parse(new TextDecoder().decode(plaintext)) as T
 }
