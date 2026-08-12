@@ -118,10 +118,10 @@ MOCK_LLM_VALID_ANALYSIS = {
     "risk_score": 55,
     "risk_level": "medium",
     "rebalance": [
-        {"action": "hold", "symbol": "BTC", "reason": "BTC 权重合理，作为核心仓位继续持有。"},
-        {"action": "decrease", "symbol": "ETH", "reason": "示例：ETH 波动较大，建议小幅减仓锁定收益。"},
+        {"action": "hold", "symbol": "BTC", "reason": "BTC weight is reasonable — keep it as a core position."},
+        {"action": "decrease", "symbol": "ETH", "reason": "Example: ETH is volatile — consider trimming slightly to lock in gains."},
     ],
-    "summary": "组合估值合理，BTC 与 ETH 权重均衡，集中度中等，建议维持核心仓位并关注市场波动风险。",
+    "summary": "Portfolio valuation looks reasonable, BTC and ETH weights are balanced, concentration is moderate — keep core positions and watch market volatility.",
 }
 
 
@@ -212,7 +212,7 @@ def run_mock_llm_checks() -> None:
             f"mock-llm-malformed: expected analysis_mode='rule-fallback', got {result['analysis_mode']!r}"
         assert _MockLLMHandler.requests_seen == 2, \
             f"mock-llm-malformed: expected 2 LLM HTTP requests (1 retry), saw {_MockLLMHandler.requests_seen}"
-        assert "规则引擎" in result["summary"], \
+        assert "rule engine" in result["summary"], \
             "mock-llm-malformed: summary must disclose the rule-engine fallback"
         assert result["prices_used"] == {"BTC": 65000.0, "ETH": 3500.0}, \
             "mock-llm-malformed: fallback must still use REAL provider prices"

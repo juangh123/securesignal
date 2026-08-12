@@ -15,7 +15,7 @@ Env config
 Division of labour
 ------------------
 The LLM only produces the *judgement* fields of the analysis result —
-``risk_score``, ``risk_level``, ``rebalance`` advice and the Chinese
+``risk_score``, ``risk_level``, ``rebalance`` advice and the English
 ``summary``. All portfolio math (USD values, weights) is computed
 deterministically in ``analysis/engine.py`` and injected into the prompt as
 ground truth, together with the FTSO prices actually used.
@@ -29,7 +29,7 @@ Contract
       "risk_level": "low" | "medium" | "high",
       "rebalance": [{"action": "increase" | "decrease" | "hold",
                      "symbol": str, "reason": str}, ...],
-      "summary": str  # Chinese analysis text
+      "summary": str  # English analysis text
     }
 
 Any failure (network, HTTP error, malformed response envelope, non-JSON or
@@ -69,24 +69,24 @@ def is_configured() -> bool:
     return bool(os.environ.get("LLM_API_KEY", "").strip())
 
 
-SYSTEM_PROMPT = """你是一名资深加密货币投资组合分析师，是隐私投顾服务 SecureSignal 运行在可信执行环境（TEE）中的分析内核。
+SYSTEM_PROMPT = """You are a senior cryptocurrency portfolio analyst — the analysis core of SecureSignal, a privacy-first advisory service running inside a Trusted Execution Environment (TEE).
 
-你会收到：用户持仓、Flare FTSO 链上实时价格、由服务端预先精确计算的各资产美元市值与权重、组合总市值，以及用户自述风险偏好。
+You will receive: the user's holdings, live Flare FTSO on-chain prices, the server-computed USD values and weights for each asset, total portfolio value, and the user's stated risk profile.
 
-你的任务：评估该组合的风险水平并给出调仓建议。
+Your task: assess the portfolio's risk and give rebalancing advice.
 
-严格要求：
-1. 只输出一个 JSON 对象。禁止输出 markdown 代码块标记、注释、思考过程或任何 JSON 以外的文字。
-2. JSON 必须恰好包含以下四个字段：
+Strict requirements:
+1. Output ONLY one JSON object. No markdown code fences, comments, chain-of-thought, or any text outside JSON.
+2. The JSON must contain exactly these four fields:
 {
-  "risk_score": <0 到 100 的整数，越大代表风险越高>,
-  "risk_level": <只能是 "low" | "medium" | "high">,
-  "rebalance": [ {"action": <只能是 "increase" | "decrease" | "hold">, "symbol": <资产代码，如 "BTC">, "reason": <一句中文理由>} ],
-  "summary": <一段 80-200 字的中文分析，涵盖组合估值、集中度、主要风险点与操作建议>
+  "risk_score": <integer 0-100, higher = riskier>,
+  "risk_level": <only "low" | "medium" | "high">,
+  "rebalance": [ {"action": <only "increase" | "decrease" | "hold">, "symbol": <asset code, e.g. "BTC">, "reason": <one English sentence>} ],
+  "summary": <an 80-200 character English analysis covering valuation, concentration, key risks and suggested actions>
 }
-3. risk_level 建议与 risk_score 保持一致：0-39 为 low，40-69 为 medium，70-100 为 high。
-4. rebalance 必须覆盖输入组合中的每一种资产，每种资产恰好一条建议。
-5. 你的所有结论必须基于输入中的真实价格、市值与权重数据，禁止编造或外推任何数字。"""
+3. risk_level must be consistent with risk_score: 0-39 = low, 40-69 = medium, 70-100 = high.
+4. rebalance must cover every asset in the input portfolio, exactly one entry per asset.
+5. All conclusions must be based on the real prices, values and weights in the input — never fabricate or extrapolate numbers."""
 
 
 def _build_messages(
@@ -98,14 +98,14 @@ def _build_messages(
     price_usd, value_usd, weight_pct}]}.
     """
     user_data = {
-        "说明": "以下价格来自 Flare FTSO（price_source 字段标明来源），市值与权重为服务端精确计算值，请直接采信。",
+        "note": "Prices below come from Flare FTSO (see price_source); values and weights are server-computed — use them as ground truth.",
         "price_source": portfolio.get("price_source"),
         "total_value_usd": portfolio.get("total_value_usd"),
         "holdings": portfolio.get("holdings"),
         "risk_profile": risk_profile,
     }
     user_content = (
-        "请分析以下加密货币投资组合，并严格按系统提示的格式只输出一个 JSON 对象：\n"
+        "Analyze the following crypto portfolio and output ONLY one JSON object strictly following the system prompt format:\n"
         + json.dumps(user_data, ensure_ascii=False, indent=2)
     )
     return [
@@ -233,7 +233,7 @@ def _validate(obj: Dict[str, Any]) -> Dict[str, Any]:
             }
         )
 
-    # summary: non-empty Chinese analysis text
+    # summary: non-empty English analysis text
     summary = obj.get("summary")
     if not isinstance(summary, str) or not summary.strip():
         raise LLMError("summary must be a non-empty string")
