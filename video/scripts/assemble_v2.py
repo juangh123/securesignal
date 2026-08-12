@@ -111,7 +111,7 @@ afc.append(f"[7:a]aresample=48000,volume=0.16,atrim=0:{TOTAL},afade=t=in:st=0:d=
 afc.append("[vo]asplit[voA][voB]")
 afc.append("[bg][voA]sidechaincompress=threshold=0.02:ratio=8:attack=12:release=500[bgduck]")
 afc.append("[voB][bgduck]amix=inputs=2:duration=first:normalize=0,atrim=0:%.3f[va]" % TOTAL)
-afc.append("[8:a]aresample=48000,aformat=channel_layouts=stereo[sfx]")
+afc.append("[8:a]aresample=48000,aformat=channel_layouts=stereo,volume=0.6[sfx]")
 afc.append("[va][sfx]amix=inputs=2:duration=first:normalize=0,loudnorm=I=-16:TP=-1.5:LRA=11[aout]")
 
 substyle = ("PlayResX=1920,PlayResY=1080,FontName=Segoe UI,FontSize=43,Bold=1,"
@@ -124,7 +124,7 @@ out_cmd = [FF, "-y", "-loglevel", "warning"] + ain + [
     "-c:v", "libx264", "-preset", "medium", "-crf", "18", "-pix_fmt", "yuv420p", "-r", "30",
     "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
     "-movflags", "+faststart",
-    "video/dist/SecureSignal_demo_1080p_v2.mp4"]
+    "video/dist/SecureSignal_demo_1080p_v3.mp4"]
 run(out_cmd)
-sz = os.path.getsize("video/dist/SecureSignal_demo_1080p_v2.mp4")
-print(f"OK {TOTAL:.1f}s {sz/1e6:.1f} MB -> video/dist/SecureSignal_demo_1080p_v2.mp4")
+sz = os.path.getsize("video/dist/SecureSignal_demo_1080p_v3.mp4")
+print(f"OK {TOTAL:.1f}s {sz/1e6:.1f} MB -> video/dist/SecureSignal_demo_1080p_v3.mp4")
