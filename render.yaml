@@ -14,7 +14,7 @@ services:
       - key: TEE_IMAGE_DIGEST
         value: dev # 鎺ョ湡瀹?vTPM 鍚庢敼涓洪暅鍍?digest锛坉eployment.md 搂3.3锛?      - key: ALLOWED_ORIGINS
         # 閮ㄧ讲 Vercel 鍚庢敼涓猴細https://<浣犵殑椤圭洰>.vercel.app
-        value: https://securesignal-hackathon.vercel.app,http://localhost:3000,http://localhost:3001
+        value: https://securesignal.vercel.app,http://localhost:3000,http://localhost:3001
       - key: TEE_PRIVATE_KEY
         sync: false # TEE 绛惧悕/瑙ｅ瘑瀵嗛挜锛?x + 64 hex锛夛紝dashboard 鎵嬪～
       - key: PRIVATE_KEY
