@@ -9,7 +9,7 @@ h2 span{color:#34d399}
 .tag{font-size:20px;color:#5b729c;margin-top:10px;letter-spacing:3px;text-transform:uppercase;opacity:0;animation:ss-fadeIn .6s ease-out .5s forwards}
 .step-ctr{position:absolute;top:64px;right:80px;font-size:22px;color:#5b729c;letter-spacing:2px;opacity:0;animation:ss-fadeIn .6s ease-out .7s forwards}
 .step-ctr b{color:#34d399}
-.flow{position:absolute;left:76px;right:76px;top:252px;z-index:3;display:flex;align-items:center;justify-content:space-between}
+.flow{position:absolute;left:76px;right:76px;top:50%;transform:translateY(-45%);z-index:3;display:flex;align-items:center;justify-content:space-between}
 .node{width:300px;height:352px;border-radius:22px;padding:26px 22px;background:rgba(13,21,38,.82);border:1px solid #1e2a44;display:flex;flex-direction:column;opacity:0;animation:ss-fadeUp .55s ease-out .9s forwards;transition:border-color .5s,box-shadow .5s,background .5s}
 .node:nth-child(1){animation-delay:.9s}.node:nth-child(3){animation-delay:1.05s}.node:nth-child(5){animation-delay:1.2s}.node:nth-child(7){animation-delay:1.35s}.node:nth-child(9){animation-delay:1.5s}
 .node .ic{width:62px;height:62px;border-radius:16px;background:rgba(30,42,68,.9);display:flex;align-items:center;justify-content:center;margin-bottom:16px}
@@ -40,32 +40,32 @@ h2 span{color:#34d399}
 <canvas id="particles"></canvas>
 <div class="head">
   <h2>End-to-End <span>Confidential</span> Pipeline</h2>
-  <div class="tag">Flare Confidential Compute ? Coston2 Testnet</div>
+  <div class="tag">Flare Confidential Compute · Coston2 Testnet</div>
   <div class="step-ctr">STEP <b id="stepNo">1</b>/4</div>
 </div>
 <div class="flow">
   <div class="node" id="n1"><div class="ic">
     <svg viewBox="0 0 64 64" width="34" height="34" fill="none"><rect x="6" y="14" width="52" height="38" rx="8" stroke="#7dd3fc" stroke-width="3.5"/><path d="M6 22h12a8 8 0 0 1 8 8 8 8 0 0 1-8 8H6" stroke="#7dd3fc" stroke-width="3.5"/><circle cx="46" cy="36" r="4" fill="#7dd3fc"/></svg>
-  </div><h3>User Wallet</h3><p>One-time session key. Holdings are encrypted locally ? plaintext never leaves the browser.</p><div class="chip">CLIENT</div></div>
-  <div class="arrow" id="a1"><div class="lbl">1 ? ECIES ENCRYPT</div><div class="track"><div class="pkt" id="pkt1"></div></div></div>
+  </div><h3>User Wallet</h3><p>One-time session key. Holdings are encrypted locally — plaintext never leaves the browser.</p><div class="chip">CLIENT</div></div>
+  <div class="arrow" id="a1"><div class="lbl">1 🔒 ECIES ENCRYPT</div><div class="track"><div class="pkt" id="pkt1"></div></div></div>
   <div class="node" id="n2"><div class="ic">
     <svg viewBox="0 0 64 64" width="34" height="34" fill="none"><rect x="6" y="10" width="52" height="44" rx="6" stroke="#7dd3fc" stroke-width="3.5"/><path d="M6 22h52" stroke="#7dd3fc" stroke-width="3.5"/><circle cx="14" cy="16" r="2.4" fill="#7dd3fc"/><circle cx="22" cy="16" r="2.4" fill="#7dd3fc"/><path d="M32 30l10 8-10 8" stroke="#7dd3fc" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
   </div><h3>Next.js DApp</h3><p>Registers the analysis task on-chain, then forwards the encrypted payload to the TEE node.</p><div class="chip">DAPP</div></div>
-  <div class="arrow" id="a2"><div class="lbl">2 ? REGISTER TX ? COSTON2</div><div class="track"><div class="pkt pink" id="pkt2"></div></div></div>
+  <div class="arrow" id="a2"><div class="lbl">2 📋 REGISTER TX · COSTON2</div><div class="track"><div class="pkt pink" id="pkt2"></div></div></div>
   <div class="node" id="n3"><div class="ic">
     <svg viewBox="0 0 64 64" width="34" height="34" fill="none"><rect x="8" y="8" width="24" height="24" rx="7" stroke="#fb5c7c" stroke-width="4"/><rect x="32" y="32" width="24" height="24" rx="7" stroke="#fb5c7c" stroke-width="4"/></svg>
   </div><h3>Registry Contract</h3><p>Anchors the task hash and the TEE attestation key on Flare Coston2.</p><div class="chip">CONTRACT</div></div>
-  <div class="arrow" id="a3"><div class="lbl">3 ? DECRYPT ? ANALYZE ? SIGN</div><div class="track"><div class="pkt" id="pkt3"></div></div></div>
+  <div class="arrow" id="a3"><div class="lbl">3 🔑 DECRYPT · ANALYZE · SIGN</div><div class="track"><div class="pkt" id="pkt3"></div></div></div>
   <div class="node" id="n4"><div class="ic">
     <svg viewBox="0 0 64 64" width="34" height="34" fill="none"><rect x="14" y="14" width="36" height="36" rx="8" stroke="#34d399" stroke-width="4"/><rect x="24" y="24" width="16" height="16" rx="3" stroke="#34d399" stroke-width="3"/><path d="M24 6v8M40 6v8M24 50v8M40 50v8M6 24h8M6 40h8M50 24h8M50 40h8" stroke="#34d399" stroke-width="3.5" stroke-linecap="round"/></svg>
   </div><h3>TEE Node</h3><p>Decrypts only inside the enclave, runs AI risk analysis, signs the result, encrypts it back.</p>
-    <div class="tee-inner"><span class="ti1">decrypt payload</span><span class="ti2">run risk analysis</span><span class="ti3">sign with attestation key</span><span class="ti4">encrypt ? session key</span></div>
+    <div class="tee-inner"><span class="ti1">decrypt payload</span><span class="ti2">run risk analysis</span><span class="ti3">sign with attestation key</span><span class="ti4">encrypt → session key</span></div>
     <div class="chip">ENCLAVE</div></div>
-  <div class="arrow" id="a4"><div class="lbl">4 ? VERIFY SIG + HASH</div><div class="track"><div class="pkt" id="pkt4"></div></div></div>
+  <div class="arrow" id="a4"><div class="lbl">4 ✅ VERIFY SIG + HASH</div><div class="track"><div class="pkt" id="pkt4"></div></div></div>
   <div class="node" id="n5"><div class="ic">
     <svg viewBox="0 0 64 64" width="34" height="34" fill="none"><path d="M32 6l24 9v16c0 14-9 24-24 28C17 55 8 45 8 31V15Z" stroke="#34d399" stroke-width="4"/><path d="M22 32l7 7 14-15" stroke="#34d399" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </div><h3>App Verify</h3><p>Verifies the attestation signature and the on-chain result hash.</p>
-    <div class="verify-chip" id="verifyChip">? SIGNATURE + HASH VERIFIED</div>
+    <div class="verify-chip" id="verifyChip">✓ SIGNATURE + HASH VERIFIED</div>
     <div class="chip">CLIENT</div></div>
 </div>
 <script src="../assets/html/v2_common.js"></script>

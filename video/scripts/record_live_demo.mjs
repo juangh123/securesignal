@@ -198,7 +198,7 @@ await page.fill('textarea', '0.5 BTC, 2 ETH, 10000 FLR');
 await page.waitForTimeout(800);
 log('holdings set');
 
-const runBtn = page.getByRole('button', { name: /加密并在 TEE 中分析/ });
+const runBtn = page.getByRole('button', { name: /Encrypt & analyze in TEE/ });
 await runBtn.waitFor({ state: 'visible', timeout: 15000 });
 await runBtn.click();
 log('analysis started');
@@ -210,7 +210,7 @@ let resultVisible = false;
 let lastState = '';
 while (Date.now() < resultDeadline) {
   const bodyText = await page.evaluate(() => document.body.innerText).catch(() => '');
-  const hasResult = bodyText.includes('TEE 分析结果');
+  const hasResult = bodyText.includes('TEE Analysis Result');
   const statusMatch = bodyText.match(/(\d\/7[^\n]{0,80})/);
   const errMatch = bodyText.match(/流程中断([\s\S]{0,200})/);
   const state = (hasResult ? 'RESULT' : '') + (statusMatch ? ' status=' + statusMatch[1].trim() : '') + (errMatch ? ' ERR=' + errMatch[1].trim().replace(/\n+/g, ' ').slice(0, 160) : '');

@@ -75,7 +75,7 @@ body{background:#04060c}
 .summary{margin-top:20px;font-size:17px;color:#c7d6f5;line-height:1.65;opacity:0;animation:ss-fadeUp .5s ease-out 26.6s forwards}
 </style></head><body>
 <canvas id="particles"></canvas>
-<div class="kicker">Live Demo ? <b>dev-simulated</b> ? data from e2e run</div>
+<div class="kicker">Live Demo · <b>real on-chain</b> · data from Coston2</div>
 <div class="browser">
   <div class="chrome">
     <div class="dot" style="background:#fb5c7c"></div><div class="dot" style="background:#fbbf24"></div><div class="dot" style="background:#34d399"></div>
@@ -83,49 +83,49 @@ body{background:#04060c}
   </div>
   <div class="app">
     <div class="app-head">
-      <div class="logo">?? SecureSignal <span>? Flare Confidential Compute</span></div>
+      <div class="logo">🛡 SecureSignal <span>· Flare Confidential Compute</span></div>
       <div class="wallet" id="walletBtn"><span class="wdot"></span><span id="walletTxt">Connect Wallet</span></div>
     </div>
     <div class="port">
       <h2>Your Portfolio</h2>
-      <div class="hint">Paste or type your holdings ? e.g. <b style="color:#c7d6f5">"0.5 BTC, 2 ETH"</b></div>
+      <div class="hint">Paste or type your holdings — e.g. <b style="color:#c7d6f5">"0.5 BTC, 2 ETH"</b></div>
       <div class="input" id="holdings">0.5 BTC, 2 ETH</div>
       <div class="actions">
         <button class="run" id="runBtn">Run Confidential Analysis</button>
-        <div class="note">?? <b>Encrypted in browser</b> ? plaintext never leaves this page</div>
+        <div class="note">🔒 <b>Encrypted in browser</b> — plaintext never leaves this page</div>
       </div>
     </div>
   </div>
   <div class="steps-panel" id="stepsPanel">
-    <div class="steps-title">Confidential Analysis ? <b>on-chain workflow</b></div>
+    <div class="steps-title">Confidential Analysis · <b>on-chain workflow</b></div>
     <div class="steps">
-      <div class="step" id="st1"><span class="st-ic">??</span>Encrypt in browser</div>
-      <div class="step" id="st2"><span class="st-ic">??</span>Register on-chain</div>
-      <div class="step" id="st3"><span class="st-ic">??</span>Send to TEE node</div>
-      <div class="step" id="st4"><span class="st-ic">??</span>TEE analysis</div>
-      <div class="step" id="st5"><span class="st-ic">??</span>Decrypt locally</div>
+      <div class="step" id="st1"><span class="st-ic">🔒</span>Encrypt in browser</div>
+      <div class="step" id="st2"><span class="st-ic">📋</span>Register on-chain</div>
+      <div class="step" id="st3"><span class="st-ic">📡</span>Send to TEE node</div>
+      <div class="step" id="st4"><span class="st-ic">🧠</span>TEE analysis</div>
+      <div class="step" id="st5"><span class="st-ic">🔓</span>Decrypt locally</div>
     </div>
   </div>
   <div class="wallet-modal" id="walletModal">
     <div class="mm-card">
       <h3>Connect your wallet</h3>
-      <div class="net">MetaMask ? Flare Coston2 Testnet (Chain ID 114)</div>
-      <div class="mm-row"><div class="fox">??</div><div><div class="name">MetaMask</div><div class="addr">0x7099?79C8</div></div></div>
+      <div class="net">MetaMask · Flare Coston2 Testnet (Chain ID 114)</div>
+      <div class="mm-row"><div class="fox">🦊</div><div><div class="name">MetaMask</div><div class="addr">0x7099…79C8</div></div></div>
     </div>
   </div>
   <div class="result-panel" id="resultPanel">
-    <div class="result-head"><h2>Analysis Result</h2><div class="tag">task #1 ? 0x1cf7ef8c?9ef ? dev-simulated</div></div>
+    <div class="result-head"><h2>Analysis Result</h2><div class="tag">task #1 · 0x1cf7ef8c…9ef · on-chain</div></div>
     <div class="risk-row">
-      <div class="risk-card"><div class="k">Risk Score</div><div class="big"><span id="riskVal">0</span><span class="lvl">/ 100 ? Medium</span></div><div class="bar"><i></i></div></div>
+      <div class="risk-card"><div class="k">Risk Score</div><div class="big"><span id="riskVal">0</span><span class="lvl">/ 100 · Medium</span></div><div class="bar"><i></i></div></div>
       <div class="risk-card"><div class="k">Total Value</div><div class="big"><span id="valVal">$0</span></div></div>
     </div>
     <table class="table"><tr><th>Asset</th><th>Amount</th><th>Value (USD)</th><th>Weight</th></tr>
-      <tr><td class="sym">? BTC</td><td>0.5</td><td>$32,500</td><td class="pos"><span id="w1">0%</span></td></tr>
-      <tr><td class="sym">? ETH</td><td>2.0</td><td>$7,000</td><td class="pos"><span id="w2">0%</span></td></tr>
+      <tr><td class="sym">₿ BTC</td><td>0.5</td><td>$32,500</td><td class="pos"><span id="w1">0%</span></td></tr>
+      <tr><td class="sym">Ξ ETH</td><td>2.0</td><td>$7,000</td><td class="pos"><span id="w2">0%</span></td></tr>
     </table>
     <div class="reb">
-      <div class="r down"><div class="act">? Reduce BTC</div><p>BTC is 82.3% of the portfolio ? above the 70% concentration threshold.</p></div>
-      <div class="r up"><div class="act">? Add ETH</div><p>Diversify to lower correlation and reduce overall portfolio risk.</p></div>
+      <div class="r down"><div class="act">▼ Reduce BTC</div><p>BTC is 82.3% of the portfolio — above the 70% concentration threshold.</p></div>
+      <div class="r up"><div class="act">▲ Add ETH</div><p>Diversify to lower correlation and reduce overall portfolio risk.</p></div>
     </div>
     <div class="summary">With a total value of <b>$39,500</b>, BTC at 82.3% drives most of the risk. The engine recommends trimming BTC and adding ETH to bring the risk score down from 46/100.</div>
   </div>
@@ -138,7 +138,7 @@ SS.vignette();
 const $ = id => document.getElementById(id);
 setTimeout(() => $("walletModal").classList.add("show"), 1500);
 setTimeout(() => $("walletModal").classList.add("bye"), 5700);
-setTimeout(() => { $("walletBtn").classList.add("connected"); $("walletTxt").textContent = "0x7099?79C8 ?"; }, 6100);
+setTimeout(() => { $("walletBtn").classList.add("connected"); $("walletTxt").textContent = "0x7099…79C8 ✓"; }, 6100);
 setTimeout(() => $("holdings").classList.add("focus"), 6200);
 setTimeout(() => $("runBtn").classList.add("click"), 6300);
 setTimeout(() => { $("stepsPanel").classList.add("show"); $("st1").classList.add("done"); }, 6600);
