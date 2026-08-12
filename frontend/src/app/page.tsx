@@ -13,7 +13,7 @@ import {
 import addresses from '@/config/contract-addresses.json'
 import AnalysisRegistryABI from '@/config/AnalysisRegistry.json'
 
-const TEE_URL = process.env.NEXT_PUBLIC_TEE_URL ?? 'http://localhost:8000'
+const TEE_URL = (process.env.NEXT_PUBLIC_TEE_URL ?? '').trim() || 'http://localhost:8000'
 const REGISTRY_ADDRESS = addresses.AnalysisRegistry as `0x${string}`
 const REGISTRY_ABI = AnalysisRegistryABI.abi as Abi
 
@@ -389,7 +389,12 @@ export default function Home() {
       setStatus('')
     } catch (e) {
       setFailedStep(current)
-      setError((e as Error).message)
+      const rawMsg = (e as Error).message
+      setError(
+        rawMsg === 'Failed to fetch'
+          ? '无法连接 TEE 服务（网络不通或 CORS 未放行当前域名）。请确认 TEE 服务已上线，且当前页面域名已加入后端 ALLOWED_ORIGINS。'
+          : rawMsg
+      )
       setStatus('')
     } finally {
       setBusy(false)
@@ -417,7 +422,7 @@ export default function Home() {
       </div>
 
       <div className="relative flex place-items-center flex-col gap-8 w-full max-w-2xl mt-12">
-        <div className="bg-white p-8 rounded-2xl shadow-xl w-full">
+        <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl shadow-xl w-full">
           <h2 className="text-2xl font-bold mb-6 text-slate-200">Your Portfolio</h2>
 
           {isConnected ? (
@@ -486,7 +491,7 @@ export default function Home() {
         )}
 
         {result && res && (
-          <div className="bg-white p-8 rounded-2xl shadow-xl w-full">
+          <div className="bg-slate-800 border border-slate-700 p-8 rounded-2xl shadow-xl w-full">
             <div className="flex flex-wrap items-center gap-2 mb-6">
               <h2 className="text-2xl font-bold text-slate-200 mr-auto">TEE 分析结果</h2>
               <AnalysisModeBadge mode={res.analysis_mode} />

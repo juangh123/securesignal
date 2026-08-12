@@ -43,15 +43,25 @@ app = FastAPI(title="SecureSignal TEE Service", version="2.0.0")
 
 # CORS: production sets ALLOWED_ORIGINS to the frontend origin(s), e.g.
 #   ALLOWED_ORIGINS=https://securesignal.vercel.app,https://www.securesignal.io
-# Default keeps local dev working (Next.js dev server on :3000).
+# Known frontend origins are always allowed so a stale/missing dashboard env var
+# never breaks the live app; ALLOWED_ORIGINS may add extra origins on top.
 # Note: allow_credentials=True is incompatible with "*" in browsers anyway.
-_allowed_origins = [
+_base_origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+    "https://securesignal.vercel.app",
+    "https://securesignal-hackathon.vercel.app",
+    "https://securesignal-app.vercel.app",
+]
+_env_origins = [
     o.strip()
-    for o in os.getenv(
-        "ALLOWED_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
-    ).split(",")
+    for o in os.getenv("ALLOWED_ORIGINS", "").split(",")
     if o.strip()
 ]
+_allowed_origins = []
+for origin in _base_origins + _env_origins:
+    if origin not in _allowed_origins:
+        _allowed_origins.append(origin)
 
 app.add_middleware(
     CORSMiddleware,
