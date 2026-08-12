@@ -33,9 +33,8 @@ Fallback direct link (works, but not embedded):
 `https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4`
 
 ## 8. Social links (at least one link) *
-**Required by the form — no social URL is configured yet.** Paste at least one public link, e.g.:
-- A team member's X/Twitter, Farcaster, Telegram, Substack, or GitHub profile that is NOT the project repo (or use the GitHub organization/account profile if acceptable): e.g. `https://github.com/juangh123`
-
+X/Twitter (project account): `https://x.com/christalma2t3`
+Fallback: GitHub profile `https://github.com/juangh123`
 ---
 
 ## Other useful links for the submission text
