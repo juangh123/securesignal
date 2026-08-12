@@ -1,4 +1,4 @@
-# DoraHacks Submission Form — Copy-Paste Sheet (SecureSignal)
+﻿# DoraHacks Submission Form — Copy-Paste Sheet (SecureSignal)
 
 Form: "Create a new BUIDL and submit" (Flare Summer Signal · Bounty 2: Confidential Compute Apps)
 
@@ -13,9 +13,9 @@ File: `deliverables/SecureSignal_logo_480.png` (480×480 PNG, ~12 KB — meets t
 ## 3. Vision *
 > Describe the problem which this project solves
 
-Paste this:
+Paste this (241 chars, limit 256):
 
-Getting personalized crypto portfolio advice today means handing your full holdings and strategy to a centralized service you cannot audit — exposing users to front-running, privacy breaches, and targeted attacks. SecureSignal runs the analysis engine inside a TEE on Flare Confidential Compute: holdings are encrypted in the browser with a one-time ECIES session key and decrypted only inside the enclave, then every result is signed and anchored on-chain so anyone can verify it came from the registered TEE. Not even we can see your data.
+Get personalized crypto advice without exposing your portfolio. SecureSignal runs analysis inside a Flare TEE: holdings encrypted in-browser, decrypted only in the enclave, results signed and verified on-chain. Not even we can see your data.
 
 ## 4. Category *
 `Crypto / Web3`
