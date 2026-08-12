@@ -103,3 +103,9 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 - Team information * (short description, paste this):
 
 Independent full-stack builder. Built the complete stack from scratch during the hackathon — Solidity contracts, Python TEE engine, and Next.js DApp — with end-to-end verification on Flare Coston2.
+
+## 11. Contact page
+- Contact info is visible only to DoraHacks staff (BUIDL verification / outreach).
+- Telegram (primary contact): fill your Telegram username, e.g. `@your_handle`.
+- Backup contact *: pick ONE of Discord username / WhatsApp number / WeChat ID that you actually use.
+- If you have no Telegram yet, registering one takes ~1 minute (https://telegram.org) and is the simplest option.
