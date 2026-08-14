@@ -61,7 +61,6 @@ function check(label, ok, evidence = '') {
 
 const b64encode = (u8) => Buffer.from(u8).toString('base64');
 const b64decode = (b64) => new Uint8Array(Buffer.from(b64, 'base64'));
-const strip0x = (h) => (h.startsWith('0x') ? h.slice(2) : h);
 
 async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
   console.log(`\n=== ${label} ===`);

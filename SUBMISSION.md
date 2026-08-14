@@ -23,7 +23,8 @@ SecureSignal lets users get personalized crypto portfolio risk analysis and reba
 ## 5. Demo & Links
 - **Live App:** https://securesignal.vercel.app (connect a wallet on the Flare Coston2 testnet, chainId 114)
 - **TEE Backend:** https://securesignal-tee.onrender.com (`/public-key` returns the registered TEE key)
-- **Demo Video (2:19, English voiceover + subtitles):** https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
+- **Demo Video (2:19, English voiceover + subtitles):** https://youtu.be/1V5yuxIENvc
+- **Direct video fallback:** https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
 - **Source:** https://github.com/juangh123/securesignal (contracts/, tee-service/, frontend/, docs/)
 
 ## 6. How We Use Flare
@@ -33,6 +34,7 @@ SecureSignal lets users get personalized crypto portfolio risk analysis and reba
 4. **EVM compatibility:** Users interact through standard MetaMask-style wallets; ECIES session keys are exchanged over the normal wallet UX without separate key-pair management.
 
 ## 7. What We Built During the Hackathon
+Pre-hackathon state: none — this is a new project, not an existing product.
 Everything below was built from zero to working prototype within the hackathon window:
 - **TEE analysis engine** (Python/FastAPI): ECIES decryption, portfolio risk scoring (LLM-ready with deterministic rule-engine fallback), live FTSO pricing, attestation signing, result relaying to the chain.
 - **Smart contracts** (Solidity/Hardhat): `AnalysisRegistry` + `FtsoV2Reader`, deployed to Coston2 and verified end-to-end (12/12 production smoke tests).
@@ -51,6 +53,8 @@ Everything below was built from zero to working prototype within the hackathon w
 | Example on-chain result (Coston2 tx) | `0xe2d4321b7d49aaf5bd1bc9995c6cf0f12a936b3ae424b6460ace3bad60d457b3` (→ AnalysisRegistry, block `0x2065fbd`) |
 
 **Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices, attestation `ecrecover` matches the TEE address, on-chain status = Verified.
+
+**Testing & distribution status (honest):** 12/12 production smoke assertions on Coston2, 23/23 local end-to-end assertions, and a 2:19 recorded live demo. No external pilot users, paid distribution, or partnership commitments yet; the public live app and open-source repo are the current distribution channels.
 
 ## 9. Honest Engineering Notes
 - **Attestation:** today’s attestation is a dev-simulated vTPM (structured JSON + real secp256k1 signing + on-chain `ecrecover`). The production upgrade path to real GCP Confidential Space vTPM with on-chain image-digest anchoring is designed and documented in `docs/deployment.md`; the contract layer already reserves the production interface.

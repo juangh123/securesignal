@@ -36,7 +36,9 @@ For this program, we built the entire stack from zero to prototype:
 Try the Live App: https://securesignal.vercel.app/
 (Ensure you are connected to the Flare Coston2 Testnet)
 Live TEE Endpoint: https://securesignal-tee.onrender.com
-Demo Video (2:19, English): https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
+Demo Video (2:19, English): https://youtu.be/1V5yuxIENvc
+
+Direct video fallback: https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
 
 ## Deployed Contracts (Coston2 Testnet, chainId 114)
 - AnalysisRegistry: [`0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`](https://coston2-explorer.flare.network/address/0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482) — TEE key registry, attestation verification, result logging

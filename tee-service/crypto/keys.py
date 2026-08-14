@@ -18,18 +18,11 @@ Key source:
 
 import os
 import secrets
-import json
-from typing import TypedDict, Dict
 
 from coincurve import PrivateKey
 from ecies import decrypt as _ecies_decrypt
 from ecies import encrypt as _ecies_encrypt
 from eth_account import Account
-
-class TeePayload(TypedDict):
-    client_pubkey: str
-    holdings: Dict[str, float]
-    risk_profile: str
 
 _private_key_bytes: bytes | None = None
 
@@ -91,46 +84,7 @@ def decrypt(ciphertext: bytes) -> bytes:
     # use get_private_key_hex to hand string to _ecies_decrypt
     return _ecies_decrypt(get_private_key_hex(), ciphertext)
 
-def decrypt_payload(ciphertext_hex: str) -> TeePayload:
-    """Decrypt and validate against TeePayload schema."""
-    # Strip 0x if present
-    if ciphertext_hex.lower().startswith("0x"):
-        ciphertext_hex = ciphertext_hex[2:]
-    
-    # Decrypt
-    plaintext_bytes = decrypt(bytes.fromhex(ciphertext_hex))
-    
-    # Deserialize & Cast
-    data = json.loads(plaintext_bytes.decode('utf-8'))
-    
-    if "client_pubkey" not in data or "holdings" not in data or "risk_profile" not in data:
-        raise ValueError("Invalid TeePayload structure")
-        
-    return TeePayload(
-        client_pubkey=data["client_pubkey"],
-        holdings=data["holdings"],
-        risk_profile=data["risk_profile"]
-    )
-
 
 def encrypt(receiver_pubkey_hex: str, plaintext: bytes) -> bytes:
     """ECIES encrypt to a receiver public key (65B uncompressed hex, no 0x)."""
     return _ecies_encrypt(receiver_pubkey_hex, plaintext)
-
-
-def encrypt_response(pubkey_hex: str, response_obj: dict) -> str:
-    """Encrypt output data for the user."""
-    if pubkey_hex.startswith("0x"):
-        pubkey_hex = pubkey_hex[2:]
-        
-    plaintext = json.dumps(response_obj).encode('utf-8')
-    ciphertext = _ecies_encrypt(pubkey_hex, plaintext)
-    
-    # Return as hex starting with '0x'
-    return '0x' + ciphertext.hex()
-
-
-def generate_ephemeral_keypair() -> tuple[str, str]:
-    """Dev helper: generate a fresh secp256k1 keypair (priv_hex, pub_hex)."""
-    key = PrivateKey()  # random valid secp256k1 key
-    return key.secret.hex(), key.public_key.format(compressed=False).hex()

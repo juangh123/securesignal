@@ -2,6 +2,8 @@
 
 > **Final Video Output (2026-08-12):** `video/dist/SecureSignal_demo_1080p_v3.mp4` (2:19, 1080p30, English voiceover + hard subtitles). Segments 4/5 use a REAL screen recording of the live English UI: wallet connect -> on-chain requestAnalysis -> TEE analysis -> decrypted result + attestation (real Coston2 tx). UI copy fully in English; scene icons fixed (emoji placeholders restored); transition SFX reworked to soft whooshes/chimes.
 
+> **Repo note:** `video/raw/` and `video/tmp/` are gitignored because they are large local production assets. The tracked deliverables are the final `dist` render, storyboard, scenes, subtitles, and `scripts/assemble_v2.py` (which expects local raw assets to re-render).
+
 ## Overview
 
 | Track | Details |

@@ -428,7 +428,7 @@ export default function Home() {
           {isConnected ? (
             <div className="flex flex-col gap-4">
               <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-3 rounded-lg mb-2">
-                <strong>Trust boundary notice:</strong> this demo integrates a general-purpose LLM (not a confidential inference API), so core data fields (holdings, symbols) are sent to the model provider as prompt text, outside the TEE's confidentiality scope. Confidentiality applies only to the TEE → browser transport.
+                <strong>Trust boundary notice:</strong> this demo integrates a general-purpose LLM (not a confidential inference API), so core data fields (holdings, symbols) are sent to the model provider as prompt text, outside the TEE&apos;s confidentiality scope. Confidentiality applies only to the TEE → browser transport.
               </div>
               <label className="text-sm font-medium text-slate-300">
                 Holdings (sensitive — encrypted locally in your browser before sending)

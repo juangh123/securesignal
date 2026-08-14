@@ -19,6 +19,15 @@ __pycache__/
 
 # Logs
 *.log
+*.err
+
+# Tesseract OCR model artifacts (not source code)
+*.traineddata
+
+# Editor / agent workspace artifacts
+.trae/
+.uploads/
+.pytest_cache/
 
 # Backups & temp
 *.bak
@@ -32,3 +41,7 @@ tee-service/venv/
 tmp/
 tmp */
 deploy*.log
+
+# Raw and intermediate video-production assets. Keep the final dist renders.
+video/raw/
+video/tmp/

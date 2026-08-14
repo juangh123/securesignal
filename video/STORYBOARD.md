@@ -1,7 +1,8 @@
 # SecureSignal Demo Video - Storyboard
 
 > **Production Log (2026-08-03):** Ai voice tracks, SRT subtitles, and animated scenes have been synthesized.
-> **Exported Final Video:** `video/dist/SecureSignal_demo_1080p.mp4` (2:22, H.264+AAC).html
+> **Exported Final Video:** `video/dist/SecureSignal_demo_1080p_v3.mp4` (2:19, 1080p30, H.264+AAC).
+> Raw recordings and intermediate renders are intentionally gitignored; the final render remains tracked.
 
 ---
 
@@ -89,4 +90,4 @@
 2. 叠加英文硬字幕（`subs/voiceover.srt`，按你的录音重新对时）
 3. 片头片尾淡入淡出、段落间 0.5s 交叉淡化
 4. 响度统一（loudnorm 到 -16 LUFS），可选轻背景垫乐（音量 -28dB）
-5. 导出 `dist/SecureSignal_demo_1080p.mp4`（H.264 + AAC，≤ 100MB，可直接上传 YouTube）
+5. 导出 `dist/SecureSignal_demo_1080p_v3.mp4`（H.264 + AAC，≤ 100MB，可直接上传 YouTube）

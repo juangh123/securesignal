@@ -11,8 +11,8 @@ if (!projectId) throw new Error('NEXT_PUBLIC_PROJECT_ID is not defined. Set it i
 const metadata = {
   name: 'SecureSignal',
   description: 'Privacy-preserving AI portfolio advisor on Flare',
-  url: 'https://securesignal.app', 
-  icons: ['https://avatars.githubusercontent.com/u/37784886']
+  url: 'https://securesignal.vercel.app',
+  icons: ['https://raw.githubusercontent.com/juangh123/securesignal/main/deliverables/SecureSignal_logo_480.png']
 }
 
 // Create wagmiConfig

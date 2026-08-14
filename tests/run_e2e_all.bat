@@ -46,7 +46,7 @@ if %errorlevel% neq 0 (
 )
 
 :: Ensure a deterministic tee key is used for E2E
-set "TEE_PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+set "TEE_PRIVATE_KEY=0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"
 set "PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
 set "RPC_URL=http://127.0.0.1:8545"
 set "ANALYSIS_OFFLINE=1"
@@ -58,9 +58,7 @@ echo -^> TEE Service started in background.
 
 echo -^> Registering TEE key on-chain...
 cd contracts
-set "HARDHAT_NETWORK=localhost"
-set "PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
-call npx hardhat run scripts/register_tee.ts --network localhost
+call npx hardhat run scripts/setup-tee.ts --network localhost
 timeout /t 5 /nobreak >nul
 cd ..
 

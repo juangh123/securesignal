@@ -1,13 +1,19 @@
 {
   "name": "contracts",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "private": true,
+  "description": "SecureSignal smart contracts for Flare confidential compute attestation",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "build": "hardhat compile",
+    "test": "hardhat test",
+    "deploy:coston2": "hardhat run scripts/deploy.ts --network coston2",
+    "deploy:local": "hardhat run scripts/deploy.ts --network localhost",
+    "register:tee:coston2": "hardhat run scripts/setup-tee.ts --network coston2",
+    "register:tee:local": "hardhat run scripts/setup-tee.ts --network localhost",
+    "export:abi": "hardhat run scripts/export-abi.ts"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": ["flare", "confidential-compute", "tee", "attestation"],
+  "author": "SecureSignal",
   "license": "ISC",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",

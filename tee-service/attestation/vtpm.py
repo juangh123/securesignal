@@ -31,11 +31,13 @@ the image digest. See:
 https://cloud.google.com/confidential-computing/confidential-space/docs/attestation
 """
 
+import hashlib
 import json
 import os
 import time
-import urllib.request
 import urllib.error
+import urllib.parse
+import urllib.request
 
 from eth_account import Account
 from eth_account.messages import encode_defunct
@@ -49,8 +51,12 @@ def fetch_attestation_jwt(audience: str, nonce: str) -> str:
     """
     if os.environ.get("ENV") != "prod":
         return "simulate-gcp-jwt-token"
-        
-    url = f"http://metadata.google.internal/computeMetadata/v1/instance/attributes/attestation-token?audience={audience}&nonce={nonce}"
+
+    query = urllib.parse.urlencode({"audience": audience, "nonce": nonce})
+    url = (
+        "http://metadata.google.internal/computeMetadata/v1/instance/attributes/"
+        f"attestation-token?{query}"
+    )
     req = urllib.request.Request(url, headers={"Metadata-Flavor": "Google"})
     try:
         with urllib.request.urlopen(req, timeout=5.0) as response:
@@ -107,16 +113,18 @@ def generate_attestation_token(
         image_digest = os.environ.get("TEE_IMAGE_DIGEST", "dev")
 
     signature = sign_result(task_id, result_hash)
-    
-    import hashlib
-    # Compute nonce for JWT: keccak256 or simple sha256 of task_id and result_hash
-    # Here we use sha256 for simplicity to bind to eat_nonce
-    nonce_data = f"{task_id}:{result_hash}".encode('utf-8')
+
+    # Compute nonce for JWT: bind the task/result hash to the attestation.
+    nonce_data = f"{task_id}:{result_hash}".encode("utf-8")
     nonce = hashlib.sha256(nonce_data).hexdigest()
-    
+
     jwt_token = fetch_attestation_jwt(audience="Flare_SecureSignal", nonce=nonce)
-    
-    mode_str = "gcp-confidential-space" if os.environ.get("ENV") == "prod" else "dev-simulated"
+
+    mode_str = (
+        "gcp-confidential-space"
+        if os.environ.get("ENV") == "prod"
+        else "dev-simulated"
+    )
 
     token = {
         "task_id": task_id,
