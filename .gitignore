@@ -26,6 +26,7 @@ __pycache__/
 
 # Editor / agent workspace artifacts
 .trae/
+.playwright-cli/
 .uploads/
 .pytest_cache/
 
