@@ -57,7 +57,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="SecureSignal TEE Service", version="2.0.0", lifespan=lifespan)
+app = FastAPI(title="SecureSignal TEE Service", version="2.1.0", lifespan=lifespan)
 
 # CORS: production sets ALLOWED_ORIGINS to the frontend origin(s), e.g.
 #   ALLOWED_ORIGINS=https://securesignal.vercel.app,https://www.securesignal.io
@@ -91,6 +91,11 @@ app.add_middleware(
 class AnalysisRequest(BaseModel):
     task_id: int
     encrypted_data: str  # base64-encoded ECIES ciphertext for the TEE pubkey
+
+
+# A real portfolio payload encrypts to a few hundred bytes; this cap only
+# exists to stop an oversized body from being materialized in memory.
+MAX_ENCRYPTED_DATA_CHARS = 128 * 1024
 
 
 class AnalysisResponse(BaseModel):
@@ -135,6 +140,14 @@ async def health():
 
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze(request: AnalysisRequest):
+    if request.task_id < 0:
+        raise HTTPException(status_code=400, detail="task_id must be a non-negative integer")
+    if len(request.encrypted_data) > MAX_ENCRYPTED_DATA_CHARS:
+        raise HTTPException(
+            status_code=413,
+            detail=f"encrypted_data exceeds the {MAX_ENCRYPTED_DATA_CHARS}-character limit",
+        )
+
     # 1. base64 decode + ECIES decrypt
     try:
         ciphertext = base64.b64decode(request.encrypted_data, validate=True)

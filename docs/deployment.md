@@ -282,6 +282,9 @@ export LLM_TIMEOUT=30                          # 可选，秒
 | 结果 `price_source="offline-fixture"` 但以为是真实价 | `ANALYSIS_OFFLINE=1` 仍在 env 中（compose 默认值为 1） | 生产/联机环境取消该变量（compose：`ANALYSIS_OFFLINE=0 docker compose up`） |
 | `unknown symbol(s) [...]` | 仅支持 BTC / ETH / FLR 三个 feed | 持仓限制在支持币种内，或扩展 `FEED_IDS` |
 | `analysis_mode="rule-fallback"` 且已配 LLM | LLM key 无效 / 端点不可达 / 输出校验失败（已自动重试一次） | 查 tee 日志 LLMError；验证 key 与 `LLM_BASE_URL`；部分网关不支持 JSON mode（已自动兼容） |
+| `POST /analyze` 413 `encrypted_data exceeds the 131072-character limit` | 请求体超过 128 KB 上限（真实组合密文仅数百字节） | 检查客户端是否误传大对象；上限常量见 `main.py` 的 `MAX_ENCRYPTED_DATA_CHARS` |
+| `POST /analyze` 400 `payload.holdings must contain at most 25 entries` / `holdings symbol ... is invalid` | 明文持仓超过 25 个，或 symbol 不符合 `[A-Z0-9]{1,12}` | 前端 `parseHoldings` 已镜像同一组上限（见 `analysis/engine.py`）；资产过多时请分批分析 |
+| `POST /analyze` 400 `payload.risk_profile must be at most 64 characters` | `risk_profile` 是进入 LLM prompt 的自由文本，已在边界处限长 64 并去除控制字符 | 传短标签（如 `moderate`），不要把长文本塞进该字段 |
 | 前端抛 `NEXT_PUBLIC_PROJECT_ID is not defined` | `.env.local` 缺失或未填 | `cp .env.example .env.local` 并填入 WalletConnect project id |
 | `POST /analyze` 400 `ECIES decryption failed` | 密文非发给当前 TEE 公钥（TEE 换钥后前端用了旧公钥），或线格式不符 | 前端重新 `GET /public-key` 并加密；确认两端 ecies 库版本 |
 | `POST /analyze` 400 `client_pubkey must be 65B...` | 明文 payload 缺 `client_pubkey` 或格式错误 | 按协议：`04` 前缀、130 字符 hex、不带 `0x` |

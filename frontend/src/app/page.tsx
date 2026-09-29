@@ -1,6 +1,6 @@
 ﻿'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
 import { decodeEventLog, keccak256, stringToHex } from 'viem'
 import type { Abi, Hex } from 'viem'
@@ -17,6 +17,14 @@ const TEE_URL = (process.env.NEXT_PUBLIC_TEE_URL ?? '').trim() || 'http://localh
 const REGISTRY_ADDRESS = addresses.AnalysisRegistry as `0x${string}`
 const REGISTRY_ABI = AnalysisRegistryABI.abi as Abi
 const EXPLORER = 'https://coston2-explorer.flare.network'
+
+// Client-side mirror of the TEE service's input limits (analysis/engine.py),
+// so oversized or malformed portfolios fail fast with a readable message
+// instead of after a wallet transaction.
+const MAX_HOLDINGS = 25
+const MAX_SYMBOL_LENGTH = 12
+const MAX_AMOUNT = 1e18
+const SYMBOL_RE = new RegExp(`^[A-Z0-9]{1,${MAX_SYMBOL_LENGTH}}$`)
 
 // ---------------------------------------------------------------------------
 // TEE 引擎输出契约（全项目唯一标准，逐字遵守）
@@ -68,6 +76,19 @@ interface AnalysisView {
   attestation?: AttestationParsed
   attestationRaw?: unknown
   onchainSubmitted?: boolean
+}
+
+/** Non-secret status exposed by the TEE service's GET /health endpoint. */
+interface ServiceHealth {
+  status: string
+  version: string
+  tee_address: string
+  registry_address: string
+  relayer_configured: boolean
+  price_mode: string
+  llm_configured: boolean
+  attestation_mode: string
+  image_digest: string
 }
 
 // ---------------------------------------------------------------------------
@@ -135,13 +156,26 @@ function parseHoldings(input: string): Record<string, number> {
     }
     const symbol = m[2].toUpperCase()
     const amount = Number.parseFloat(m[1])
+    if (!SYMBOL_RE.test(symbol)) {
+      throw new Error(
+        `Invalid symbol "${m[2]}": use 1-${MAX_SYMBOL_LENGTH} letters or digits, e.g. BTC`
+      )
+    }
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new Error(`Invalid amount for holding: "${part}"`)
+    }
+    if (amount > MAX_AMOUNT) {
+      throw new Error(`Amount for ${symbol} is too large (max ${MAX_AMOUNT.toExponential(0)})`)
     }
     holdings[symbol] = (holdings[symbol] ?? 0) + amount
   }
   if (Object.keys(holdings).length === 0) {
     throw new Error('Enter at least one holding, e.g. "2 BTC, 10 ETH"')
+  }
+  if (Object.keys(holdings).length > MAX_HOLDINGS) {
+    throw new Error(
+      `Too many holdings (${Object.keys(holdings).length}); the TEE accepts at most ${MAX_HOLDINGS} distinct symbols`
+    )
   }
   return holdings
 }
@@ -190,6 +224,70 @@ function PriceSourceBadge({ source }: { source: string }) {
     return <Badge className="bg-amber-100 text-amber-800">◈ fixture price (offline)</Badge>
   }
   return <Badge className="bg-teal-100 text-teal-800">◈ live price · {source}</Badge>
+}
+
+/**
+ * Renders the trust boundary from the service's live /health response instead
+ * of hardcoding claims, so the disclosure always matches what the deployed
+ * engine actually does (LLM on/off, dev-simulated vs. Confidential Space).
+ */
+function TrustNotice({ health, checked }: { health: ServiceHealth | null; checked: boolean }) {
+  if (!health) {
+    return (
+      <div className="bg-slate-800/80 border border-slate-600 text-slate-300 text-sm p-3 rounded-lg mb-2">
+        {checked ? (
+          <>
+            <strong>Trust boundary notice:</strong> the service /health endpoint could not be read,
+            so the live engine mode is unknown here. The analysis flow still verifies the TEE public
+            key against the on-chain registry before sending anything.
+          </>
+        ) : (
+          <>
+            <strong>Live service status:</strong> checking the TEE service /health endpoint…
+          </>
+        )}
+      </div>
+    )
+  }
+  const confidential = health.attestation_mode !== 'dev-simulated'
+  return (
+    <div className="flex flex-col gap-2 bg-slate-800/80 border border-slate-600 text-slate-300 text-sm p-3 rounded-lg mb-2">
+      <div className="flex flex-wrap gap-1.5">
+        <Badge
+          className={
+            health.llm_configured
+              ? 'bg-emerald-100 text-emerald-800'
+              : 'bg-slate-700 text-slate-200'
+          }
+        >
+          {health.llm_configured ? 'LLM judgement enabled' : 'Rule engine (no LLM)'}
+        </Badge>
+        <Badge className="bg-teal-100 text-teal-800">Price · {health.price_mode}</Badge>
+        <Badge
+          className={
+            confidential ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+          }
+        >
+          {confidential ? 'Confidential Space attestation' : 'dev-simulated attestation'}
+        </Badge>
+      </div>
+      {health.llm_configured ? (
+        <p>
+          <strong>Trust boundary notice:</strong> this service calls a general-purpose LLM (not a
+          confidential inference API), so core fields (holdings, symbols) leave the TEE as prompt text
+          for the model provider. Confidentiality covers the browser → TEE transport only.
+        </p>
+      ) : (
+        <p>
+          <strong>Trust boundary notice:</strong> no external LLM is configured on the live service,
+          so judgement runs on a deterministic rule engine inside the TEE — holdings are never sent to
+          a third-party model provider.
+          {!confidential &&
+            ' Attestation is currently dev-simulated, not production-grade enclave evidence.'}
+        </p>
+      )}
+    </div>
+  )
 }
 
 function StepBar({ step, failedStep }: { step: number; failedStep: number }) {
@@ -258,6 +356,27 @@ export default function Home() {
   const [failedStep, setFailedStep] = useState(0)
   const [result, setResult] = useState<AnalysisView | null>(null)
   const [onchainStatus, setOnchainStatus] = useState('')
+  const [health, setHealth] = useState<ServiceHealth | null>(null)
+  const [healthChecked, setHealthChecked] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    fetch(`${TEE_URL}/health`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (cancelled) return
+        if (data && data.status === 'ok') setHealth(data as ServiceHealth)
+      })
+      .catch(() => {
+        // Older deployments may not expose /health; the notice stays generic.
+      })
+      .finally(() => {
+        if (!cancelled) setHealthChecked(true)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   const handleAnalyze = async () => {
     setError('')
@@ -459,9 +578,7 @@ export default function Home() {
 
           {isConnected ? (
             <div className="flex flex-col gap-4">
-              <div className="bg-amber-50 border border-amber-200 text-amber-800 text-sm p-3 rounded-lg mb-2">
-                <strong>Trust boundary notice:</strong> this demo integrates a general-purpose LLM (not a confidential inference API), so core data fields (holdings, symbols) are sent to the model provider as prompt text, outside the TEE&apos;s confidentiality scope. Confidentiality applies only to the TEE → browser transport.
-              </div>
+              <TrustNotice health={health} checked={healthChecked} />
               <label className="text-sm font-medium text-slate-300">
                 Holdings (sensitive — encrypted locally in your browser before sending)
               </label>

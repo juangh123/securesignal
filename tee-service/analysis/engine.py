@@ -39,6 +39,8 @@ no price/valuation fields are ever fabricated on the error path.
 
 from __future__ import annotations
 
+import math
+import re
 from typing import Any, Dict, List
 
 from analysis import llm, price_provider
@@ -46,6 +48,16 @@ from analysis import llm, price_provider
 __all__ = ["analyze_portfolio"]
 
 RISK_LEVELS = ("low", "medium", "high")
+
+# Input limits. The payload is decrypted ECIES plaintext produced by the
+# browser client, so it is untrusted: cap its shape before it reaches the
+# price provider, the LLM prompt, or the deterministic math.
+MAX_HOLDINGS = 25
+MAX_SYMBOL_LENGTH = 12
+SYMBOL_RE = re.compile(rf"^[A-Z0-9]{{1,{MAX_SYMBOL_LENGTH}}}$")
+MAX_RISK_PROFILE_LENGTH = 64
+MAX_AMOUNT = 1e18
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x1f\x7f]")
 
 
 def _error(message: str) -> Dict[str, Any]:
@@ -167,14 +179,45 @@ def analyze_portfolio(payload: Dict[str, Any]) -> Dict[str, Any]:
     holdings_raw = payload.get("holdings")
     if not isinstance(holdings_raw, dict) or not holdings_raw:
         return _error("payload.holdings must be a non-empty object")
+    if len(holdings_raw) > MAX_HOLDINGS:
+        return _error(f"payload.holdings must contain at most {MAX_HOLDINGS} entries")
 
     amounts: Dict[str, float] = {}
     for key, value in holdings_raw.items():
-        symbol = str(key).upper()
-        if isinstance(value, bool) or not isinstance(value, (int, float)) or value <= 0:
+        symbol = str(key).strip().upper()
+        if not SYMBOL_RE.match(symbol):
+            return _error(
+                f"holdings symbol {key!r} is invalid: expected 1-"
+                f"{MAX_SYMBOL_LENGTH} letters/digits, e.g. \"BTC\""
+            )
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
             return _error(f"holdings[{key!r}] must be a positive number, got {value!r}")
-        amounts[symbol] = float(value)
+        amount = float(value)
+        if not math.isfinite(amount) or amount <= 0:
+            return _error(
+                f"holdings[{key!r}] must be a finite positive number, got {value!r}"
+            )
+        if amount > MAX_AMOUNT:
+            return _error(
+                f"holdings[{key!r}] exceeds the supported amount limit ({MAX_AMOUNT:.0e})"
+            )
+        # Merge case/whitespace variants ("btc" + " BTC ") instead of silently
+        # dropping one of them, then re-check the distinct-symbol cap.
+        amounts[symbol] = amounts.get(symbol, 0.0) + amount
+    if len(amounts) > MAX_HOLDINGS:
+        return _error(
+            f"payload.holdings must contain at most {MAX_HOLDINGS} distinct symbols"
+        )
     symbols = list(amounts.keys())
+
+    # risk_profile is free-form user text that ends up in the LLM prompt, so
+    # cap its length and strip control characters before it goes anywhere.
+    risk_profile = str(payload.get("risk_profile") or "").strip()
+    if len(risk_profile) > MAX_RISK_PROFILE_LENGTH:
+        return _error(
+            f"payload.risk_profile must be at most {MAX_RISK_PROFILE_LENGTH} characters"
+        )
+    risk_profile = _CONTROL_CHARS_RE.sub(" ", risk_profile).strip() or "unspecified"
 
     # --- 1. Real prices from the FTSO price provider (never fabricated) ------
     try:
@@ -201,6 +244,8 @@ def analyze_portfolio(payload: Dict[str, Any]) -> Dict[str, Any]:
 
     # --- 2. Deterministic portfolio math --------------------------------------
     total_value = sum(amounts[s] * prices[s] for s in symbols)
+    if not math.isfinite(total_value) or total_value <= 0:
+        return _error("portfolio total value is not a finite positive number")
     holdings_detail: List[Dict[str, Any]] = []
     for symbol in symbols:
         value_usd = amounts[symbol] * prices[symbol]
@@ -218,7 +263,6 @@ def analyze_portfolio(payload: Dict[str, Any]) -> Dict[str, Any]:
     total_value_usd = round(total_value, 2)
 
     # --- 3. Judgement: LLM when configured, deterministic rules otherwise -----
-    risk_profile = str(payload.get("risk_profile") or "unspecified")
     llm_fallback_note = ""
     judgement: Dict[str, Any] | None = None
     analysis_mode = "rule-fallback"
