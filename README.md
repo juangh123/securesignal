@@ -38,6 +38,9 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   双向交叉解密测试向量通过。
 - 结果 relayer 上链：TEE 服务以 relayer 身份调 `submitResult(taskId, resultHash, attestation)`，
   客户端可对链核对 `ResultSubmitted` 事件与 `resultHash`。
+- **公开端点防滥用**：`/analyze` 是无鉴权公开接口，启用 LLM 后每次调用都产生费用。
+  服务默认只分析链上真实处于 `Requested` 状态的任务（`ANALYZE_REQUIRE_ONCHAIN_TASK=0` 可关），
+  想刷接口就得先付 gas 注册任务；`GET /health` 的 `analyze_requires_onchain_task` 反映实际生效状态。
 - **LLM 分析引擎**：OpenAI 兼容 API（env `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`）。
   LLM 只产出判断字段（risk_score / risk_level / rebalance / 中文 summary），组合数学全部由
   `analysis/engine.py` 确定性计算；失败自动重试一次后回退规则引擎，响应以

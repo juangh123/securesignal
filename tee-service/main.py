@@ -97,6 +97,22 @@ class AnalysisRequest(BaseModel):
 # exists to stop an oversized body from being materialized in memory.
 MAX_ENCRYPTED_DATA_CHARS = 128 * 1024
 
+# /analyze is public and unauthenticated, and an enabled LLM makes every call
+# cost money. By default we therefore only analyse task ids that really exist
+# on-chain in Requested state, so spamming the endpoint requires paying C2FLR
+# gas to register a task first. Set ANALYZE_REQUIRE_ONCHAIN_TASK=0 to disable
+# (purely offline/dev setups without a configured relayer are exempt anyway).
+ONCHAIN_TASK_STATUS_NAMES = {0: "None", 1: "Requested", 2: "Completed", 3: "Verified"}
+
+
+def _require_onchain_task() -> bool:
+    return os.getenv("ANALYZE_REQUIRE_ONCHAIN_TASK", "1").strip() != "0"
+
+
+def _gate_enabled() -> bool:
+    """The gate is only meaningful when we can actually read the registry."""
+    return _require_onchain_task() and relayer.is_configured()
+
 
 class AnalysisResponse(BaseModel):
     task_id: int
@@ -138,6 +154,9 @@ async def health():
             "gcp-confidential-space" if os.getenv("ENV") == "prod" else "dev-simulated"
         ),
         "image_digest": os.getenv("TEE_IMAGE_DIGEST", "dev"),
+        # Effective behaviour (false when no registry/relayer is configured,
+        # since the task state cannot be read in that case).
+        "analyze_requires_onchain_task": _gate_enabled(),
     }
 
 
@@ -150,6 +169,22 @@ async def analyze(request: AnalysisRequest):
             status_code=413,
             detail=f"encrypted_data exceeds the {MAX_ENCRYPTED_DATA_CHARS}-character limit",
         )
+
+    # Reject unknown / already-finalized tasks before doing any crypto or
+    # model work. A status of None means the registry read itself failed, so
+    # we let the request through rather than turning an RPC hiccup into an
+    # outage — the relayer re-checks the status before submitting.
+    if _gate_enabled():
+        status = await asyncio.to_thread(relayer.task_status, request.task_id)
+        if status is not None and status != 1:
+            name = ONCHAIN_TASK_STATUS_NAMES.get(status, str(status))
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"task {request.task_id} is not pending on-chain (status={name}); "
+                    "call requestAnalysis first and retry while the task is Requested"
+                ),
+            )
 
     # 1. base64 decode + ECIES decrypt
     try:

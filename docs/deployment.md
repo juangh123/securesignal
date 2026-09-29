@@ -43,6 +43,7 @@
 | `LLM_BASE_URL` | 可选 | `https://api.openai.com/v1` | 任意 OpenAI 兼容端点（DeepSeek / Moonshot / 本地 mock 等） | `https://api.deepseek.com/v1` |
 | `LLM_MODEL` | 可选 | `gpt-4o-mini` | 模型名 | `deepseek-flash` |
 | `LLM_TIMEOUT` | 可选 | `30` | LLM 请求超时（秒）；非数字时回退 30 | `60` |
+| `ANALYZE_REQUIRE_ONCHAIN_TASK` | 可选 | 未设 = 开启（`"0"` 关闭） | `/analyze` 是公开无鉴权端点，启用 LLM 后每次调用都产生费用。开启时只分析链上真实处于 `Requested` 的任务，刷接口必须先付 C2FLR gas 注册任务。未配置 relayer（读不到 registry）时门禁自动失效 | `0` |
 | `TEE_IMAGE_DIGEST` | 可选 | `dev` | 写入 attestation token 的 `image_digest` 字段。见 `attestation/vtpm.py` | `sha256:<镜像digest>` |
 | `FTSO_READER_ADDRESS` | —（当前**未被代码消费**） | — | 仅 `docker-compose.yml` 透传预留。当前 `price_provider.py` 经 FlareContractRegistry 直读链上官方 `FtsoV2`，无需部署的 `FtsoV2Reader` 地址；该 env 属历史遗留 | — |
 | `ANALYSIS_LIVE_TEST` | 可选（仅测试） | 未设 = 跳过联机单测 | 设为 `1` 时 `python -m unittest analysis.test_price_provider -v` 会执行真实 Coston2 RPC 联机用例 | `1` |
@@ -290,6 +291,7 @@ export LLM_TIMEOUT=30                            # 可选，秒
 | `POST /analyze` 413 `encrypted_data exceeds the 131072-character limit` | 请求体超过 128 KB 上限（真实组合密文仅数百字节） | 检查客户端是否误传大对象；上限常量见 `main.py` 的 `MAX_ENCRYPTED_DATA_CHARS` |
 | `POST /analyze` 400 `payload.holdings must contain at most 25 entries` / `holdings symbol ... is invalid` | 明文持仓超过 25 个，或 symbol 不符合 `[A-Z0-9]{1,12}` | 前端 `parseHoldings` 已镜像同一组上限（见 `analysis/engine.py`）；资产过多时请分批分析 |
 | `POST /analyze` 400 `payload.risk_profile must be at most 64 characters` | `risk_profile` 是进入 LLM prompt 的自由文本，已在边界处限长 64 并去除控制字符 | 传短标签（如 `moderate`），不要把长文本塞进该字段 |
+| `POST /analyze` 409 `task N is not pending on-chain (status=...)` | 链上任务门禁生效：该 taskId 不存在，或已 `Completed`/`Verified` | 正常客户端先发 `requestAnalysis`，再用返回的 taskId 调用；只有离线开发才设 `ANALYZE_REQUIRE_ONCHAIN_TASK=0` |
 | 前端抛 `NEXT_PUBLIC_PROJECT_ID is not defined` | `.env.local` 缺失或未填 | `cp .env.example .env.local` 并填入 WalletConnect project id |
 | `POST /analyze` 400 `ECIES decryption failed` | 密文非发给当前 TEE 公钥（TEE 换钥后前端用了旧公钥），或线格式不符 | 前端重新 `GET /public-key` 并加密；确认两端 ecies 库版本 |
 | `POST /analyze` 400 `client_pubkey must be 65B...` | 明文 payload 缺 `client_pubkey` 或格式错误 | 按协议：`04` 前缀、130 字符 hex、不带 `0x` |

@@ -1,7 +1,7 @@
 ﻿'use client'
 
-import { useEffect, useState } from 'react'
-import { useAccount, usePublicClient, useWriteContract } from 'wagmi'
+import { useEffect, useMemo, useState } from 'react'
+import { useAccount, useChainId, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi'
 import { decodeEventLog, keccak256, stringToHex } from 'viem'
 import type { Abi, Hex } from 'viem'
 import {
@@ -17,6 +17,11 @@ const TEE_URL = (process.env.NEXT_PUBLIC_TEE_URL ?? '').trim() || 'http://localh
 const REGISTRY_ADDRESS = addresses.AnalysisRegistry as `0x${string}`
 const REGISTRY_ABI = AnalysisRegistryABI.abi as Abi
 const EXPLORER = 'https://coston2-explorer.flare.network'
+
+// The registry lives on Coston2. Writes from any other chain would either
+// revert or hit an unrelated address, so the UI refuses to build a request
+// until the wallet is on this chain.
+const COSTON2_CHAIN_ID = 114
 
 // Client-side mirror of the TEE service's input limits (analysis/engine.py),
 // so oversized or malformed portfolios fail fast with a readable message
@@ -349,6 +354,9 @@ export default function Home() {
   const { address, isConnected } = useAccount()
   const publicClient = usePublicClient()
   const { writeContractAsync } = useWriteContract()
+  const chainId = useChainId()
+  const { switchChainAsync } = useSwitchChain()
+  const wrongNetwork = isConnected && chainId !== COSTON2_CHAIN_ID
 
   const [portfolioText, setPortfolioText] = useState('0.5 BTC, 2 ETH, 10000 FLR')
   const [riskProfile, setRiskProfile] = useState('moderate')
@@ -361,6 +369,16 @@ export default function Home() {
   const [onchainStatus, setOnchainStatus] = useState('')
   const [health, setHealth] = useState<ServiceHealth | null>(null)
   const [healthChecked, setHealthChecked] = useState(false)
+
+  // Validate the textarea as the user types so a typo is caught here instead
+  // of after they have already paid for a requestAnalysis transaction.
+  const parsed = useMemo(() => {
+    try {
+      return { holdings: parseHoldings(portfolioText), error: '' }
+    } catch (e) {
+      return { holdings: null, error: (e as Error).message }
+    }
+  }, [portfolioText])
 
   useEffect(() => {
     let cancelled = false
@@ -394,6 +412,11 @@ export default function Home() {
     try {
       go(1)
       if (!isConnected || !address) throw new Error('Please connect your wallet first')
+      if (chainId !== COSTON2_CHAIN_ID) {
+        throw new Error(
+          `Wrong network: this app writes to Coston2 (chainId ${COSTON2_CHAIN_ID}) but your wallet is on chainId ${chainId}. Switch networks and try again.`
+        )
+      }
       if (!publicClient) throw new Error('Public RPC client unavailable — check network config')
 
       // 1. Read active TEE public key from the contract.
@@ -582,6 +605,24 @@ export default function Home() {
           {isConnected ? (
             <div className="flex flex-col gap-4">
               <TrustNotice health={health} checked={healthChecked} />
+
+              {wrongNetwork && (
+                <div className="flex flex-wrap items-center gap-3 bg-rose-950/60 border border-rose-700 text-rose-200 text-sm p-3 rounded-lg">
+                  <span>
+                    Wrong network: this app writes to Coston2 (chainId {COSTON2_CHAIN_ID}), your
+                    wallet is on chainId {chainId}.
+                  </span>
+                  <button
+                    onClick={() => {
+                      void switchChainAsync({ chainId: COSTON2_CHAIN_ID }).catch(() => {})
+                    }}
+                    className="bg-rose-700 hover:bg-rose-600 text-white text-xs font-semibold py-1.5 px-3 rounded-lg"
+                  >
+                    Switch to Coston2
+                  </button>
+                </div>
+              )}
+
               <label className="text-sm font-medium text-slate-300">
                 Holdings (sensitive — encrypted locally in your browser before sending)
               </label>
@@ -591,6 +632,17 @@ export default function Home() {
                 onChange={(e) => setPortfolioText(e.target.value)}
                 placeholder="e.g. 0.5 BTC, 2 ETH, 10000 FLR"
               />
+              {parsed.holdings ? (
+                <p className="-mt-2 text-xs text-slate-400">
+                  Parsed {Object.keys(parsed.holdings).length} holding
+                  {Object.keys(parsed.holdings).length === 1 ? '' : 's'}:{' '}
+                  {Object.entries(parsed.holdings)
+                    .map(([sym, amount]) => `${fmtAmount(amount)} ${sym}`)
+                    .join(' · ')}
+                </p>
+              ) : (
+                <p className="-mt-2 text-xs text-amber-400">{parsed.error}</p>
+              )}
 
               <label className="text-sm font-medium text-slate-300">Risk profile</label>
               <select
@@ -605,7 +657,14 @@ export default function Home() {
 
               <button
                 onClick={handleAnalyze}
-                disabled={busy}
+                disabled={busy || wrongNetwork || !parsed.holdings}
+                title={
+                  wrongNetwork
+                    ? `Switch your wallet to Coston2 (chainId ${COSTON2_CHAIN_ID}) first`
+                    : parsed.holdings
+                      ? undefined
+                      : 'Fix the holdings input first'
+                }
                 className="mt-4 bg-amber-700 hover:bg-amber-800 disabled:bg-stone-400 text-white font-bold py-3 px-6 rounded-lg transition-colors"
               >
                 {busy ? 'Processing…' : 'Encrypt & analyze in TEE'}
