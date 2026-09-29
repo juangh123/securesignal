@@ -58,7 +58,7 @@ Everything below was built from zero to working prototype within the hackathon w
 
 ## 9. Honest Engineering Notes
 - **Attestation:** today’s attestation is a dev-simulated vTPM (structured JSON + real secp256k1 signing + on-chain `ecrecover`). The production upgrade path to real GCP Confidential Space vTPM with on-chain image-digest anchoring is designed and documented in `docs/deployment.md`; the contract layer already reserves the production interface.
-- **LLM:** the engine calls an OpenAI-compatible LLM when configured; otherwise it falls back to a deterministic rule engine. The live demo ran the rule engine (output fully in English).
+- **LLM:** the engine calls an OpenAI-compatible LLM when configured; otherwise it falls back to a deterministic rule engine. The recorded live demo ran the rule engine (output fully in English); as of 2026-09-30 the live deployment is configured with DeepSeek `deepseek-flash`, so `/analyze` now reports `analysis_mode="llm"` with the rule engine still in place as fallback.
 - **Mainnet:** contracts are deployed on Coston2 testnet; mainnet deployment is part of the roadmap.
 
 ## 10. Roadmap

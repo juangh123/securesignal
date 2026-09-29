@@ -29,7 +29,7 @@
 | 3 | 前端部署（Vercel） | ✅ | https://securesignal.vercel.app（英文 UI，已实测） |
 | 4 | 更新 README Live Demo 区块 | ✅ | README.md / README.en.md 已回填真实链接、合约地址、TEE 公钥与视频链接 |
 | 5 | 录制演示视频 | ✅ | `video/dist/SecureSignal_demo_1080p_v3.mp4`（2:19，1080p，英文配音+字幕，含真实 Coston2 交易） |
-| 6 | （可选）真实 LLM key | ◻ | OpenAI 兼容 key → 设 `LLM_API_KEY/LLM_BASE_URL/LLM_MODEL`；当前线上未配置，走确定性规则引擎回退（已英文化） |
+| 6 | （可选）真实 LLM key | ✅ | 2026-09-30 已在 Render 配置 DeepSeek `deepseek-flash`（key 走 Dashboard/API，不入库）；线上 `/health` 返回 `llm_configured=true`，`/analyze` 返回 `analysis_mode="llm"` |
 | 7 | （可选，加分项）GCP Confidential Space 真实 vTPM | ◻ | `docs/deployment.md` §3 改造路线 |
 
 ## 三、评审亮点（提交描述可用）

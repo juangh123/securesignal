@@ -62,9 +62,14 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
 - 本地链没有 FTSO，localhost 默认走 `ANALYSIS_OFFLINE=1` fixture 价（有标注）。
 - 本地链上登记的 `expectedImageDigest` 是 `keccak256("dev-image")` 占位值。
 
-**尚无法本地闭环的外部依赖**（接入指南均在 docs/deployment.md）：
-Coston2 真实部署（需私钥 + faucet 测试币）、GCP Confidential Space（需 GCP TEE 环境）、
-真实 LLM 调用（需 API key）。
+**外部依赖状态**（接入指南均在 docs/deployment.md）：
+- ✅ **Coston2 真实部署**（2026-07-19）——合约地址与链上任务见下文。
+- ✅ **真实 LLM 调用**（2026-09-30）——线上取价走真实 FTSO，判断字段走 DeepSeek
+  `deepseek-flash`；`GET /health` 返回 `llm_configured=true`、`llm_model=deepseek-flash`，
+  `/analyze` 返回 `analysis_mode="llm"`。注意这会改变信任边界：持仓作为 prompt
+  离开 enclave，详见 [docs/deployment.md](docs/deployment.md) §4.2。
+- ⛔ **GCP Confidential Space**（需 GCP TEE 环境）——线上 attestation 目前仍是
+  `dev-simulated`，这是唯一剩下的生产阻塞项。
 
 ## 环境变量快速配置
 
@@ -139,6 +144,24 @@ npm run dev
 
 当前 dev 构建中第 2–3 步用的是 `setup-tee.ts` 登记的占位 digest；真实 vTPM 度量是上述 TODO。
 
+## 测试与 CI
+
+三个组件各有独立测试，[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在每次推送到 `main` 与 PR 时全部跑一遍：
+
+```bash
+# tee-service：单元 / 接口测试（离线，不连 RPC、不发交易）
+cd tee-service && pip install -r requirements-dev.txt && ANALYSIS_OFFLINE=1 python -m pytest -q
+
+# contracts：合约测试（本地 hardhat network）
+cd contracts && npm ci && npm test
+
+# frontend：静态检查 + 生产构建
+cd frontend && npm ci && npm run lint && npm run build
+
+# 线上只读巡检（不改变链上状态）
+node tools/ops-status.mjs
+```
+
 ## Live Demo
 - **Contracts（Coston2 测试网，chainId 114）— 已部署并端到端验证（2026-07-19）**：
   - AnalysisRegistry: [`0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`](https://coston2-explorer.flare.network/address/0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482)
@@ -146,7 +169,7 @@ npm run dev
   - 登记 TEE 地址: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
   - 生产冒烟测试 **12/12 通过**（`frontend/e2e/e2e-coston2.mjs`）：真实 FTSO 喂价、attestation ecrecover == TEE 地址、链上 status=Verified
 - App: https://securesignal.vercel.app
-- TEE 后端: https://securesignal-tee.onrender.com（`/public-key` 在线，已实测；`/health` 已加入源码，重新部署后生效）
+- TEE 后端: https://securesignal-tee.onrender.com（`/public-key` 与 `/health` 均已上线；`/health` 返回 `llm_configured=true`、`llm_model=deepseek-flash`；只读巡检 `node tools/ops-status.mjs` 8/8 通过）
 - 演示视频（2:19，英文配音+字幕，含真实 Coston2 交易）: https://youtu.be/1V5yuxIENvc
 - 视频直链（备用）: https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
 - TEE 公钥: `04088c6f6e685b84d396521b59d8b8ff794f4d6a27d47d487b716eced258fa76644e36bee0f46525f9920c9b6dd9f9ef1773d6aff610b0f944d29b0624f4cc10b6`

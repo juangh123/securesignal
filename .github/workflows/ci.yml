@@ -1,0 +1,76 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  tee-service:
+    name: tee-service · pytest
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: tee-service
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            tee-service/requirements.txt
+            tee-service/requirements-dev.txt
+      - name: Install dependencies
+        run: pip install -r requirements-dev.txt
+      - name: Unit tests (offline — no RPC, no on-chain writes)
+        env:
+          ANALYSIS_OFFLINE: "1"
+        run: python -m pytest -q
+
+  contracts:
+    name: contracts · hardhat test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: contracts/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Compile and test
+        run: npm test
+
+  frontend:
+    name: frontend · lint + build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Lint
+        run: npm run lint
+      - name: Build
+        env:
+          # Required at import time by src/config.ts. Any non-empty value is
+          # enough to compile; real deploys set the production project id.
+          NEXT_PUBLIC_PROJECT_ID: ci-build-placeholder
+        run: npm run build

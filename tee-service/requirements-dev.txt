@@ -1,0 +1,7 @@
+# Test/development dependencies — deliberately NOT installed by the production
+# Docker image (see Dockerfile, which installs requirements.txt only).
+#
+#   pip install -r requirements-dev.txt
+#   python -m pytest -q
+-r requirements.txt
+pytest==9.1.1
