@@ -180,6 +180,8 @@ npm install && npm run build && npm start   # 或 npm run dev
 | 6 | 前端解密展示 | 会话私钥解密 `encrypted_result` 成功，显示 risk_score / rebalance / summary；`analysis_mode` 为 `llm` 或 `rule-fallback`（两者皆合法） |
 | 7 | attestation | token JSON 中 `tee_address` == 链上 `teeAddress`，`mode` 字段如实标注（当前为 `dev-simulated`，见 §3） |
 | 8 | `curl https://<tee>/health` | 返回 `status:"ok"`；`relayer_configured` / `llm_configured` / `price_mode` / `attestation_mode` 与实际部署一致（响应不含任何密钥） |
+| 9 | `curl https://<tee>/assets` | 返回可定价资产清单（当前 31 个，含 BTC/ETH/FLR）；前端用它拦截不支持的 symbol，避免用户为必然失败的请求付 gas |
+| 10 | `POST /analyze` 传一个不存在的 taskId | 返回 `409 not pending on-chain`（除非显式设了 `ANALYZE_REQUIRE_ONCHAIN_TASK=0`） |
 
 ---
 
@@ -287,7 +289,7 @@ export LLM_TIMEOUT=30                            # 可选，秒
 | tee 日志 `WARNING: on-chain submitResult failed: ...` | relayer 余额不足 / RPC 故障 / nonce 冲突 | 不影响 `/analyze` 响应（`onchain_submitted=false`）；检查 relayer 余额与 RPC |
 | 结果 `{"status":"error","error":"price provider failed: ..."}` | FTSO RPC 不可达 / feed 数据异常（策略：绝不回退假价） | 检查 `RPC_URL` 与网络；本地开发设 `ANALYSIS_OFFLINE=1`（会标注 `offline-fixture`） |
 | 结果 `price_source="offline-fixture"` 但以为是真实价 | `ANALYSIS_OFFLINE=1` 仍在 env 中（compose 默认值为 1） | 生产/联机环境取消该变量（compose：`ANALYSIS_OFFLINE=0 docker compose up`） |
-| `unknown symbol(s) [...]` | 仅支持 BTC / ETH / FLR 三个 feed | 持仓限制在支持币种内，或扩展 `FEED_IDS` |
+| `unknown symbol(s) [...]` | 该资产在 Coston2 上没有 FTSO feed。当前支持 31 个（清单见 `GET /assets`，或 `analysis/price_provider.py` 的 `SUPPORTED_SYMBOLS`） | 用 `GET /assets` 返回的符号；新增资产前先用 `getFeedById` 确认链上确有该 feed，再补进 `SUPPORTED_SYMBOLS` + `FIXTURE_PRICES` |
 | `analysis_mode="rule-fallback"` 且已配 LLM | LLM key 无效 / 端点不可达 / 输出校验失败（已自动重试一次） | 查 tee 日志 LLMError；验证 key 与 `LLM_BASE_URL`；部分网关不支持 JSON mode（已自动兼容） |
 | `POST /analyze` 413 `encrypted_data exceeds the 131072-character limit` | 请求体超过 128 KB 上限（真实组合密文仅数百字节） | 检查客户端是否误传大对象；上限常量见 `main.py` 的 `MAX_ENCRYPTED_DATA_CHARS` |
 | `POST /analyze` 400 `payload.holdings must contain at most 25 entries` / `holdings symbol ... is invalid` | 明文持仓超过 25 个，或 symbol 不符合 `[A-Z0-9]{1,12}` | 前端 `parseHoldings` 已镜像同一组上限（见 `analysis/engine.py`）；资产过多时请分批分析 |

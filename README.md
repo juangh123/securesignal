@@ -49,6 +49,9 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   `analysis_mode: "llm" | "rule-fallback"` 如实标注。未配置 API key 时静默使用规则引擎。
 - **FTSO 真实读价**：`analysis/price_provider.py` 经 FlareContractRegistry 直读 Coston2 官方
   `FtsoV2`（bytes21 feed ID，60s TTL 缓存，10s RPC 超时），**无静默回退假价**——失败显式报错。
+  当前支持 **31 个资产**（BTC/ETH/FLR/XRP/SOL/LINK/USDC/DOGE…，完整清单见 `GET /assets`），
+  feed ID 由 `SUPPORTED_SYMBOLS` 按 `0x01 || "<SYM>/USD"` 规则生成，每个都经 Coston2 实读验证；
+  前端用该清单在**发起交易前**拦截不支持的 symbol，避免用户白付 gas。
   联机实测（2026-07-19，`ANALYSIS_LIVE_TEST=1 python -m unittest analysis.test_price_provider`，
   完整输出见 `tee-service/ftso-live-test.log`）：
   BTC/USD **$64,649.78**、ETH/USD **$1,866.52**、FLR/USD **$0.006560**

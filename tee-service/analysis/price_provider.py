@@ -31,10 +31,10 @@ MODES
      price_usd = value / 10**decimals
 
    Feed ID rule (bytes21): 0x01 || ASCII("<SYM>/USD") right-padded with
-   zero bytes to 21 bytes. The three IDs below are defined in this module
-   (the single source of truth since the Stage A engine.py refactor); the
-   BTC ID is cross-checked against contracts/scripts/test-ftso.ts (same
-   registry flow in TypeScript — that script covers BTC only).
+   zero bytes to 21 bytes. IDs are generated from SUPPORTED_SYMBOLS below so
+   they cannot drift; analysis/test_price_provider.py pins the generated BTC /
+   ETH / FLR ids to the literal values they replaced, and the BTC id is also
+   cross-checked by contracts/scripts/test-ftso.ts.
 
 FAILURE POLICY
 --------------
@@ -59,6 +59,7 @@ from typing import Any
 from web3 import Web3
 
 __all__ = [
+    "SUPPORTED_SYMBOLS",
     "FEED_IDS",
     "FIXTURE_PRICES",
     "PriceProviderError",
@@ -99,16 +100,39 @@ FTSO_V2_ABI: list[dict[str, Any]] = [
     }
 ]
 
-# bytes21 feed IDs: category 0x01 (crypto) + "<SYM>/USD" ASCII, right-padded
-# with zero bytes to 21 bytes. Copied verbatim from analysis/engine.py.
-FEED_IDS: dict[str, str] = {
-    "BTC": "0x014254432f55534400000000000000000000000000",  # "BTC/USD"
-    "ETH": "0x014554482f55534400000000000000000000000000",  # "ETH/USD"
-    "FLR": "0x01464c522f55534400000000000000000000000000",  # "FLR/USD"
-}
+# Assets we can price. Every entry was verified live against Coston2 FtsoV2
+# (getFeedById returns a non-zero value with a fresh timestamp) — see
+# tools/ops-status.mjs and analysis/test_price_provider.py.
+SUPPORTED_SYMBOLS: tuple[str, ...] = (
+    "BTC", "ETH", "XRP", "LTC", "DOGE", "ADA", "SOL", "AVAX", "BNB", "DOT",
+    "TRX", "LINK", "USDC", "USDT", "FLR", "MATIC", "POL", "ARB", "OP",
+    "ATOM", "FIL", "XLM", "SHIB", "UNI", "AAVE", "BCH", "ETC", "TON",
+    "NEAR", "APT", "SUI",
+)
+
+
+def _crypto_feed_id(symbol: str) -> str:
+    """bytes21 FTSO v2 feed id: category 0x01 + ASCII "<SYM>/USD", zero-padded."""
+    raw = b"\x01" + f"{symbol}/USD".encode("ascii")
+    if len(raw) > 21:
+        raise ValueError(f"symbol {symbol!r} is too long for an FTSO feed id")
+    return "0x" + (raw + b"\x00" * (21 - len(raw))).hex()
+
+
+FEED_IDS: dict[str, str] = {s: _crypto_feed_id(s) for s in SUPPORTED_SYMBOLS}
 
 # Dev fixtures — used ONLY when ANALYSIS_OFFLINE=1. NOT real market data.
-FIXTURE_PRICES: dict[str, float] = {"BTC": 65000.0, "ETH": 3500.0, "FLR": 0.02}
+# Every FEED_IDS key must appear here (pinned by a test) so offline mode can
+# never raise KeyError for an asset that online mode supports.
+FIXTURE_PRICES: dict[str, float] = {
+    "BTC": 65000.0, "ETH": 3500.0, "XRP": 2.10, "LTC": 85.0, "DOGE": 0.12,
+    "ADA": 0.45, "SOL": 150.0, "AVAX": 25.0, "BNB": 600.0, "DOT": 5.0,
+    "TRX": 0.25, "LINK": 18.0, "USDC": 1.0, "USDT": 1.0, "FLR": 0.02,
+    "MATIC": 0.55, "POL": 0.55, "ARB": 0.80, "OP": 1.60, "ATOM": 7.0,
+    "FIL": 4.50, "XLM": 0.12, "SHIB": 0.00002, "UNI": 9.0, "AAVE": 250.0,
+    "BCH": 400.0, "ETC": 22.0, "TON": 3.50, "NEAR": 5.0, "APT": 7.0,
+    "SUI": 1.20,
+}
 
 # Well-known Flare chain IDs (used only for the human-readable source label).
 _CHAIN_NAMES = {14: "flare", 19: "songbird", 16: "coston", 114: "coston2"}

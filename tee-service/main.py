@@ -176,6 +176,22 @@ async def health():
     }
 
 
+@app.get("/assets")
+async def assets():
+    """Assets the price provider can actually price.
+
+    Deliberately separate from /health: this is a capability contract the
+    frontend uses to reject unsupported symbols *before* the user pays gas for
+    a requestAnalysis transaction (the engine would otherwise reject them only
+    after the on-chain round trip).
+    """
+    return {
+        "symbols": list(price_provider.SUPPORTED_SYMBOLS),
+        "count": len(price_provider.SUPPORTED_SYMBOLS),
+        "price_source": price_provider.get_price_source(),
+    }
+
+
 @app.post("/analyze", response_model=AnalysisResponse)
 async def analyze(request: AnalysisRequest):
     if request.task_id < 0:

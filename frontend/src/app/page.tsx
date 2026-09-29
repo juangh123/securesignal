@@ -369,31 +369,45 @@ export default function Home() {
   const [onchainStatus, setOnchainStatus] = useState('')
   const [health, setHealth] = useState<ServiceHealth | null>(null)
   const [healthChecked, setHealthChecked] = useState(false)
+  const [supportedSymbols, setSupportedSymbols] = useState<string[] | null>(null)
 
-  // Validate the textarea as the user types so a typo is caught here instead
-  // of after they have already paid for a requestAnalysis transaction.
+  // Validate the textarea as the user types so a typo — or an asset the TEE
+  // cannot price — is caught here instead of after they have already paid for
+  // a requestAnalysis transaction.
   const parsed = useMemo(() => {
     try {
-      return { holdings: parseHoldings(portfolioText), error: '' }
+      const holdings = parseHoldings(portfolioText)
+      if (supportedSymbols) {
+        const unsupported = Object.keys(holdings).filter((s) => !supportedSymbols.includes(s))
+        if (unsupported.length > 0) {
+          return {
+            holdings: null,
+            error: `No FTSO feed for ${unsupported.join(', ')} — the TEE can only price the assets listed below.`,
+          }
+        }
+      }
+      return { holdings, error: '' }
     } catch (e) {
       return { holdings: null, error: (e as Error).message }
     }
-  }, [portfolioText])
+  }, [portfolioText, supportedSymbols])
 
   useEffect(() => {
     let cancelled = false
-    fetch(`${TEE_URL}/health`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (cancelled) return
-        if (data && data.status === 'ok') setHealth(data as ServiceHealth)
-      })
-      .catch(() => {
-        // Older deployments may not expose /health; the notice stays generic.
-      })
-      .finally(() => {
-        if (!cancelled) setHealthChecked(true)
-      })
+    const readJson = (path: string) =>
+      fetch(`${TEE_URL}${path}`)
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null)
+
+    // /health drives the trust-boundary notice; /assets drives symbol
+    // validation. Both are best-effort: a failure just leaves the UI generic.
+    void Promise.all([readJson('/health'), readJson('/assets')]).then(([h, a]) => {
+      if (cancelled) return
+      if (h && h.status === 'ok') setHealth(h as ServiceHealth)
+      if (a && Array.isArray(a.symbols)) setSupportedSymbols(a.symbols as string[])
+      setHealthChecked(true)
+    })
+
     return () => {
       cancelled = true
     }
@@ -643,6 +657,15 @@ export default function Home() {
               ) : (
                 <p className="-mt-2 text-xs text-amber-400">{parsed.error}</p>
               )}
+              <details className="-mt-2 text-xs text-slate-400">
+                <summary className="cursor-pointer">
+                  Supported assets
+                  {supportedSymbols ? ` (${supportedSymbols.length})` : ' — loading…'}
+                </summary>
+                <p className="mt-1 font-mono break-words">
+                  {supportedSymbols ? supportedSymbols.join(' · ') : 'fetching from the TEE service…'}
+                </p>
+              </details>
 
               <label className="text-sm font-medium text-slate-300">Risk profile</label>
               <select

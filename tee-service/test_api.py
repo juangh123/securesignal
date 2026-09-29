@@ -43,3 +43,18 @@ def test_health_reports_non_secret_status():
         flat = str(body)
         assert "PRIVATE_KEY" not in flat
         assert "http://" not in flat and "https://" not in flat
+
+
+def test_assets_lists_priceable_symbols():
+    """The frontend validates holdings against this list before spending gas."""
+    with TestClient(main.app) as c:
+        r = c.get("/assets")
+        assert r.status_code == 200
+        body = r.json()
+        symbols = body["symbols"]
+        assert isinstance(symbols, list) and symbols
+        assert body["count"] == len(symbols)
+        # the original three must still be there, and entries are unique + upper-case
+        assert {"BTC", "ETH", "FLR"} <= set(symbols)
+        assert len(set(symbols)) == len(symbols)
+        assert all(s == s.upper() for s in symbols)

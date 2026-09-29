@@ -167,6 +167,35 @@ def _reset_fake_web3() -> None:
 # ---------------------------------------------------------------------------
 
 class OfflineFixtureTests(_EnvTestCase):
+    def test_generated_feed_ids_match_previous_literals(self):
+        """The rule-based ids must reproduce the hand-written hex they replaced."""
+        self.assertEqual(
+            price_provider.FEED_IDS["BTC"], "0x014254432f55534400000000000000000000000000"
+        )
+        self.assertEqual(
+            price_provider.FEED_IDS["ETH"], "0x014554482f55534400000000000000000000000000"
+        )
+        self.assertEqual(
+            price_provider.FEED_IDS["FLR"], "0x01464c522f55534400000000000000000000000000"
+        )
+
+    def test_every_feed_has_a_length_21_id(self):
+        for symbol, feed_id in price_provider.FEED_IDS.items():
+            with self.subTest(symbol=symbol):
+                self.assertTrue(feed_id.startswith("0x"))
+                self.assertEqual(len(feed_id), 2 + 21 * 2)
+
+    def test_fixture_prices_cover_every_feed(self):
+        """Offline mode indexes FIXTURE_PRICES by symbol — no key may be missing."""
+        self.assertEqual(
+            set(price_provider.FIXTURE_PRICES),
+            set(price_provider.FEED_IDS),
+        )
+        self.assertEqual(
+            set(price_provider.SUPPORTED_SYMBOLS),
+            set(price_provider.FEED_IDS),
+        )
+
     def setUp(self):
         super().setUp()
         self._set_offline(True)
@@ -194,9 +223,9 @@ class OfflineFixtureTests(_EnvTestCase):
 
     def test_unknown_symbol_raises_offline(self):
         with self.assertRaises(ValueError):
-            price_provider.get_prices(["DOGE"])
+            price_provider.get_prices(["NOTACOIN"])
         with self.assertRaises(ValueError):
-            price_provider.get_prices(["BTC", "DOGE"])
+            price_provider.get_prices(["BTC", "NOTACOIN"])
         with self.assertRaises(ValueError):
             price_provider.get_prices([123])
 
@@ -313,7 +342,7 @@ class OnlineMockedTests(_EnvTestCase):
 
     def test_unknown_symbol_raises_before_any_network(self):
         with self.assertRaises(ValueError):
-            price_provider.get_prices(["SHIB"])
+            price_provider.get_prices(["FAKECOIN"])
         # No RPC was constructed / no contract call happened.
         self.assertEqual(_FakeWeb3.recorder["registry_names"], [])
         self.assertEqual(_FakeWeb3.recorder["feed_ids"], [])

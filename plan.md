@@ -68,7 +68,7 @@
 **范围**：`tee-service/analysis/price_provider.py`（新建直读官方 FtsoV2）、`analysis/test_price_provider.py`（单测）。
 
 完成项：
-- 在线模式：经 FlareContractRegistry（`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`）解析链上官方 `FtsoV2`，`getFeedById(bytes21)` 读 BTC/ETH/FLR 三个 feed，`value / 10^decimals` 换算；10s RPC 超时、60s TTL 缓存。
+- 在线模式：经 FlareContractRegistry（`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`）解析链上官方 `FtsoV2`，`getFeedById(bytes21)` 读 feed，`value / 10^decimals` 换算；10s RPC 超时、60s TTL 缓存。feed ID 由 `SUPPORTED_SYMBOLS` 规则生成（`0x01 || "<SYM>/USD"` 补零到 21 字节），当前 **31 个资产**（BTC/ETH/FLR/XRP/SOL/LINK/USDC…，清单见 `GET /assets`），每个都经 Coston2 `getFeedById` 实读验证。
 - 失败策略：任何网络/RPC/数据异常抛 `PriceProviderError`，**无静默回退假价**；未知 symbol 在任何网络访问前抛 `ValueError`。
 - 离线模式：仅 `ANALYSIS_OFFLINE=1` 用 fixture 价（BTC 65000 / ETH 3500 / FLR 0.02），`price_source="offline-fixture"` 明确标注非真实市价。
 - 单测：offline 5 例 + mocked online 14 例全过；联机用例 `ANALYSIS_LIVE_TEST=1` 门控。
