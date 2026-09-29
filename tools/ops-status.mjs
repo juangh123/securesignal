@@ -122,7 +122,7 @@ if (health && onchain) {
 
 if (health) {
   info('[8] relayer configured', String(health.relayer_configured))
-  info('[8] llm configured', String(health.llm_configured))
+  info('[8] llm configured', health.llm_configured ? `true (${health.llm_model ?? 'model?'})` : 'false')
   info('[8] price mode', String(health.price_mode))
   info('[8] attestation mode', String(health.attestation_mode))
   info('[8] image digest', String(health.image_digest))

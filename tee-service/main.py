@@ -35,7 +35,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from analysis import price_provider
+from analysis import llm, price_provider
 from analysis.engine import analyze_portfolio
 from attestation.vtpm import generate_attestation_token
 from crypto import keys as tee_keys
@@ -130,7 +130,10 @@ async def health():
         "registry_address": relayer.registry_address(),
         "relayer_configured": relayer.is_configured(),
         "price_mode": price_provider.get_price_source(),
-        "llm_configured": bool(os.getenv("LLM_API_KEY", "").strip()),
+        "llm_configured": llm.is_configured(),
+        # Model name only (never the key or base URL). Lets the UI and ops
+        # tooling show which engine is actually answering.
+        "llm_model": llm.configured_model() if llm.is_configured() else None,
         "attestation_mode": (
             "gcp-confidential-space" if os.getenv("ENV") == "prod" else "dev-simulated"
         ),

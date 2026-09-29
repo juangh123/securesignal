@@ -32,6 +32,7 @@ def test_health_reports_non_secret_status():
             "relayer_configured",
             "price_mode",
             "llm_configured",
+            "llm_model",
             "attestation_mode",
             "image_digest",
         ):

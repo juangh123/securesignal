@@ -87,6 +87,7 @@ interface ServiceHealth {
   relayer_configured: boolean
   price_mode: string
   llm_configured: boolean
+  llm_model: string | null
   attestation_mode: string
   image_digest: string
 }
@@ -260,7 +261,9 @@ function TrustNotice({ health, checked }: { health: ServiceHealth | null; checke
               : 'bg-slate-700 text-slate-200'
           }
         >
-          {health.llm_configured ? 'LLM judgement enabled' : 'Rule engine (no LLM)'}
+          {health.llm_configured
+            ? `LLM judgement · ${health.llm_model ?? 'configured'}`
+            : 'Rule engine (no LLM)'}
         </Badge>
         <Badge className="bg-teal-100 text-teal-800">Price · {health.price_mode}</Badge>
         <Badge

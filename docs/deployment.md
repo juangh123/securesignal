@@ -41,7 +41,7 @@
 | `ANALYSIS_OFFLINE` | 可选 | 未设 = 在线模式（真实 FTSO 读价） | 恰好等于 `"1"` 时启用 dev fixture 价（BTC 65000 / ETH 3500 / FLR 0.02，**非真实市价**），结果标注 `price_source="offline-fixture"`。见 `analysis/price_provider.py` | `1` |
 | `LLM_API_KEY` | 可选 | 未设：LLM 关闭，使用确定性规则引擎（`analysis_mode="rule-fallback"`） | OpenAI 兼容 API key；设置即启用 LLM 分析。见 `analysis/llm.py` | `sk-...` |
 | `LLM_BASE_URL` | 可选 | `https://api.openai.com/v1` | 任意 OpenAI 兼容端点（DeepSeek / Moonshot / 本地 mock 等） | `https://api.deepseek.com/v1` |
-| `LLM_MODEL` | 可选 | `gpt-4o-mini` | 模型名 | `deepseek-chat` |
+| `LLM_MODEL` | 可选 | `gpt-4o-mini` | 模型名 | `deepseek-flash` |
 | `LLM_TIMEOUT` | 可选 | `30` | LLM 请求超时（秒）；非数字时回退 30 | `60` |
 | `TEE_IMAGE_DIGEST` | 可选 | `dev` | 写入 attestation token 的 `image_digest` 字段。见 `attestation/vtpm.py` | `sha256:<镜像digest>` |
 | `FTSO_READER_ADDRESS` | —（当前**未被代码消费**） | — | 仅 `docker-compose.yml` 透传预留。当前 `price_provider.py` 经 FlareContractRegistry 直读链上官方 `FtsoV2`，无需部署的 `FtsoV2Reader` 地址；该 env 属历史遗留 | — |
@@ -241,13 +241,18 @@ frontend ──ECIES──> tee-service @ Confidential Space
 
 ## 4. LLM 接入
 
+> 线上当前使用的供应商是 **DeepSeek**（OpenAI 兼容端点）。`render.yaml` 已把
+> `LLM_BASE_URL` / `LLM_MODEL` 默认指向 DeepSeek，`LLM_API_KEY` 为 `sync: false`
+> 需在 Render Dashboard 手填。`GET /health` 会返回 `llm_configured` 与
+> `llm_model`（只暴露模型名，不含 key/base URL），可直接用来确认是否真的启用成功。
+
 ### 4.1 启用（3 个 env 即可）
 
 ```bash
-export LLM_API_KEY=sk-...                      # 唯一必填；设置即启用
-export LLM_BASE_URL=https://api.openai.com/v1  # 可选，任意 OpenAI 兼容端点
-export LLM_MODEL=gpt-4o-mini                   # 可选
-export LLM_TIMEOUT=30                          # 可选，秒
+export LLM_API_KEY=sk-...                        # 唯一必填；设置即启用
+export LLM_BASE_URL=https://api.deepseek.com/v1  # 可选，任意 OpenAI 兼容端点
+export LLM_MODEL=deepseek-flash                  # 可选（DeepSeek 当前可用：deepseek-flash / deepseek-v4-pro）
+export LLM_TIMEOUT=30                            # 可选，秒
 ```
 
 行为（与 `analysis/llm.py` / `analysis/engine.py` 核对）：

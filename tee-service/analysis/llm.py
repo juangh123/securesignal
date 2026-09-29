@@ -46,7 +46,7 @@ from typing import Any, Dict, List
 
 import requests
 
-__all__ = ["LLMError", "is_configured", "analyze"]
+__all__ = ["LLMError", "configured_model", "is_configured", "analyze"]
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4o-mini"
@@ -67,6 +67,11 @@ class LLMError(RuntimeError):
 def is_configured() -> bool:
     """LLM analysis is enabled iff LLM_API_KEY is set (base URL/model have defaults)."""
     return bool(os.environ.get("LLM_API_KEY", "").strip())
+
+
+def configured_model() -> str:
+    """Model that ``analyze`` would call. Readable without a key (for /health)."""
+    return os.environ.get("LLM_MODEL", "").strip() or DEFAULT_MODEL
 
 
 SYSTEM_PROMPT = """You are a senior cryptocurrency portfolio analyst — the analysis core of SecureSignal, a privacy-first advisory service running inside a Trusted Execution Environment (TEE).
