@@ -22,8 +22,10 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dir = dirname(fileURLToPath(import.meta.url));
-const RPC = 'https://coston2-api.flare.network/ext/C/rpc';
-const TEE = 'https://securesignal-tee-i6vs.onrender.com';
+const RPC = process.env.RPC_URL || 'https://coston2-api.flare.network/ext/C/rpc';
+// Default to the backend the deployed frontend actually calls; override with
+// TEE_URL=... to target a local or alternate deployment.
+const TEE = (process.env.TEE_URL || 'https://securesignal-tee.onrender.com').replace(/\/+$/, '');
 
 const coston2 = defineChain({
   id: 114,

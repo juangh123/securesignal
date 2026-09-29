@@ -24,6 +24,7 @@ import base64
 import binascii
 import json
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 
@@ -34,12 +35,29 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from analysis import price_provider
 from analysis.engine import analyze_portfolio
-from attestation.vtpm import generate_attestation_token, sign_result
+from attestation.vtpm import generate_attestation_token
 from crypto import keys as tee_keys
 from flare import contracts as relayer
 
-app = FastAPI(title="SecureSignal TEE Service", version="2.0.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    tee_keys.init_keys()
+    print(f"[main] TEE public key: {tee_keys.get_public_key_hex()}")
+    print(f"[main] TEE address:    {tee_keys.get_tee_address()}")
+    if relayer.is_configured():
+        print("[main] Relayer configured: results will be submitted on-chain")
+    else:
+        print(
+            "[main] Relayer NOT configured (PRIVATE_KEY and/or registry "
+            "address missing): onchain_submitted will be false"
+        )
+    yield
+
+
+app = FastAPI(title="SecureSignal TEE Service", version="2.0.0", lifespan=lifespan)
 
 # CORS: production sets ALLOWED_ORIGINS to the frontend origin(s), e.g.
 #   ALLOWED_ORIGINS=https://securesignal.vercel.app,https://www.securesignal.io
@@ -83,20 +101,6 @@ class AnalysisResponse(BaseModel):
     onchain_submitted: bool = False
 
 
-@app.on_event("startup")
-async def startup_event():
-    tee_keys.init_keys()
-    print(f"[main] TEE public key: {tee_keys.get_public_key_hex()}")
-    print(f"[main] TEE address:    {tee_keys.get_tee_address()}")
-    if relayer.is_configured():
-        print("[main] Relayer configured: results will be submitted on-chain")
-    else:
-        print(
-            "[main] Relayer NOT configured (PRIVATE_KEY and/or registry "
-            "address missing): onchain_submitted will be false"
-        )
-
-
 @app.get("/public-key")
 async def public_key():
     """TEE ECIES public key: 65B uncompressed hex, 04 prefix, no 0x.
@@ -104,6 +108,28 @@ async def public_key():
     return {
         "public_key": tee_keys.get_public_key_hex(),
         "address": tee_keys.get_tee_address(),
+    }
+
+
+@app.get("/health")
+async def health():
+    """Non-secret operational status for monitoring and ops tooling.
+
+    Exposes only booleans, derived addresses, and mode labels — never key
+    material, the RPC URL, or the LLM API key.
+    """
+    return {
+        "status": "ok",
+        "version": app.version,
+        "tee_address": tee_keys.get_tee_address(),
+        "registry_address": relayer.registry_address(),
+        "relayer_configured": relayer.is_configured(),
+        "price_mode": price_provider.get_price_source(),
+        "llm_configured": bool(os.getenv("LLM_API_KEY", "").strip()),
+        "attestation_mode": (
+            "gcp-confidential-space" if os.getenv("ENV") == "prod" else "dev-simulated"
+        ),
+        "image_digest": os.getenv("TEE_IMAGE_DIGEST", "dev"),
     }
 
 
@@ -165,17 +191,28 @@ async def analyze(request: AnalysisRequest):
     #    the response — only reflected in the onchain_submitted flag.
     onchain_submitted = False
     if relayer.is_configured():
-        try:
-            tx_hash = await asyncio.to_thread(
-                relayer.submit_result,
-                request.task_id,
-                result_hash,
-                attestation_sig,
+        # Only submit for a task that is still pending on-chain. Without this
+        # pre-check an unknown or already-finalized task id makes the relayer
+        # broadcast a transaction that is guaranteed to revert (wasting gas).
+        # status None means the read failed, so we fall back to attempting.
+        status = await asyncio.to_thread(relayer.task_status, request.task_id)
+        if status is not None and status != 1:  # 1 = Status.Requested
+            print(
+                f"[main] relayer skipped: task {request.task_id} on-chain "
+                f"status={status} (not Requested)"
             )
-            onchain_submitted = True
-            print(f"[main] submitResult on-chain tx: {tx_hash}")
-        except Exception as e:
-            print(f"[main] WARNING: on-chain submitResult failed: {e}")
+        else:
+            try:
+                tx_hash = await asyncio.to_thread(
+                    relayer.submit_result,
+                    request.task_id,
+                    result_hash,
+                    attestation_sig,
+                )
+                onchain_submitted = True
+                print(f"[main] submitResult on-chain tx: {tx_hash}")
+            except Exception as e:
+                print(f"[main] WARNING: on-chain submitResult failed: {e}")
 
     return AnalysisResponse(
         task_id=request.task_id,

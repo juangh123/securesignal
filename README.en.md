@@ -13,10 +13,15 @@ SecureSignal runs the analysis engine inside a TEE (Trusted Execution Environmen
 
 ## What we built for the hackathon
 For this program, we built the entire stack from zero to prototype:
-1. **The TEE Engine:** Developed the python based AI risk analysis logic that operates within Gramine/TDX.
+1. **The TEE Engine:** Python-based risk analysis logic (LLM + deterministic rule engine). In this build it runs as a plain service with an explicitly labeled `dev-simulated` attestation; real GCP Confidential Space (vTPM) attestation is scoped in `docs/deployment.md` §3.
 2. **The Smart Contracts:** Deployed a task registry contract on Coston2 to handle TEE public key storage and signature verification.
 3. **The Web 3.0 App:** Setup a full-stack Next.js app to handle the E2E encryption curve, allowing users to send confidential requests directly via their wallets. 
 4. **Cloud Infrastructure:** Orchestrated the full pipeline to production — TEE backend on Render, frontend on Vercel — and verified the live demo end-to-end on Coston2.
+
+## Implementation status (honest)
+- Real and verified: on-chain `ecrecover` attestation check, ECIES end-to-end encryption, on-chain result relayer, live FTSO price reads (`price_source="coston2-ftso"`), full web flow on Coston2.
+- Simulated in this build: the "TEE" is a normal service on Render and the attestation is a structured JSON token with `mode: "dev-simulated"` — it proves possession of the registered key, not that the code runs in a real enclave.
+- Analysis mode: `llm` when `LLM_API_KEY` is configured, otherwise `rule-fallback`. The response always labels which path ran.
 
 ## Why Flare
 1. **Confidential Compute:** The core engine leverages Flare's confidential computing offering to ensure end-to-end encryption.
@@ -30,12 +35,13 @@ For this program, we built the entire stack from zero to prototype:
 ## Structure
 - /contracts: Solidity contracts for verifying attestations and logging Tasks. (Deployed on Coston2)
 - /frontend: Next.js DApp utilizing ECIES encryption for TEE-wallet interactions.
-- /tee-service: Python FastAPI layer configured to run in Gramine TEE. 
+- /tee-service: Python FastAPI service; plain process in dev, designed for GCP Confidential Space in production.
 
 ## Demo
 Try the Live App: https://securesignal.vercel.app/
 (Ensure you are connected to the Flare Coston2 Testnet)
-Live TEE Endpoint: https://securesignal-tee.onrender.com
+Live TEE Endpoint: https://securesignal-tee.onrender.com (`/public-key`; `/health` ships in the current source once redeployed)
+One-command read-only status check: `node tools/ops-status.mjs`
 Demo Video (2:19, English): https://youtu.be/1V5yuxIENvc
 
 Direct video fallback: https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
@@ -46,6 +52,6 @@ Direct video fallback: https://github.com/juangh123/securesignal/raw/main/video/
 - Registered TEE address: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
 
 ## Future Roadmap 
-- Production-grade vTPM attestation on GCP Confidential Space (Gramine/TDX) with on-chain image-digest anchoring.
+- Production-grade vTPM attestation on GCP Confidential Space with on-chain image-digest anchoring.
 - Provide a Zero-Knowledge proof mechanism for users to demonstrate their 'Risk Score' to credit protocols without showing absolute balances.
 - Generalize the product to offer a Confidential Oracle service for third-party dApps on Flare Mainnet. 

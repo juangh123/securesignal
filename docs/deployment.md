@@ -111,20 +111,24 @@ npx hardhat run scripts/deploy.ts --network coston2
 > - `newImageDigest`：`bytes32` 镜像 digest
 > - `newTeeAddress`：TEE 私钥对应地址（启动日志 `[main] TEE address:` 会打印）
 
-### 2.5 已部署实例（Coston2，2026-07-19）
+### 2.5 已部署实例（Coston2）
+
+当前生效部署（与 `frontend/src/config/contract-addresses.json`、`tee-service/config/contract-addresses.json` 一致，也是线上前端与 TEE 服务指向的实例）：
 
 | 项 | 值 |
 |---|---|
-| AnalysisRegistry | `0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531` |
-| FtsoV2Reader | `0xe60745669C54b66F67ae85Ce031D4bDED4311163` |
-| 解析的官方 FtsoV2 | `0xC4e9c78EA53db782E28f28Fdf80BaF59336B304d` |
+| AnalysisRegistry | `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482` |
+| FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | 登记 TEE 地址 | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
-| rotateTeeKey tx | `0x072f47e57a34e530eab2d5d007908ce141c958bf11f94587f9b48aa475cd02d9` |
-| 冒烟测试 | `frontend/e2e/e2e-coston2.mjs` 12/12 通过（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
+| 链上 `expectedImageDigest` | `keccak256("dev-image")`（dev 占位值，接入真实 vTPM 后替换） |
+| 最近成功任务 | task #5，2026-08-12，链上 `status=Verified` |
+| 冒烟测试 | `frontend/e2e/e2e-coston2.mjs`（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
+
+> 早期部署（2026-07-19 首次上线）为 `AnalysisRegistry 0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531` / `FtsoV2Reader 0xe60745669C54b66F67ae85Ce031D4bDED4311163`，已被上表部署取代，勿再引用。
 
 脚本执行后会回读链上 `activeTeePublicKey` / `expectedImageDigest` / `teeAddress` 做一致性校验。
 
-### 2.5 启动 tee-service（生产 env）
+### 2.6 启动 tee-service（生产 env）
 
 ```bash
 cd tee-service
@@ -144,7 +148,7 @@ uvicorn main:app --host 0.0.0.0 --port 8000
 
 启动自检（日志）：`[main] Relayer configured: results will be submitted on-chain` 表示 relayer 就绪。
 
-### 2.6 前端 `.env.local`
+### 2.7 前端 `.env.local`
 
 ```bash
 cd frontend
@@ -162,7 +166,7 @@ npm install && npm run build && npm start   # 或 npm run dev
 
 前端连接的钱包需切换到 Coston2（chainId 114，RPC `https://coston2-api.flare.network/ext/C/rpc`，explorer `https://coston2-explorer.flare.network`）。
 
-### 2.7 部署验证清单
+### 2.8 部署验证清单
 
 | # | 检查项 | 通过标准 |
 |---|---|---|
@@ -173,6 +177,7 @@ npm install && npm run build && npm start   # 或 npm run dev
 | 5 | 链上核对 | explorer 上 `tasks(taskId).status == 3 (Verified)`，`resultHash` == 响应 `result_hash`；`ResultSubmitted` 事件可查 |
 | 6 | 前端解密展示 | 会话私钥解密 `encrypted_result` 成功，显示 risk_score / rebalance / summary；`analysis_mode` 为 `llm` 或 `rule-fallback`（两者皆合法） |
 | 7 | attestation | token JSON 中 `tee_address` == 链上 `teeAddress`，`mode` 字段如实标注（当前为 `dev-simulated`，见 §3） |
+| 8 | `curl https://<tee>/health` | 返回 `status:"ok"`；`relayer_configured` / `llm_configured` / `price_mode` / `attestation_mode` 与实际部署一致（响应不含任何密钥） |
 
 ---
 
@@ -320,7 +325,8 @@ export LLM_TIMEOUT=30                          # 可选，秒
 
 - 浏览器打开 Vercel URL → 连接钱包（Coston2）→ 提交分析 → 结果展示
   （`price_source` 应为 `coston2-ftso`）
-- 或对托管 TEE 跑 `frontend/e2e/e2e-coston2.mjs`（把脚本内 `TEE` 常量改为 Render URL）
+- 一键只读巡检（推荐）：`node tools/ops-status.mjs`（可用 `FRONTEND_URL` / `TEE_URL` / `RPC_URL` 覆盖默认地址；不发起交易、不改变链上状态）
+- 或跑完整端到端冒烟：`TEE_URL=https://<tee> node frontend/e2e/e2e-coston2.mjs`（会发起真实 Coston2 测试网交易）
 
 ---
 

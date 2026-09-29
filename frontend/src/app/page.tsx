@@ -16,6 +16,7 @@ import AnalysisRegistryABI from '@/config/AnalysisRegistry.json'
 const TEE_URL = (process.env.NEXT_PUBLIC_TEE_URL ?? '').trim() || 'http://localhost:8000'
 const REGISTRY_ADDRESS = addresses.AnalysisRegistry as `0x${string}`
 const REGISTRY_ABI = AnalysisRegistryABI.abi as Abi
+const EXPLORER = 'https://coston2-explorer.flare.network'
 
 // ---------------------------------------------------------------------------
 // TEE 引擎输出契约（全项目唯一标准，逐字遵守）
@@ -66,6 +67,7 @@ interface AnalysisView {
   resultHash?: string
   attestation?: AttestationParsed
   attestationRaw?: unknown
+  onchainSubmitted?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -255,6 +257,7 @@ export default function Home() {
   const [step, setStep] = useState(0) // 0 = 未开始；1..5 = 当前步骤；6 = 全部完成
   const [failedStep, setFailedStep] = useState(0)
   const [result, setResult] = useState<AnalysisView | null>(null)
+  const [onchainStatus, setOnchainStatus] = useState('')
 
   const handleAnalyze = async () => {
     setError('')
@@ -355,7 +358,7 @@ export default function Home() {
 
       // 7. Submit encrypted payload to the TEE and decrypt the response.
       go(4)
-      setStatus('7/7 Submitting encrypted payload to TEE and waiting…')
+      setStatus('7/7 Submitting encrypted payload to TEE and waiting… (the free-tier backend may cold-start for up to ~60s)')
       const analyzeResp = await fetch(`${TEE_URL}/analyze`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -370,6 +373,7 @@ export default function Home() {
         encrypted_result: string
         attestation?: unknown
         result_hash?: string
+        onchain_submitted?: boolean
       }
       if (!data.encrypted_result) throw new Error('TEE response missing encrypted_result field')
 
@@ -384,6 +388,7 @@ export default function Home() {
         resultHash: data.result_hash,
         attestation: tryParseJson(data.attestation),
         attestationRaw: data.attestation,
+        onchainSubmitted: data.onchain_submitted,
       })
       go(6)
       setStatus('')
@@ -398,6 +403,33 @@ export default function Home() {
       setStatus('')
     } finally {
       setBusy(false)
+    }
+  }
+
+  const verifyOnchain = async () => {
+    if (!publicClient || !result) return
+    setOnchainStatus('Reading on-chain task state…')
+    try {
+      const t = (await publicClient.readContract({
+        address: REGISTRY_ADDRESS,
+        abi: REGISTRY_ABI,
+        functionName: 'tasks',
+        args: [BigInt(result.taskId)],
+      })) as unknown as { status?: number; resultHash?: string } & unknown[]
+      const statusIdx = Number((t as { status?: number }).status ?? (t as unknown[])[5])
+      const statusName = ['None', 'Requested', 'Completed', 'Verified'][statusIdx] ?? String(statusIdx)
+      const chainHash = String((t as { resultHash?: string }).resultHash ?? (t as unknown[])[2] ?? '')
+      const match =
+        result.resultHash && chainHash
+          ? chainHash.toLowerCase() === result.resultHash.toLowerCase()
+          : undefined
+      setOnchainStatus(
+        'on-chain status: ' +
+          statusName +
+          (match === undefined ? '' : match ? ' · resultHash matches ✓' : ' · resultHash MISMATCH ✗')
+      )
+    } catch (e) {
+      setOnchainStatus('on-chain read failed: ' + (e as Error).message)
     }
   }
 
@@ -636,7 +668,45 @@ export default function Home() {
                   taskId: <span className="font-mono">{result.taskId}</span>
                 </p>
                 <p className="break-all">
-                  tx: <span className="font-mono">{result.txHash}</span>
+                  tx:{' '}
+                  <a
+                    className="font-mono underline decoration-dotted"
+                    href={EXPLORER + '/tx/' + result.txHash}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    {result.txHash}
+                  </a>
+                </p>
+                <p className="mt-2">
+                  {result.onchainSubmitted ? (
+                    <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
+                      Anchored on-chain ✓
+                    </span>
+                  ) : (
+                    <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                      Not anchored on-chain (relayer unavailable or task not pending)
+                    </span>
+                  )}
+                </p>
+                <p className="mt-2">
+                  <a
+                    className="underline decoration-dotted"
+                    href={EXPLORER + '/address/' + REGISTRY_ADDRESS}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    View registry contract on Coston2 explorer
+                  </a>
+                </p>
+                <p className="mt-3 flex items-center gap-3">
+                  <button
+                    onClick={verifyOnchain}
+                    className="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-semibold py-1.5 px-3 rounded-lg"
+                  >
+                    Verify on-chain
+                  </button>
+                  {onchainStatus && <span className="text-xs text-slate-400">{onchainStatus}</span>}
                 </p>
               </section>
 

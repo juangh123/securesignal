@@ -56,6 +56,36 @@ def is_configured() -> bool:
     return bool(addr) and addr.lower() != ZERO_ADDRESS.lower()
 
 
+def registry_address() -> str:
+    """Return the configured AnalysisRegistry address, or "" if unset."""
+    try:
+        return _load_registry_address()
+    except Exception:
+        return ""
+
+
+def task_status(task_id: int, rpc_url: Optional[str] = None) -> Optional[int]:
+    """Read tasks(taskId).status from the registry.
+
+    Returns the Status enum value (0 None, 1 Requested, 2 Completed, 3 Verified),
+    or None when the address is unconfigured or the read fails. None means
+    "unknown", so callers should fall back to attempting the submission.
+    """
+    try:
+        registry_address = _load_registry_address()
+        if not registry_address or registry_address.lower() == ZERO_ADDRESS.lower():
+            return None
+        rpc_url = rpc_url or os.environ.get("RPC_URL", DEFAULT_RPC_URL)
+        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 10}))
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(registry_address),
+            abi=_load_abi(),
+        )
+        return int(contract.functions.tasks(int(task_id)).call()[5])
+    except Exception:
+        return None
+
+
 def submit_result(
     task_id: int,
     result_hash: str,
