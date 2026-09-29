@@ -336,6 +336,36 @@ export LLM_TIMEOUT=30                            # 可选，秒
 - 一键只读巡检（推荐）：`node tools/ops-status.mjs`（可用 `FRONTEND_URL` / `TEE_URL` / `RPC_URL` 覆盖默认地址；不发起交易、不改变链上状态）
 - 或跑完整端到端冒烟：`TEE_URL=https://<tee> node frontend/e2e/e2e-coston2.mjs`（会发起真实 Coston2 测试网交易）
 
+### 6.4 用 Render API 配置密钥（可选，替代 Dashboard 手填）
+
+Dashboard 的手填步骤可以用 API 自动化完成（适合 CI 或让 agent 代劳）：
+
+```bash
+# 1. 取 API key：Render Dashboard → Account Settings → API Keys
+export RENDER_API_KEY=rnd_xxxx
+AUTH="Authorization: Bearer $RENDER_API_KEY"
+
+# 2. 找到服务 id（name 里的 securesignal-tee）
+curl -s -H "$AUTH" -H "Accept: application/json" \
+  'https://api.render.com/v1/services?limit=50' | jq -r '.[].service | "\(.id) \(.name)"'
+
+# 3. 写单个 env（无需先读出全部变量，不会覆盖其它变量）
+curl -s -X PUT -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"value":"sk-xxxx"}' \
+  'https://api.render.com/v1/services/<serviceId>/env-vars/LLM_API_KEY'
+
+# 4. 触发部署（关键：API 改 env 不会自动重新部署，Dashboard 里保存才会）
+curl -s -X POST -H "$AUTH" -H "Content-Type: application/json" \
+  -d '{"clearCache":"do_not_clear"}' \
+  'https://api.render.com/v1/services/<serviceId>/deploys'
+```
+
+复验：`curl -s https://securesignal-tee.onrender.com/health` 应返回 `status=ok`；
+启用 LLM 后 `llm_configured=true` 且 `llm_model` 为你配置的模型名。
+
+> 注意：单变量的 `PUT /env-vars/<KEY>` 只改那一个变量。整组的 `PUT /env-vars`
+> 是**全量替换**，会删掉没带上的变量，别用它来改单项。
+
 ---
 
 ## 7. 遗留外部依赖（无法在本仓库内闭环）
@@ -345,5 +375,5 @@ export LLM_TIMEOUT=30                            # 可选，秒
 | ~~Coston2 真实部署~~ ✅ 已完成（2026-07-19，见 §2.5） | — | §2.5 |
 | 应用托管 | 需用户的 Vercel/Render 账号（免费） | §6 |
 | GCP Confidential Space vTPM attestation | 需 GCP TEE 环境与项目配置 | §3 |
-| 真实 LLM 调用 | 需 `LLM_API_KEY` | §4 |
+| ~~真实 LLM 调用~~ ✅ 已完成（2026-09-30，DeepSeek `deepseek-flash`） | — | §4 |
 | WalletConnect project id | 需 WalletConnect Cloud 账号 | §1.3 |
