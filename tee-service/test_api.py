@@ -25,6 +25,7 @@ def test_health_reports_non_secret_status():
         assert r.status_code == 200
         body = r.json()
         assert body["status"] == "ok"
+        assert body["version"] == main.SERVICE_VERSION
         for key in (
             "version",
             "tee_address",

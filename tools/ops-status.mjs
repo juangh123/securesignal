@@ -91,6 +91,25 @@ try {
   info('[3] TEE /health', String(e.message || e))
 }
 
+let assets
+try {
+  const r = await getJson(TEE + '/assets')
+  assets = r.body
+  const symbols = assets?.symbols
+  const valid =
+    r.ok &&
+    Array.isArray(symbols) &&
+    symbols.length > 0 &&
+    assets.count === symbols.length &&
+    new Set(symbols).size === symbols.length &&
+    symbols.every((s) => typeof s === 'string' && s === s.toUpperCase()) &&
+    ['BTC', 'ETH', 'FLR'].every((s) => symbols.includes(s)) &&
+    (!health || assets.price_source === health.price_mode)
+  check('[4] TEE /assets capability contract', valid, r.ok ? `${assets?.count ?? '?'} symbols` : `HTTP ${r.status}`)
+} catch (e) {
+  check('[4] TEE /assets capability contract', false, String(e.message || e))
+}
+
 let onchain
 try {
   const [owner, teeAddress, pub, digest, next] = await Promise.all([
@@ -101,31 +120,31 @@ try {
     publicClient.readContract({ address: REGISTRY, abi: ABI, functionName: 'nextTaskId' }),
   ])
   onchain = { owner, teeAddress, pub, digest, next }
-  check('[4] registry readable on-chain', true, `nextTaskId=${next}`)
+  check('[5] registry readable on-chain', true, `nextTaskId=${next}`)
 } catch (e) {
-  check('[4] registry readable on-chain', false, String(e.shortMessage || e.message || e))
+  check('[5] registry readable on-chain', false, String(e.shortMessage || e.message || e))
 }
 
 if (svc && onchain) {
-  check('[5] service pubkey == on-chain activeTeePublicKey',
+  check('[6] service pubkey == on-chain activeTeePublicKey',
     strip0x(svc.public_key).toLowerCase() === strip0x(onchain.pub).toLowerCase(),
     `${strip0x(svc.public_key).slice(0, 16)}...`)
-  check('[6] service address == on-chain teeAddress',
+  check('[7] service address == on-chain teeAddress',
     String(svc.address).toLowerCase() === String(onchain.teeAddress).toLowerCase(),
     String(onchain.teeAddress))
 }
 if (health && onchain) {
-  check('[7] health.registry_address == configured registry',
+  check('[8] health.registry_address == configured registry',
     String(health.registry_address).toLowerCase() === String(REGISTRY).toLowerCase(),
     String(health.registry_address))
 }
 
 if (health) {
-  info('[8] relayer configured', String(health.relayer_configured))
-  info('[8] llm configured', health.llm_configured ? `true (${health.llm_model ?? 'model?'})` : 'false')
-  info('[8] price mode', String(health.price_mode))
-  info('[8] attestation mode', String(health.attestation_mode))
-  info('[8] image digest', String(health.image_digest))
+  info('[9] relayer configured', String(health.relayer_configured))
+  info('[9] llm configured', health.llm_configured ? `true (${health.llm_model ?? 'model?'})` : 'false')
+  info('[9] price mode', String(health.price_mode))
+  info('[9] attestation mode', String(health.attestation_mode))
+  info('[9] image digest', String(health.image_digest))
 }
 
 if (onchain && Number(onchain.next) > 0) {
@@ -133,7 +152,7 @@ if (onchain && Number(onchain.next) > 0) {
   const t = await publicClient.readContract({ address: REGISTRY, abi: ABI, functionName: 'tasks', args: [BigInt(id)] })
   const status = ['None', 'Requested', 'Completed', 'Verified'][Number(t[5] ?? t.status)]
   const at = Number(t[4] ?? t.completedAt)
-  info('[9] last task', `#${id} status=${status} completed=${at ? new Date(at * 1000).toISOString() : '-'}`)
+  info('[10] last task', `#${id} status=${status} completed=${at ? new Date(at * 1000).toISOString() : '-'}`)
 }
 
 const failed = results.filter((r) => !r.ok)

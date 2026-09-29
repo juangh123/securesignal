@@ -78,7 +78,7 @@
 
 | 事项 | 阻塞原因 | 手册章节 |
 |---|---|---|
-| ~~Coston2 真实部署~~ ✅ **已完成 2026-07-19**：当前生效 AnalysisRegistry `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`、FtsoV2Reader `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`（早期部署 `0xfA3126…`/`0xe60745…` 已取代）、登记 TEE `0xEe4975C290FBF46757A1D90F02c3CF555163556E`；生产冒烟测试 12/12 通过（`frontend/e2e/e2e-coston2.mjs`，真实 FTSO 喂价 + 链上 Verified） | 已完成 | deployment.md §2.5 |
+| ~~Coston2 真实部署~~ ✅ **已完成 2026-07-19，2026-09-30 扩展 31 资产**：当前生效 AnalysisRegistry `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`、FtsoV2Reader `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`（早期部署 `0xfA3126…`/`0xe60745…` 已取代）、登记 TEE `0xEe4975C290FBF46757A1D90F02c3CF555163556E`；生产冒烟测试 12/12 通过（`frontend/e2e/e2e-coston2.mjs`，真实 FTSO 喂价 + 链上 Verified），只读巡检 9/9 通过 | 已完成 | deployment.md §2.5 |
 | GCP Confidential Space vTPM attestation | 需 GCP TEE 环境；改造锚点：`tee-service/attestation/vtpm.py` docstring TODO、`AnalysisRegistry.sol` `_verifyAttestation` TODO | deployment.md §3 |
 | ~~真实 LLM 调用~~ ✅ 已在线上启用（DeepSeek `deepseek-flash`，2026-09-30；信任模型注意事项见手册 §4.2） | — | deployment.md §4 |
 | ~~`scripts/setup-tee.ts` 生产化~~ ✅ 已完成：脚本已网络感知（localhost 用 dev key，其余网络走 `TEE_PRIVATE_KEY`/`TEE_IMAGE_DIGEST` env） | 已完成 | deployment.md §2.4 |

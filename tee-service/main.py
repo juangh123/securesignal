@@ -58,7 +58,9 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-app = FastAPI(title="SecureSignal TEE Service", version="2.1.0", lifespan=lifespan)
+SERVICE_VERSION = "2.2.0"
+
+app = FastAPI(title="SecureSignal TEE Service", version=SERVICE_VERSION, lifespan=lifespan)
 
 # CORS: production sets ALLOWED_ORIGINS to the frontend origin(s), e.g.
 #   ALLOWED_ORIGINS=https://securesignal.vercel.app,https://www.securesignal.io
