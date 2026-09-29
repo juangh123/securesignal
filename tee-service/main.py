@@ -24,6 +24,7 @@ import base64
 import binascii
 import json
 import os
+import time
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -104,9 +105,24 @@ MAX_ENCRYPTED_DATA_CHARS = 128 * 1024
 # (purely offline/dev setups without a configured relayer are exempt anyway).
 ONCHAIN_TASK_STATUS_NAMES = {0: "None", 1: "Requested", 2: "Completed", 3: "Verified"}
 
+# A task that stayed Requested forever (a client that never came back) would
+# otherwise be a free, repeatable trigger for paid LLM calls. Only tasks
+# requested within this window are analysed; 0 disables the age check.
+DEFAULT_TASK_MAX_AGE_SECONDS = 900
+
 
 def _require_onchain_task() -> bool:
     return os.getenv("ANALYZE_REQUIRE_ONCHAIN_TASK", "1").strip() != "0"
+
+
+def _task_max_age_seconds() -> int:
+    raw = os.getenv("ANALYZE_TASK_MAX_AGE_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_TASK_MAX_AGE_SECONDS
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return DEFAULT_TASK_MAX_AGE_SECONDS
 
 
 def _gate_enabled() -> bool:
@@ -175,16 +191,29 @@ async def analyze(request: AnalysisRequest):
     # we let the request through rather than turning an RPC hiccup into an
     # outage — the relayer re-checks the status before submitting.
     if _gate_enabled():
-        status = await asyncio.to_thread(relayer.task_status, request.task_id)
-        if status is not None and status != 1:
-            name = ONCHAIN_TASK_STATUS_NAMES.get(status, str(status))
-            raise HTTPException(
-                status_code=409,
-                detail=(
-                    f"task {request.task_id} is not pending on-chain (status={name}); "
-                    "call requestAnalysis first and retry while the task is Requested"
-                ),
-            )
+        state = await asyncio.to_thread(relayer.task_state, request.task_id)
+        if state is not None:
+            status, requested_at = state
+            if status != 1:
+                name = ONCHAIN_TASK_STATUS_NAMES.get(status, str(status))
+                raise HTTPException(
+                    status_code=409,
+                    detail=(
+                        f"task {request.task_id} is not pending on-chain (status={name}); "
+                        "call requestAnalysis first and retry while the task is Requested"
+                    ),
+                )
+            max_age = _task_max_age_seconds()
+            if max_age > 0 and requested_at > 0:
+                age = int(time.time()) - requested_at
+                if age > max_age:
+                    raise HTTPException(
+                        status_code=409,
+                        detail=(
+                            f"task {request.task_id} was requested {age}s ago, which is older "
+                            f"than the {max_age}s analysis window; call requestAnalysis again"
+                        ),
+                    )
 
     # 1. base64 decode + ECIES decrypt
     try:

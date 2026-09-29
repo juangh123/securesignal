@@ -8,6 +8,7 @@ driven by arbitrary task ids.
 """
 
 import os
+import time
 from unittest import mock
 
 import pytest
@@ -25,6 +26,7 @@ def _offline_registry(monkeypatch):
     """
     monkeypatch.setattr(main.relayer, "is_configured", lambda: False)
     monkeypatch.delenv("ANALYZE_REQUIRE_ONCHAIN_TASK", raising=False)
+    monkeypatch.delenv("ANALYZE_TASK_MAX_AGE_SECONDS", raising=False)
 
 
 def _post(payload: dict):
@@ -55,18 +57,20 @@ def test_rejects_invalid_base64():
 # ---------------------------------------------------------------------------
 
 INVALID_B64 = "not base64!!"
+NOW = int(time.time())
 
 
-def _with_gate(status, *, configured=True):
+def _with_gate(state, *, configured=True):
+    """state is the (status, requestedAt) tuple task_state() would return."""
     return (
         mock.patch.object(main.relayer, "is_configured", return_value=configured),
-        mock.patch.object(main.relayer, "task_status", return_value=status),
+        mock.patch.object(main.relayer, "task_state", return_value=state),
     )
 
 
 def test_rejects_task_that_does_not_exist_onchain():
-    is_conf, task_status = _with_gate(0)
-    with is_conf, task_status:
+    is_conf, task_state = _with_gate((0, 0))
+    with is_conf, task_state:
         r = _post({"task_id": 1001, "encrypted_data": INVALID_B64})
     assert r.status_code == 409
     assert "not pending on-chain" in r.json()["detail"]
@@ -74,42 +78,61 @@ def test_rejects_task_that_does_not_exist_onchain():
 
 
 def test_rejects_already_verified_task():
-    is_conf, task_status = _with_gate(3)
-    with is_conf, task_status:
+    is_conf, task_state = _with_gate((3, NOW))
+    with is_conf, task_state:
         r = _post({"task_id": 5, "encrypted_data": INVALID_B64})
     assert r.status_code == 409
     assert "Verified" in r.json()["detail"]
 
 
-def test_pending_task_passes_the_gate():
+def test_fresh_pending_task_passes_the_gate():
     """status=1 (Requested) must reach decryption, i.e. fail later on base64."""
-    is_conf, task_status = _with_gate(1)
-    with is_conf, task_status:
+    is_conf, task_state = _with_gate((1, NOW))
+    with is_conf, task_state:
         r = _post({"task_id": 1, "encrypted_data": INVALID_B64})
+    assert r.status_code == 400
+    assert "base64" in r.json()["detail"]
+
+
+def test_rejects_stale_requested_task():
+    """A task left Requested for hours must not be a free LLM trigger."""
+    stale = NOW - main.DEFAULT_TASK_MAX_AGE_SECONDS - 60
+    is_conf, task_state = _with_gate((1, stale))
+    with is_conf, task_state:
+        r = _post({"task_id": 0, "encrypted_data": INVALID_B64})
+    assert r.status_code == 409
+    assert "analysis window" in r.json()["detail"]
+
+
+def test_age_window_can_be_disabled():
+    stale = NOW - main.DEFAULT_TASK_MAX_AGE_SECONDS - 60
+    is_conf, task_state = _with_gate((1, stale))
+    with mock.patch.dict(os.environ, {"ANALYZE_TASK_MAX_AGE_SECONDS": "0"}), is_conf, task_state:
+        r = _post({"task_id": 0, "encrypted_data": INVALID_B64})
     assert r.status_code == 400
     assert "base64" in r.json()["detail"]
 
 
 def test_registry_read_failure_does_not_block_the_request():
     """A status read of None means RPC trouble — don't turn that into an outage."""
-    is_conf, task_status = _with_gate(None)
-    with is_conf, task_status:
+    is_conf, task_state = _with_gate(None)
+    with is_conf, task_state:
         r = _post({"task_id": 1, "encrypted_data": INVALID_B64})
     assert r.status_code == 400
     assert "base64" in r.json()["detail"]
 
 
 def test_gate_can_be_disabled_by_env():
-    is_conf, task_status = _with_gate(0)
-    with mock.patch.dict(os.environ, {"ANALYZE_REQUIRE_ONCHAIN_TASK": "0"}), is_conf, task_status as ts:
+    is_conf, task_state = _with_gate((0, 0))
+    with mock.patch.dict(os.environ, {"ANALYZE_REQUIRE_ONCHAIN_TASK": "0"}), is_conf, task_state as ts:
         r = _post({"task_id": 1001, "encrypted_data": INVALID_B64})
     assert r.status_code == 400
     ts.assert_not_called()
 
 
 def test_gate_is_inert_without_a_configured_registry():
-    is_conf, task_status = _with_gate(0, configured=False)
-    with is_conf, task_status as ts:
+    is_conf, task_state = _with_gate((0, 0), configured=False)
+    with is_conf, task_state as ts:
         r = _post({"task_id": 1001, "encrypted_data": INVALID_B64})
     assert r.status_code == 400
     ts.assert_not_called()

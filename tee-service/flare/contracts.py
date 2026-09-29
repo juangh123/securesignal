@@ -64,12 +64,13 @@ def registry_address() -> str:
         return ""
 
 
-def task_status(task_id: int, rpc_url: Optional[str] = None) -> Optional[int]:
-    """Read tasks(taskId).status from the registry.
+def task_state(task_id: int, rpc_url: Optional[str] = None) -> Optional[tuple[int, int]]:
+    """Read ``(status, requestedAt)`` for a task from the registry.
 
-    Returns the Status enum value (0 None, 1 Requested, 2 Completed, 3 Verified),
-    or None when the address is unconfigured or the read fails. None means
-    "unknown", so callers should fall back to attempting the submission.
+    Status is the enum value (0 None, 1 Requested, 2 Completed, 3 Verified) and
+    ``requestedAt`` is the unix timestamp recorded by ``requestAnalysis``.
+    Returns None when the address is unconfigured or the read fails — callers
+    treat that as "unknown" rather than "reject".
     """
     try:
         registry_address = _load_registry_address()
@@ -81,9 +82,21 @@ def task_status(task_id: int, rpc_url: Optional[str] = None) -> Optional[int]:
             address=Web3.to_checksum_address(registry_address),
             abi=_load_abi(),
         )
-        return int(contract.functions.tasks(int(task_id)).call()[5])
+        task = contract.functions.tasks(int(task_id)).call()
+        # Task struct: user, inputDataHash, resultHash, requestedAt, completedAt, status
+        return int(task[5]), int(task[3])
     except Exception:
         return None
+
+
+def task_status(task_id: int, rpc_url: Optional[str] = None) -> Optional[int]:
+    """Status only (see ``task_state``).
+
+    Returns the Status enum value, or None when the read fails. None means
+    "unknown", so callers fall back to attempting the submission.
+    """
+    state = task_state(task_id, rpc_url)
+    return None if state is None else state[0]
 
 
 def submit_result(
