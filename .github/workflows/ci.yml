@@ -19,7 +19,7 @@ jobs:
         working-directory: tee-service
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           # Match the production image (python:3.11-slim in tee-service/Dockerfile).
           python-version: "3.11"
