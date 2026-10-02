@@ -6,6 +6,8 @@
 
 > **2026-10-02 公开 Demo 2.5.0 冒烟**：真实 DeepSeek `analysis_mode="llm"` + 单请求批量 FTSO，task 19 链上 `Verified`，12/12（证据 `deliverables/coston2-smoke-task-19.json`）。
 
+> **2026-10-02 AWS Nitro 2.5.0 重建 + 公开 HTTPS**：非 debug enclave `i-08c3255e1c96ae343`，PCR0 `c126dc6d…`，task 20 链上 `Verified`（12/12），入口 `https://d1tubqcwiwwev5.cloudfront.net`；链上 `expectedImageDigest` 已更新为 `keccak256(PCR0)`（`rotateTeeKey` tx `0x1de5dcd0…`），证据 `deliverables/aws-nitro-attestation-20.json`。
+
 ## 统一加密协议规范（所有 Worker 必须严格遵守）
 
 **算法**：secp256k1 ECIES = 临时密钥 ECDH → HKDF-SHA256 → AES-256-GCM

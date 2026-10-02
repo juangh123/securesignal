@@ -17,7 +17,7 @@ import { createPublicClient, createWalletClient, http, keccak256, stringToBytes,
          encodePacked, recoverMessageAddress, parseEventLogs, defineChain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { encrypt, decrypt, PrivateKey } from 'eciesjs';
-import { readFileSync } from 'fs';
+import { readFileSync, writeFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
@@ -71,6 +71,7 @@ const onchainPub = await publicClient.readContract({
   address: REGISTRY, abi: ABI, functionName: 'activeTeePublicKey',
 });
 const svc = await (await fetch(`${TEE}/public-key`)).json();
+const health = await (await fetch(`${TEE}/health`)).json().catch(() => ({}));
 check('[1] TEE pubkey on-chain == /public-key',
   strip0x(onchainPub).toLowerCase() === svc.public_key.toLowerCase(),
   `chain=${strip0x(onchainPub).slice(0, 20)}... svc=${svc.public_key.slice(0, 20)}...`);
@@ -159,3 +160,57 @@ check('[9c] on-chain resultHash == response result_hash',
 const passed = results.filter((r) => r.ok).length;
 console.log(`\n===== COSTON2 SMOKE TEST: ${passed}/${results.length} checks passed =====`);
 for (const r of results.filter((r) => !r.ok)) console.log('FAILED:', r.label, '|', r.evidence);
+
+// Optional self-contained evidence bundle for hardware-attestation runs.
+// Set EVIDENCE_OUT=path/to/bundle.json to capture the NSM document, result,
+// assertion list, and the ResultSubmitted transaction for this task.
+const evidenceOut = process.env.EVIDENCE_OUT;
+if (evidenceOut) {
+  let resultSubmittedTx = null;
+  try {
+    const latest = await publicClient.getBlockNumber();
+    // The public Coston2 RPC does not reliably apply topic filters to
+    // eth_getLogs, so fetch by address and filter topics client-side.
+    const resultSubmittedTopic = keccak256(
+      stringToBytes('ResultSubmitted(uint256,bytes32)')
+    );
+    const taskTopic = '0x' + BigInt(data.task_id).toString(16).padStart(64, '0');
+    for (let end = latest; end > latest - 150n && !resultSubmittedTx; end -= 30n) {
+      const start = end - 29n > 0n ? end - 29n : 0n;
+      const logs = await publicClient.getLogs({
+        address: REGISTRY,
+        fromBlock: start,
+        toBlock: end,
+      });
+      const match = logs.find(
+        (log) =>
+          log.topics[0]?.toLowerCase() === resultSubmittedTopic.toLowerCase() &&
+          log.topics[1]?.toLowerCase() === taskTopic
+      );
+      if (match) resultSubmittedTx = match.transactionHash;
+    }
+  } catch (e) {
+    console.log('  evidence: ResultSubmitted log scan failed:', e.shortMessage || e.message);
+  }
+
+  const bundle = {
+    generated_at: new Date().toISOString(),
+    network: 'coston2',
+    chain_id: 114,
+    service_url: TEE,
+    service_version: typeof health?.version === 'string' ? health.version : null,
+    attestation_mode: typeof health?.attestation_mode === 'string' ? health.attestation_mode : null,
+    task_id: String(data.task_id),
+    request_tx: txHash,
+    result_submitted_tx: resultSubmittedTx,
+    onchain_status: status,
+    result_hash: data.result_hash,
+    tee_address: onchainTeeAddr,
+    ecrecover: recovered,
+    result: JSON.parse(resultJson),
+    attestation: att,
+    assertions: { passed, total: results.length, results },
+  };
+  writeFileSync(evidenceOut, JSON.stringify(bundle, null, 2) + '\n');
+  console.log('  evidence written:', evidenceOut);
+}

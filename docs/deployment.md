@@ -135,7 +135,7 @@ npx hardhat run scripts/deploy.ts --network coston2
 | AnalysisRegistry | `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482` |
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | 登记 TEE 地址 | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
-| 链上 `expectedImageDigest` | `keccak256("dev-image")`（dev 占位值；该字段是 `bytes32`，AWS Nitro PCR0 为 48 字节，若上链只能存 `keccak256(PCR0)` 承诺，当前尚未替换。真实 PCR0 由 NSM document + 链下 verifier 校验，见 §3.5） |
+| 链上 `expectedImageDigest` | `0x139c95b7fe1e269feaa9290b9c8e902553bfeda8875631afe705515d2180ca52` = `keccak256(AWS Nitro PCR0)`（2026-10-02 通过 `rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5` 提交；PCR0 为 48 字节，链上只能存 bytes32 承诺。合约仍只做 EIP-191 验签，不做链上 NSM 验证，真实度量由 NSM document + 链下 verifier 校验，见 §3.5） |
 | 最近成功任务 | task #18，2026-10-02，链上 `status=Verified`（AWS Nitro Enclave 运行，证据见 `deliverables/aws-nitro-attestation-18.json`） |
 | 最近公开 Demo 冒烟 | task #19，2026-10-02，链上 `status=Verified`（Render `dev-simulated` + 真实 DeepSeek `analysis_mode="llm"` + 批量 FTSO，12/12；证据见 `deliverables/coston2-smoke-task-19.json`） |
 | 冒烟测试 | `frontend/e2e/e2e-coston2.mjs`（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
@@ -305,25 +305,28 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
 
 | 项目 | 值 |
 |---|---|
-| 区域 / 父实例 | `us-east-1` / `i-00987a244d4d6f09d` |
-| Enclave | 非 debug（`Flags: NONE`），`attestation_mode="aws-nitro-enclaves"` |
-| PCR0 | `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b` |
+| 区域 / 父实例 | `us-east-1` / `i-08c3255e1c96ae343` |
+| Enclave | `i-08c3255e1c96ae343-enc01a0fc912c2bd846`，非 debug（`Flags: NONE`），`attestation_mode="aws-nitro-enclaves"` |
+| API | `https://d1tubqcwiwwev5.cloudfront.net`（CloudFront HTTPS，源站只接受 CloudFront 前缀列表 + 操作员 IP） |
+| PCR0 | `c126dc6db19cefcda5c0a412fecd692d5f12d801cf5ea5b262d954424a455cf25e6189ace615ad00be541d8295864279` |
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
-| 端到端验证 | Coston2 冒烟测试 `12/12`；task 18 链上 `Verified`；证据 `deliverables/aws-nitro-attestation-18.json` |
+| PCR2 | `ee61bc92db0b07d247c054e0402bea829d6272d7d6427892de7ef678e367081f5ee21c2d3eefdbacf84c71ceaf677bfb` |
+| 端到端验证 | Coston2 冒烟测试 `12/12`；task 20 链上 `Verified`；证据 `deliverables/aws-nitro-attestation-20.json` + 独立 NSM 验证 |
+| 链上测量承诺 | `keccak256(PCR0)` = `0x139c95b7fe1e269feaa9290b9c8e902553bfeda8875631afe705515d2180ca52`（`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`；合约只存承诺，不做链上 NSM 验证） |
 
-> **构建溯源（2026-10-02）**：上述运行中的 EIF 与 PCR0 构建于 2.5.0 性能改动
-> （批量 FTSO、LLM 总预算）之前。从当前 `main` 重建会得到**不同的 PCR0**；在重新
-> 验证并公布新测量值之前，不应声称运行中的 enclave 与当前源码逐字节一致。
+> **构建溯源（2026-10-02）**：上述非 debug EIF 由 2.5.0 源码（批量 FTSO、LLM 总预算、
+> API 安全响应头）构建。TEE 密钥未变，因此链上 `teeAddress` / `activeTeePublicKey`
+> 在重建后仍然有效；任何后续源码改动都需要新 EIF、新 PCR0，并重新验证和更新链上承诺。
 
 enclave 自身只监听 HTTP，且安全组最初只放行操作员 IP。公开 HTTPS 入口使用
 `deploy/aws/expose-https-cloudfront.ps1`：脚本会创建或复用 CloudFront 分发，
 把 CloudFront origin-facing 托管前缀列表加入安全组，并输出
-`https://<distribution>.cloudfront.net`。该脚本已提交但尚未执行（部署用临时凭据
-已删除，当前没有 CloudFront 域名）；重新登录 AWS 后运行：
+`https://<distribution>.cloudfront.net`。当前已部署分发 `E3I9PI0XZFXX88`，
+HTTPS 端点为 `https://d1tubqcwiwwev5.cloudfront.net`。重新部署时运行：
 
 ```powershell
 .\deploy\aws\expose-https-cloudfront.ps1 `
-  -InstanceId i-00987a244d4d6f09d `
+  -InstanceId i-08c3255e1c96ae343 `
   -Region us-east-1
 ```
 

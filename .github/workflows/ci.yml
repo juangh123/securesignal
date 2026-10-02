@@ -91,6 +91,8 @@ jobs:
           python -m json.tool deploy/aws/deployment-policy.json > /dev/null
           python -m json.tool deliverables/aws-nitro-attestation-18.json > /dev/null
           python -m json.tool deliverables/aws-nitro-attestation-18-verification.json > /dev/null
+          python -m json.tool deliverables/aws-nitro-attestation-20.json > /dev/null
+          python -m json.tool deliverables/aws-nitro-attestation-20-verification.json > /dev/null
           python -m json.tool deliverables/coston2-smoke-task-19.json > /dev/null
           python -m json.tool deliverables/ftso-live-check-2026-10-02.json > /dev/null
       - name: PowerShell syntax

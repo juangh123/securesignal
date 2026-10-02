@@ -8,21 +8,24 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 
 | Item | Value |
 |---|---|
-| Region / instance | `us-east-1` / `i-00987a244d4d6f09d` |
+| Region / instance | `us-east-1` / `i-08c3255e1c96ae343` |
 | Enclave state | `RUNNING`, `Flags: NONE` (not debug mode) |
-| API | `http://3.235.226.109:8000` (security group restricted to the operator IP) |
+| Enclave ID | `i-08c3255e1c96ae343-enc01a0fc912c2bd846` |
+| API | `https://d1tubqcwiwwev5.cloudfront.net` (CloudFront HTTPS; origin restricted to CloudFront + operator IP) |
 | Attestation mode | `aws-nitro-enclaves` |
-| PCR0 | `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b` |
+| Service version | `2.5.0` (batched FTSO reads, bounded LLM budget, security headers) |
+| PCR0 | `c126dc6db19cefcda5c0a412fecd692d5f12d801cf5ea5b262d954424a455cf25e6189ace615ad00be541d8295864279` |
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
-| PCR2 | stored in the enclave runtime measurements; read from `nitro-cli describe-enclaves` |
-| Verification | Coston2 production smoke test `12/12` passed; task 18 `Verified`; evidence in `deliverables/aws-nitro-attestation-18.json` |
+| PCR2 | `ee61bc92db0b07d247c054e0402bea829d6272d7d6427892de7ef678e367081f5ee21c2d3eefdbacf84c71ceaf677bfb` |
+| On-chain commitment | `keccak256(PCR0)` = `0x139c95b7fe1e269feaa9290b9c8e902553bfeda8875631afe705515d2180ca52` (`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`; the contract stores the commitment but still verifies only the EIP-191 signature) |
+| Verification | Coston2 production smoke test `12/12` passed; task 20 `Verified`; evidence in `deliverables/aws-nitro-attestation-20.json` + independent NSM verification |
 
-> **Build provenance (2026-10-02):** the running EIF and the PCR0 above were
-> built before the 2.5.0 performance changes (batched FTSO reads, bounded LLM
-> budget) and the later documentation updates. Rebuilding from the current
-> `main` will produce a different PCR0; rerun the verifier, publish the new
-> measurement, and update this table before claiming the running enclave
-> matches the current source.
+> **Build provenance (2026-10-02):** this non-debug EIF was built from the
+> 2.5.0 source (batched FTSO reads, bounded LLM budget, API security headers).
+> The TEE key is unchanged, so the on-chain `teeAddress` and
+> `activeTeePublicKey` remained valid across the rebuild. Any future source
+> change requires a new EIF, a new PCR0, and a fresh verification before this
+> table is updated.
 
 The temporary IAM access keys used for deployment were deleted. The dedicated
 IAM user and least-privilege policy remain for future rotations.
@@ -81,7 +84,7 @@ endpoint without a custom domain. After the instance is healthy:
 
 ```powershell
 .\deploy\aws\expose-https-cloudfront.ps1 `
-  -InstanceId i-00987a244d4d6f09d
+  -InstanceId i-08c3255e1c96ae343
 ```
 
 The script:
@@ -91,11 +94,11 @@ The script:
 3. Adds the CloudFront origin-facing managed prefix list to the security group.
 4. Prints the `https://<distribution>.cloudfront.net` endpoint.
 
-> **Status (2026-10-02):** the script is committed but has not been executed
-> yet. The temporary AWS credentials used for the enclave deployment were
-> deleted, so no CloudFront distribution or HTTPS endpoint exists at the time
-> of writing. After signing in again, run the command above to publish it and
-> add the returned domain to the deployment table above.
+> **Status (2026-10-02):** live. Distribution `E3I9PI0XZFXX88` serves
+> `https://d1tubqcwiwwev5.cloudfront.net` with `redirect-to-https` and a
+> 60-second origin read timeout. The origin security group accepts port 8000
+> only from the CloudFront origin-facing managed prefix list (`pl-3b927c52`)
+> plus the operator IP.
 
 `GET /health` must report `attestation_mode="aws-nitro-enclaves"`. Each
 `POST /analyze` response then contains:
@@ -134,14 +137,14 @@ Stopping the instance takes the enclave API offline and stops compute billing
 (the EBS volume and other resources remain):
 
 ```powershell
-aws ec2 stop-instances --region us-east-1 --instance-ids i-00987a244d4d6f09d
+aws ec2 stop-instances --region us-east-1 --instance-ids i-08c3255e1c96ae343
 ```
 
 Terminating it is permanent; the EIF, PCR measurements, and runtime secrets
 would need to be rebuilt from this repository:
 
 ```powershell
-aws ec2 terminate-instances --region us-east-1 --instance-ids i-00987a244d4d6f09d
+aws ec2 terminate-instances --region us-east-1 --instance-ids i-08c3255e1c96ae343
 ```
 
 To remove the CloudFront distribution, disable it first, wait for the change to

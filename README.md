@@ -81,15 +81,18 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   `/analyze` 返回 `analysis_mode="llm"`。注意这会改变信任边界：持仓作为 prompt
   离开 enclave，详见 [docs/deployment.md](docs/deployment.md) §4.2。
 - ✅ **AWS Nitro Enclaves 真实硬件 attestation**（2026-10-02）——非 debug enclave
-  已在 `us-east-1` 部署；NSM document 的根证书、ES384 签名、nonce、
+  已在 `us-east-1` 部署（`i-08c3255e1c96ae343`），HTTPS 入口
+  `https://d1tubqcwiwwev5.cloudfront.net`；NSM document 的根证书、ES384 签名、nonce、
   `task_id + result_hash`、ECIES 公钥与 PCR0 全部验证通过。Coston2 生产冒烟
-  **12/12 通过**，task 18 已链上 `Verified`。
-  - PCR0: `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b`
-  - 验证交易: `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04`（task 18）
-  - 证据包: `deliverables/aws-nitro-attestation-18.json`
+  **12/12 通过**，task 20 已链上 `Verified`。enclave 内未配置 LLM key，分析走
+  确定性规则引擎，持仓不离开 TEE。
+  - PCR0: `c126dc6db19cefcda5c0a412fecd692d5f12d801cf5ea5b262d954424a455cf25e6189ace615ad00be541d8295864279`
+  - 验证交易: `0xd7fea8b774b535c1fa61fb417645b624429aed70f699d7e13c27e666d2935a22`（task 20）
+  - 证据包: `deliverables/aws-nitro-attestation-20.json` + 独立 NSM 验证
+  - 链上测量承诺: `keccak256(PCR0)`，`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`
 - ✅ **公开 Demo 2.5.0 冒烟**（2026-10-02）——Render 路径（`dev-simulated`，非硬件证明）
   跑真实 DeepSeek（`analysis_mode="llm"`）+ 批量 FTSO，task 19 链上 `Verified`，
-  **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明仍以 task 18
+  **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明以 task 20
   的 AWS Nitro 证据为准。
 
 ## 环境变量快速配置
@@ -156,16 +159,23 @@ npm run dev
 （注意此时 relayer 指向的链需与地址配置一致，本地链场景请保持默认）。
 
 ## 自行验证
-生产信任模型：TEE 镜像 digest 锚定在链上，attestation 证明 enclave 运行的正是已公开代码。
+生产信任模型：TEE 测量值以 `keccak256(PCR0)` 承诺锚定在链上，NSM attestation
+证明 enclave 运行的正是已公开代码。
 
-1. 构建镜像：`cd tee-service && docker build -t securesignal-tee .`
+1. 从当前源码构建 EIF（`nitro-cli build-enclave`，完整步骤见
+   [deploy/aws/README.md](deploy/aws/README.md)），得到 PCR0。
    （可复现：基础镜像按 digest 锁定，pip 依赖经 `requirements-lock.txt` 哈希锁定）
-2. 比对镜像 digest 与链上 `expectedImageDigest`。
-3. 不一致 = enclave 运行的不是已公开代码。
+2. 计算 `keccak256(PCR0)`，并与链上 `expectedImageDigest` 比对。
+3. 用 `tee-service/tools/verify_aws_nitro_attestation.py` 验证运行中 enclave 返回的
+   NSM document，确认文档内 PCR0 与第 1 步一致。
+4. 任一步不一致 = enclave 运行的不是已公开代码。
 
-链上登记的 `expectedImageDigest` 仍是 `setup-tee.ts` 的 dev 占位值（见
-[docs/deployment.md](docs/deployment.md) §2.5）；AWS Nitro 的真实硬件度量（PCR0）
-与验证方式见 [deploy/aws/README.md](deploy/aws/README.md)。
+当前链上 `expectedImageDigest` = `keccak256(AWS Nitro PCR0)`
+= `0x139c95b7fe1e269feaa9290b9c8e902553bfeda8875631afe705515d2180ca52`
+（`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`）。
+合约本身只做 EIP-191 验签，不会在链上校验 NSM 文档；真实 PCR0 由
+[deploy/aws/README.md](deploy/aws/README.md) 中的 NSM document + 链下 verifier 校验。
+任何 enclave 重建都会改变 PCR0，必须重新提交该链上承诺。
 
 ## 测试与 CI
 
