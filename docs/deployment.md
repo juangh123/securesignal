@@ -137,6 +137,7 @@ npx hardhat run scripts/deploy.ts --network coston2
 | 登记 TEE 地址 | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
 | 链上 `expectedImageDigest` | `keccak256("dev-image")`（dev 占位值；该字段是 `bytes32`，AWS Nitro PCR0 为 48 字节，若上链只能存 `keccak256(PCR0)` 承诺，当前尚未替换。真实 PCR0 由 NSM document + 链下 verifier 校验，见 §3.5） |
 | 最近成功任务 | task #18，2026-10-02，链上 `status=Verified`（AWS Nitro Enclave 运行，证据见 `deliverables/aws-nitro-attestation-18.json`） |
+| 最近公开 Demo 冒烟 | task #19，2026-10-02，链上 `status=Verified`（Render `dev-simulated` + 真实 DeepSeek `analysis_mode="llm"` + 批量 FTSO，12/12；证据见 `deliverables/coston2-smoke-task-19.json`） |
 | 冒烟测试 | `frontend/e2e/e2e-coston2.mjs`（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
 
 > 早期部署（2026-07-19 首次上线）为 `AnalysisRegistry 0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531` / `FtsoV2Reader 0xe60745669C54b66F67ae85Ce031D4bDED4311163`，已被上表部署取代，勿再引用。

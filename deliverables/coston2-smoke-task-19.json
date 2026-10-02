@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-10-02T11:33:36Z",
+  "network": "coston2",
+  "chain_id": 114,
+  "service_url": "https://securesignal-tee.onrender.com",
+  "service_version": "2.5.0",
+  "attestation_mode": "dev-simulated",
+  "note": "This smoke test validates the public Render demo path (dev-simulated attestation) with a real DeepSeek LLM call and the batched FTSO reader. Hardware-rooted evidence remains task 18 on the AWS Nitro Enclave.",
+  "task_id": "19",
+  "request_tx": "0x37d61eb823d60d334967d77949175ca48a9d6815a45e1018367688249641f3fe",
+  "requester": "0x57B197d9Ad7f87047B28f633EE02Ad39D302eda6",
+  "onchain_status": 3,
+  "result_hash": "0xa87bb39783146bd0f4bef0a5c7241da9063b756012247cd93b89a5d4bbcee17f",
+  "completed_at": 1790940741,
+  "analysis_mode": "llm",
+  "llm_model": "deepseek-flash",
+  "price_source": "coston2-ftso",
+  "prices_used": {
+    "BTC": 86492.51,
+    "ETH": 2748.379,
+    "FLR": 0.00743981
+  },
+  "assertions": {
+    "passed": 12,
+    "total": 12,
+    "script": "frontend/e2e/e2e-coston2.mjs"
+  }
+}

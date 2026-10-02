@@ -87,6 +87,10 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   - PCR0: `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b`
   - 验证交易: `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04`（task 18）
   - 证据包: `deliverables/aws-nitro-attestation-18.json`
+- ✅ **公开 Demo 2.5.0 冒烟**（2026-10-02）——Render 路径（`dev-simulated`，非硬件证明）
+  跑真实 DeepSeek（`analysis_mode="llm"`）+ 批量 FTSO，task 19 链上 `Verified`，
+  **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明仍以 task 18
+  的 AWS Nitro 证据为准。
 
 ## 环境变量快速配置
 

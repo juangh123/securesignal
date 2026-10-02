@@ -4,6 +4,8 @@
 >
 > **状态总览（2026-10-02 更新）**：Stage 1 ✅ 完成（合约安全修复 / ECIES 端到端加密 / 结果上链 relayer）；Stage 2 ✅ 完成（本地端到端验证 23/23 断言通过）；Stage 3 ✅ 完成（工程化收尾，见下文验收勾选）；Stage A ✅ 完成（LLM 分析引擎）；Stage B ✅ 完成（FTSO 真实读价联机实测）。**线上已启用真实 LLM**（2026-09-30：Render 配置 DeepSeek `deepseek-flash`，`/health` 的 `llm_configured=true`、`analysis_mode="llm"`）。**真实 TEE 代码链路已完成两条**：GCP Confidential Space（OIDC JWT + launcher socket）和 AWS Nitro Enclaves（NSM COSE/CBOR + PCR + vsock + verifier）。**AWS Nitro Enclaves 已完成真实部署与联机验证**：Coston2 冒烟测试 12/12 通过（真实 FTSO、NSM attestation、ecrecover、链上 `Verified`）；当前运行 PCR0 见 `deploy/aws/README.md`。
 
+> **2026-10-02 公开 Demo 2.5.0 冒烟**：真实 DeepSeek `analysis_mode="llm"` + 单请求批量 FTSO，task 19 链上 `Verified`，12/12（证据 `deliverables/coston2-smoke-task-19.json`）。
+
 ## 统一加密协议规范（所有 Worker 必须严格遵守）
 
 **算法**：secp256k1 ECIES = 临时密钥 ECDH → HKDF-SHA256 → AES-256-GCM
