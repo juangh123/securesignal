@@ -34,6 +34,13 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 > change requires a new EIF, a new PCR0, and a fresh verification before this
 > table is updated.
 
+The running EIF was built from the 2.7.0 KMS snapshot whose tee-service changes
+are captured by commit `7cd6ccd` (the KMS recipient CMS fix that made task 22
+pass). Later documentation, CI, and dependency commits do not change the
+measured PCR0 of the running enclave, but rebuilding from current `main`
+produces a different PCR0 and therefore requires a fresh verification and
+on-chain commitment update.
+
 The temporary IAM access key used for this deployment was revoked on
 2026-10-03 and the local copy deleted. The dedicated IAM user and
 least-privilege policy remain for future rotations. The deploy identity
