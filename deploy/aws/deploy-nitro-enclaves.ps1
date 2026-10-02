@@ -656,6 +656,42 @@ $publicIp = (& $script:Aws ec2 describe-instances `
     --output text `
     --region $Region).Trim()
 
+# EC2 availability: a failed system status check triggers the built-in recover
+# action (same instance ID and network identity), and a failed instance status
+# check triggers a reboot, after which the enclave watchdog restarts the
+# enclave.
+Invoke-Aws @(
+    "cloudwatch", "put-metric-alarm",
+    "--alarm-name", "$NamePrefix-instance-recover",
+    "--alarm-description", "Recover the SecureSignal parent instance on EC2 system status-check failure",
+    "--metric-name", "StatusCheckFailed_System",
+    "--namespace", "AWS/EC2",
+    "--statistic", "Maximum",
+    "--period", "60",
+    "--evaluation-periods", "2",
+    "--threshold", "1",
+    "--comparison-operator", "GreaterThanOrEqualToThreshold",
+    "--dimensions", "Name=InstanceId,Value=$instanceId",
+    "--alarm-actions", "arn:aws:automate:$Region:ec2:recover",
+    "--region", $Region
+) | Out-Null
+
+Invoke-Aws @(
+    "cloudwatch", "put-metric-alarm",
+    "--alarm-name", "$NamePrefix-instance-reboot",
+    "--alarm-description", "Reboot the SecureSignal parent instance on EC2 instance status-check failure",
+    "--metric-name", "StatusCheckFailed_Instance",
+    "--namespace", "AWS/EC2",
+    "--statistic", "Maximum",
+    "--period", "60",
+    "--evaluation-periods", "2",
+    "--threshold", "1",
+    "--comparison-operator", "GreaterThanOrEqualToThreshold",
+    "--dimensions", "Name=InstanceId,Value=$instanceId",
+    "--alarm-actions", "arn:aws:automate:$Region:ec2:reboot",
+    "--region", $Region
+) | Out-Null
+
 if ($useKms) {
     Write-Host "Waiting for the EIF build to report PCR measurements..."
     $buildInfo = $null

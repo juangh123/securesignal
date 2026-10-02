@@ -55,6 +55,16 @@
       "Resource": "*"
     },
     {
+      "Sid": "DeploymentMonitoring",
+      "Effect": "Allow",
+      "Action": [
+        "cloudwatch:DeleteAlarms",
+        "cloudwatch:DescribeAlarms",
+        "cloudwatch:PutMetricAlarm"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "DeploymentRoles",
       "Effect": "Allow",
       "Action": [

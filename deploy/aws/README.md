@@ -155,6 +155,25 @@ parent's `kms:Decrypt` permission is conditioned on the enclave attestation
 PCR0/PCR1/PCR2, so the parent cannot read the TEE key or the dedicated relayer
 key.
 
+## Availability
+
+The parent instance is still a single point of failure, but the runtime
+recovers without operator action:
+
+- `securesignal-enclave-watchdog.timer` runs every 30 seconds and restarts the
+  enclave when `nitro-cli describe-enclaves` does not report `RUNNING`,
+  reconnecting the vsock HTTP proxy with the same enclave CID. The enclave is
+  started in the background by `nitro-cli`, not as a systemd process, so this
+  watchdog is what brings it back after an enclave crash or a parent reboot.
+- CloudWatch alarm `securesignal-instance-recover` (`StatusCheckFailed_System`)
+  triggers the built-in EC2 recover action; `securesignal-instance-reboot`
+  (`StatusCheckFailed_Instance`) reboots the instance, after which the watchdog
+  restarts the enclave.
+- The CloudFront origin uses the instance's public DNS name, so an
+  operator-initiated stop/start can change the origin address. Re-run
+  `expose-https-cloudfront.ps1` after a manual stop/start, or attach a stable
+  address before stopping the instance.
+
 ## Cost and teardown
 
 The ongoing cost is dominated by the always-on `m5.xlarge` parent instance.
