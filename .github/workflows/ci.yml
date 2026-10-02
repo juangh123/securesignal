@@ -113,6 +113,40 @@ jobs:
           }
           if ($errors) { $errors | Format-List; exit 1 }
 
+  live-health:
+    # GitHub's schedule trigger is best-effort and has not started these cron
+    # workflows reliably, so also verify the live deployment on every push to
+    # main. Read-only: no transactions, no AWS mutations.
+    name: live TEE + on-chain health
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies (viem for ops-status)
+        run: npm ci --prefix frontend
+      - name: Live health, attestation, PCR0 and relayer balance
+        env:
+          TEE_URL: https://d1tubqcwiwwev5.cloudfront.net
+          REQUIRE_REAL_TEE: "1"
+          EXPECT_ATTESTATION_MODE: aws-nitro-enclaves
+          RELAYER_ADDRESS: "0x0A3452C5B96396F186bD2d7ed793F8701A88fF72"
+        run: |
+          for attempt in 1 2 3; do
+            if node tools/ops-status.mjs; then
+              exit 0
+            fi
+            echo "live health attempt ${attempt} failed; retrying in 20s" >&2
+            sleep 20
+          done
+          echo "live health failed after 3 attempts" >&2
+          exit 1
+
   docker:
     name: tee-service · docker build
     runs-on: ubuntu-latest

@@ -193,7 +193,8 @@ npm run dev
 tee-service pytest、contracts hardhat、frontend lint/build、脚本/证据语法校验，并额外构建生产 Docker 镜像（不推送）。
 [`.github/workflows/live-health.yml`](.github/workflows/live-health.yml) 每 30 分钟只读巡检线上前端、
 CloudFront、Coston2 注册表、真实 TEE 模式、PCR0、链上 `keccak256(PCR0)` 承诺与 relayer 余额；
-失败会通过 GitHub 通知仓库 watcher。依赖更新由 [`.github/dependabot.yml`](.github/dependabot.yml) 每周检查 npm/pip/Docker/Actions。
+失败会通过 GitHub 通知仓库 watcher。同一套巡检（带 3 次重试）也随每次 push 到 `main` 在 CI 中运行，
+因此不依赖 GitHub schedule 的准时性。依赖更新由 [`.github/dependabot.yml`](.github/dependabot.yml) 每周检查 npm/pip/Docker/Actions。
 
 ```bash
 # tee-service：单元 / 接口测试（离线，不连 RPC、不发交易）
