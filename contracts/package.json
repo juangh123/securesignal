@@ -20,7 +20,7 @@
     "@types/node": "^26.1.1",
     "hardhat": "^2.28.6",
     "ts-node": "^10.9.1",
-    "typescript": "^5.0.4"
+    "typescript": "^7.0.2"
   },
   "dependencies": {
     "@flarenetwork/flare-periphery-contracts": "^0.1.52",
