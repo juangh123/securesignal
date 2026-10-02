@@ -65,7 +65,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-SERVICE_VERSION = "2.5.0"
+SERVICE_VERSION = "2.6.0"
 
 app = FastAPI(title="SecureSignal TEE Service", version=SERVICE_VERSION, lifespan=lifespan)
 
@@ -262,33 +262,51 @@ async def analyze(request: AnalysisRequest):
         )
 
     # Reject unknown / already-finalized tasks before doing any crypto or
-    # model work. A status of None means the registry read itself failed, so
-    # we let the request through rather than turning an RPC hiccup into an
-    # outage — the relayer re-checks the status before submitting.
+    # model work, and bind the submitted ciphertext to the inputDataHash the
+    # client registered on-chain. A failed registry read is fail-closed here:
+    # without the hash we cannot prove that this payload belongs to this task.
     if _gate_enabled():
-        state = await asyncio.to_thread(relayer.task_state, request.task_id)
-        if state is not None:
-            status, requested_at = state
-            if status != 1:
-                name = ONCHAIN_TASK_STATUS_NAMES.get(status, str(status))
+        state = await asyncio.to_thread(
+            relayer.task_state_with_input, request.task_id
+        )
+        if state is None:
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "cannot verify the on-chain task state/input binding right "
+                    "now; retry shortly"
+                ),
+            )
+        status, requested_at, onchain_input_hash = state
+        if status != 1:
+            name = ONCHAIN_TASK_STATUS_NAMES.get(status, str(status))
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    f"task {request.task_id} is not pending on-chain (status={name}); "
+                    "call requestAnalysis first and retry while the task is Requested"
+                ),
+            )
+        max_age = _task_max_age_seconds()
+        if max_age > 0 and requested_at > 0:
+            age = int(time.time()) - requested_at
+            if age > max_age:
                 raise HTTPException(
                     status_code=409,
                     detail=(
-                        f"task {request.task_id} is not pending on-chain (status={name}); "
-                        "call requestAnalysis first and retry while the task is Requested"
+                        f"task {request.task_id} was requested {age}s ago, which is older "
+                        f"than the {max_age}s analysis window; call requestAnalysis again"
                     ),
                 )
-            max_age = _task_max_age_seconds()
-            if max_age > 0 and requested_at > 0:
-                age = int(time.time()) - requested_at
-                if age > max_age:
-                    raise HTTPException(
-                        status_code=409,
-                        detail=(
-                            f"task {request.task_id} was requested {age}s ago, which is older "
-                            f"than the {max_age}s analysis window; call requestAnalysis again"
-                        ),
-                    )
+        expected_input_hash = "0x" + keccak(text=request.encrypted_data).hex()
+        if onchain_input_hash.lower() != expected_input_hash.lower():
+            raise HTTPException(
+                status_code=409,
+                detail=(
+                    "encrypted_data does not match the inputDataHash registered "
+                    "on-chain for this task; refusing to analyse a substituted payload"
+                ),
+            )
 
     # 1. base64 decode + ECIES decrypt
     try:

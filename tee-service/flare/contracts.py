@@ -17,6 +17,7 @@ Contract call (see plan.md):
 
 import json
 import os
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -31,6 +32,37 @@ ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
 
 class RelayerNotConfigured(RuntimeError):
     pass
+
+
+_submit_lock = threading.Lock()
+_nonce_lock = threading.Lock()
+_next_nonce: dict[str, int] = {}
+
+
+def _allocate_nonce(w3: Web3, address: str) -> int:
+    """Allocate a unique nonce for this process.
+
+    ``pending`` includes transactions already broadcast by this process; the
+    cache covers RPCs that only implement ``latest`` or briefly lag behind.
+    """
+    key = address.lower()
+    try:
+        node_nonce = int(w3.eth.get_transaction_count(address, "pending"))
+    except Exception:
+        node_nonce = int(w3.eth.get_transaction_count(address))
+    with _nonce_lock:
+        cached = _next_nonce.get(key, 0)
+        nonce = max(node_nonce, cached)
+        _next_nonce[key] = nonce + 1
+    return nonce
+
+
+def _release_nonce(address: str, nonce: int) -> None:
+    """Return a nonce to the cache after a failed broadcast."""
+    key = address.lower()
+    with _nonce_lock:
+        if _next_nonce.get(key, 0) > nonce:
+            _next_nonce[key] = nonce
 
 
 def _load_abi() -> list:
@@ -66,13 +98,25 @@ def registry_address() -> str:
         return ""
 
 
-def task_state(task_id: int, rpc_url: Optional[str] = None) -> Optional[tuple[int, int]]:
-    """Read ``(status, requestedAt)`` for a task from the registry.
+def _parse_task_result(task) -> tuple[int, int, str]:
+    """Parse a Task struct into ``(status, requestedAt, inputDataHash)``."""
+    raw_hash = task[1]
+    if isinstance(raw_hash, (bytes, bytearray)):
+        input_hash = "0x" + bytes(raw_hash).hex()
+    else:
+        input_hash = str(raw_hash)
+    return int(task[5]), int(task[3]), input_hash.lower()
+
+
+def task_state_with_input(
+    task_id: int, rpc_url: Optional[str] = None
+) -> Optional[tuple[int, int, str]]:
+    """Read ``(status, requestedAt, inputDataHash)`` for a task.
 
     Status is the enum value (0 None, 1 Requested, 2 Completed, 3 Verified) and
     ``requestedAt`` is the unix timestamp recorded by ``requestAnalysis``.
     Returns None when the address is unconfigured or the read fails — callers
-    treat that as "unknown" rather than "reject".
+    must fail closed when they need the binding.
     """
     try:
         registry_address = _load_registry_address()
@@ -85,10 +129,15 @@ def task_state(task_id: int, rpc_url: Optional[str] = None) -> Optional[tuple[in
             abi=_load_abi(),
         )
         task = contract.functions.tasks(int(task_id)).call()
-        # Task struct: user, inputDataHash, resultHash, requestedAt, completedAt, status
-        return int(task[5]), int(task[3])
+        return _parse_task_result(task)
     except Exception:
         return None
+
+
+def task_state(task_id: int, rpc_url: Optional[str] = None) -> Optional[tuple[int, int]]:
+    """Backward-compatible ``(status, requestedAt)`` view of task_state_with_input."""
+    state = task_state_with_input(task_id, rpc_url)
+    return None if state is None else (state[0], state[1])
 
 
 def task_status(task_id: int, rpc_url: Optional[str] = None) -> Optional[int]:
@@ -147,25 +196,37 @@ def submit_result(
         attestation_sig[2:] if attestation_sig.startswith("0x") else attestation_sig
     )
 
-    nonce = w3.eth.get_transaction_count(account.address)
-    tx = contract.functions.submitResult(
-        int(task_id), result_hash_bytes, attestation_bytes
-    ).build_transaction(
-        {
-            "from": account.address,
-            "nonce": nonce,
-            "gas": 300_000,
-            "gasPrice": w3.eth.gas_price,
-            "chainId": w3.eth.chain_id,
-        }
-    )
-    signed = account.sign_transaction(tx)
-    # eth-account <0.13.x uses rawTransaction (camelCase); web3 v7 docs use
-    # raw_transaction. Support both for forward/backward compatibility.
-    raw_tx = getattr(signed, "raw_transaction", None) or getattr(signed, "rawTransaction", None)
-    if raw_tx is None:
-        raise RuntimeError("SignedTransaction has neither raw_transaction nor rawTransaction attribute")
-    tx_hash = w3.eth.send_raw_transaction(raw_tx)
+    # Serialize nonce allocation + broadcast so concurrent /analyze requests
+    # cannot sign two transactions with the same nonce.
+    with _submit_lock:
+        nonce = _allocate_nonce(w3, account.address)
+        try:
+            tx = contract.functions.submitResult(
+                int(task_id), result_hash_bytes, attestation_bytes
+            ).build_transaction(
+                {
+                    "from": account.address,
+                    "nonce": nonce,
+                    "gas": 300_000,
+                    "gasPrice": w3.eth.gas_price,
+                    "chainId": w3.eth.chain_id,
+                }
+            )
+            signed = account.sign_transaction(tx)
+            # eth-account <0.13.x uses rawTransaction (camelCase); web3 v7
+            # docs use raw_transaction. Support both.
+            raw_tx = getattr(signed, "raw_transaction", None) or getattr(
+                signed, "rawTransaction", None
+            )
+            if raw_tx is None:
+                raise RuntimeError(
+                    "SignedTransaction has neither raw_transaction nor "
+                    "rawTransaction attribute"
+                )
+            tx_hash = w3.eth.send_raw_transaction(raw_tx)
+        except Exception:
+            _release_nonce(account.address, nonce)
+            raise
     # Do not block the enclave request while waiting for a receipt. The
     # transaction is already broadcast; callers and ops tooling can follow the
     # returned hash. This keeps the vsock/TCP relay connection short-lived.

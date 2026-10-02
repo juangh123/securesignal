@@ -67,6 +67,37 @@ $existing = (& $script:Aws cloudfront list-distributions `
 if ($existing.Count -gt 0) {
     $distribution = $existing[0]
     Write-Host "Reusing CloudFront distribution $($distribution.Id)"
+    $current = (& $script:Aws cloudfront get-distribution `
+        --id $distribution.Id `
+        --output json | ConvertFrom-Json)
+    $currentOrigin = $current.Distribution.DistributionConfig.Origins.Items[0].DomainName
+    if ($currentOrigin -ne $OriginDomain) {
+        Write-Host "Updating CloudFront origin: $currentOrigin -> $OriginDomain"
+        $existingConfig = $current.Distribution.DistributionConfig
+        $existingConfig.Origins.Items[0].DomainName = $OriginDomain
+        $configPath = Write-JsonFile -Content (
+            $existingConfig | ConvertTo-Json -Depth 12 -Compress
+        )
+        try {
+            Invoke-Aws @(
+                "cloudfront", "update-distribution",
+                "--id", $distribution.Id,
+                "--if-match", $current.ETag,
+                "--distribution-config", "file://$configPath"
+            ) | Out-Null
+        }
+        finally {
+            Remove-Item -LiteralPath $configPath -Force -ErrorAction SilentlyContinue
+        }
+        Invoke-Aws @(
+            "cloudfront", "wait", "distribution-deployed",
+            "--id", $distribution.Id
+        ) | Out-Null
+        Write-Host "CloudFront origin updated."
+    }
+    else {
+        Write-Host "CloudFront origin already points at $OriginDomain"
+    }
 }
 else {
     $config = [ordered]@{

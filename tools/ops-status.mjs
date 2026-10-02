@@ -28,7 +28,7 @@ try {
   console.error('viem not found - run: npm --prefix frontend install')
   process.exit(2)
 }
-const { createPublicClient, http, defineChain } = viem
+const { createPublicClient, http, defineChain, keccak256 } = viem
 
 const FRONTEND = (process.env.FRONTEND_URL || 'https://securesignal.vercel.app').replace(/\/+$/, '')
 const TEE = (process.env.TEE_URL || 'https://securesignal-tee.onrender.com').replace(/\/+$/, '')
@@ -199,6 +199,14 @@ if (health && health.attestation_mode === 'aws-nitro-enclaves') {
     )
   } else {
     info('[14] PCR0 deployment record', 'not found in deploy/aws/README.md')
+  }
+  if (onchain?.digest) {
+    const digestOfPcr0 = keccak256('0x' + measurement)
+    check(
+      '[16] on-chain expectedImageDigest == keccak256(PCR0)',
+      String(onchain.digest).toLowerCase() === digestOfPcr0.toLowerCase(),
+      `chain=${String(onchain.digest).slice(0, 24)}...`,
+    )
   }
 }
 

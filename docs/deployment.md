@@ -36,7 +36,7 @@
 | 变量 | 必填性 | 默认值 | 说明 | 示例 |
 |---|---|---|---|---|
 | `TEE_PRIVATE_KEY` | 生产**必填** | 未设且 `ENV=prod`：启动直接抛错（**fail-closed**，禁止临时密钥兜底）；仅 dev 模式允许生成进程内临时密钥并打印醒目警告（重启即换钥，链上登记随之失效） | TEE 的 secp256k1 私钥（ECIES 解密 + attestation 签名共用），32 字节 hex，可带 `0x` 前缀。见 `crypto/keys.py` 与 `crypto/test_keys.py` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`（hardhat account #1，**仅本地**） |
-| `PRIVATE_KEY` | 可选 | 未设：relayer 关闭，响应 `onchain_submitted=false`，启动日志打印 `Relayer NOT configured` | 结果上链 relayer 账户私钥（付 gas 调 `submitResult`）。见 `flare/contracts.py` | `0xac0974...f4f2ff80`（hardhat account #0，**仅本地**） |
+| `PRIVATE_KEY` | 可选 | 未设：relayer 关闭，响应 `onchain_submitted=false`，启动日志打印 `Relayer NOT configured` | **专用 relayer 账户**私钥（只持有 C2FLR gas，调 `submitResult`）；**不得复用合约 owner/部署账户**，否则 enclave/父实例可调用 `rotateTeeKey`。nonce 已在本进程内串行分配。见 `flare/contracts.py` | `0xac0974...f4f2ff80`（hardhat account #0，**仅本地**） |
 | `RPC_URL` | 可选 | `https://coston2-api.flare.network/ext/C/rpc`（relayer 与 FTSO 读价共用同一默认值） | EVM JSON-RPC 端点 | `http://127.0.0.1:8545`（本地） |
 | `ANALYSIS_OFFLINE` | 可选 | 未设 = 在线模式（真实 FTSO 读价） | 恰好等于 `"1"` 时启用 dev fixture 价（BTC 65000 / ETH 3500 / FLR 0.02，**非真实市价**），结果标注 `price_source="offline-fixture"`。见 `analysis/price_provider.py` | `1` |
 | `LLM_API_KEY` | 可选 | 未设：LLM 关闭，使用确定性规则引擎（`analysis_mode="rule-fallback"`） | OpenAI 兼容 API key；设置即启用 LLM 分析。见 `analysis/llm.py` | `sk-...` |
@@ -196,6 +196,7 @@ npm install && npm run build && npm start   # 或 npm run dev
 | 8 | `curl https://<tee>/health` | 返回 `status:"ok"`；`relayer_configured` / `llm_configured` / `price_mode` / `attestation_mode` 与实际部署一致（响应不含任何密钥） |
 | 9 | `curl https://<tee>/assets` | 返回可定价资产清单（当前 31 个，含 BTC/ETH/FLR）；前端用它拦截不支持的 symbol，避免用户为必然失败的请求付 gas |
 | 10 | `POST /analyze` 传一个不存在的 taskId | 返回 `409 not pending on-chain`（除非显式设了 `ANALYZE_REQUIRE_ONCHAIN_TASK=0`） |
+| 11 | `encrypted_data` 与链上 `inputDataHash` 的绑定 | TEE 在解密前重算 `keccak256(encrypted_data)` 并比对 `tasks(taskId).inputDataHash`；不一致返回 `409`，链上状态读失败返回 `503`（fail-closed） |
 
 ---
 
@@ -318,6 +319,12 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
 > API 安全响应头）构建。TEE 密钥未变，因此链上 `teeAddress` / `activeTeePublicKey`
 > 在重建后仍然有效；任何后续源码改动都需要新 EIF、新 PCR0，并重新验证和更新链上承诺。
 
+> **源码 2.6.0（待重建）**：源码已新增 `/analyze` 与链上 `inputDataHash` 的强绑定
+> （不可读取绑定则 503 fail-closed）、专用 gas-only relayer 账户
+> `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72`，以及 relayer nonce 串行化。
+> 当前运行的 2.5.0 EIF 尚未包含这些改动；下一次重建会生成新 PCR0，需要重新跑
+> task 验证并再次更新链上 `expectedImageDigest` 承诺。
+
 enclave 自身只监听 HTTP，且安全组最初只放行操作员 IP。公开 HTTPS 入口使用
 `deploy/aws/expose-https-cloudfront.ps1`：脚本会创建或复用 CloudFront 分发，
 把 CloudFront origin-facing 托管前缀列表加入安全组，并输出
@@ -400,6 +407,8 @@ export LLM_TOTAL_BUDGET=35                       # 可选，两次尝试合计�
 | `POST /analyze` 400 `payload.risk_profile must be at most 64 characters` | `risk_profile` 是进入 LLM prompt 的自由文本，已在边界处限长 64 并去除控制字符 | 传短标签（如 `moderate`），不要把长文本塞进该字段 |
 | `POST /analyze` 409 `task N is not pending on-chain (status=...)` | 链上任务门禁生效：该 taskId 不存在，或已 `Completed`/`Verified` | 正常客户端先发 `requestAnalysis`，再用返回的 taskId 调用；只有离线开发才设 `ANALYZE_REQUIRE_ONCHAIN_TASK=0` |
 | `POST /analyze` 409 `task N was requested Xs ago, which is older than the 900s analysis window` | 该任务发起太早（例如页面挂了一晚上才提交，或僵尸任务） | 重新发一次 `requestAnalysis` 拿新 taskId；确需放宽就调大 `ANALYZE_TASK_MAX_AGE_SECONDS` |
+| `POST /analyze` 409 `encrypted_data does not match the inputDataHash...` | 提交的密文与创建任务时写入链上的 `inputDataHash` 不一致（任务被抢跑或前端状态错乱） | 重新走一次完整的 `requestAnalysis` → `/analyze` 流程；不要拿旧 taskId 提交不同 payload |
+| `POST /analyze` 503 `cannot verify the on-chain task state/input binding...` | 链上任务状态/绑定读取失败，服务按 fail-closed 拒绝 | 检查 `RPC_URL` 与网络，稍后重试；生产环境不要用 `ANALYZE_REQUIRE_ONCHAIN_TASK=0` 绕过 |
 | 前端抛 `NEXT_PUBLIC_PROJECT_ID is not defined` | `.env.local` 缺失或未填 | `cp .env.example .env.local` 并填入 WalletConnect project id |
 | `POST /analyze` 400 `ECIES decryption failed` | 密文非发给当前 TEE 公钥（TEE 换钥后前端用了旧公钥），或线格式不符 | 前端重新 `GET /public-key` 并加密；确认两端 ecies 库版本 |
 | `POST /analyze` 400 `client_pubkey must be 65B...` | 明文 payload 缺 `client_pubkey` 或格式错误 | 按协议：`04` 前缀、130 字符 hex、不带 `0x` |

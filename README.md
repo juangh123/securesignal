@@ -38,6 +38,9 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   双向交叉解密测试向量通过。
 - 结果 relayer 上链：TEE 服务以 relayer 身份调 `submitResult(taskId, resultHash, attestation)`，
   客户端可对链核对 `ResultSubmitted` 事件与 `resultHash`。
+- **输入强绑定**：TEE 在解密前重算 `keccak256(encrypted_data)`，要求与创建任务时链上记录的
+  `inputDataHash` 一致；不一致返回 `409`，链上状态/绑定读不到返回 `503`（fail-closed），
+  防止他人用替换 payload 抢占别人的 pending task。
 - **公开端点防滥用**：`/analyze` 是无鉴权公开接口，启用 LLM 后每次调用都产生费用。
   服务默认只分析链上真实处于 `Requested` 状态的任务（`ANALYZE_REQUIRE_ONCHAIN_TASK=0` 可关），
   想刷接口就得先付 gas 注册任务；且任务必须在 `ANALYZE_TASK_MAX_AGE_SECONDS`（默认 900s）时效窗口内，

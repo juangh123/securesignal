@@ -27,6 +27,14 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 > change requires a new EIF, a new PCR0, and a fresh verification before this
 > table is updated.
 
+> **Pending next rebuild (source 2.6.0):** the source now (a) binds `/analyze`
+> to the on-chain `inputDataHash` and fails closed when it cannot read that
+> binding, (b) uses the dedicated gas-only relayer
+> `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72` instead of the contract owner
+> key, and (c) serializes relayer nonce allocation. The running 2.5.0 enclave
+> still carries the previous runtime bundle; a rebuild is required to activate
+> these changes and will produce a new PCR0 plus new task evidence.
+
 The temporary IAM access keys used for deployment were deleted. The dedicated
 IAM user and least-privilege policy remain for future rotations.
 
@@ -55,8 +63,9 @@ The sign-in identity must not be an `arn:aws:iam::...:root` principal.
 
 Prerequisites:
 
-- `tee-service/.env` containing `TEE_PRIVATE_KEY`, `PRIVATE_KEY`, and
-  optionally `LLM_API_KEY`.
+- `tee-service/.env` containing `TEE_PRIVATE_KEY`, a dedicated `PRIVATE_KEY`
+  relayer account (gas only — **never the contract owner key**), and optionally
+  `LLM_API_KEY`.
 - An IAM profile with the policy in this directory.
 
 ```powershell
