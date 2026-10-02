@@ -10,7 +10,7 @@
 
 > **2026-10-02 AWS Nitro 2.6.0 安全加固 + 重建**：`/analyze` 强绑定链上 `inputDataHash`（读不到绑定即 503 fail-closed）；relayer 改为专用 gas-only 账户 `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72`，合约 owner key 不再进入 enclave/父实例；relayer nonce 分配串行化。新实例 `i-0ded6c8853f4cb1ae`，PCR0 `d114b727…`，task 21 链上 `Verified`（12/12），链上承诺更新为 `keccak256(PCR0)` = `0x92ba6b19…`（`rotateTeeKey` tx `0xe3538388…`），证据 `deliverables/aws-nitro-attestation-21.json`。
 
-> **2026-10-03 KMS key release（源码 2.7.0，待重建）**：部署脚本默认改为两阶段 KMS key release；父实例只转发 KMS ciphertext，key policy 用 `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`，enclave 用临时 RSA-2048 + NSM attestation 解封 TEE/relayer key，父实例不再能读取私钥。协议见 `docs/kms-key-release.md`；回滚用 `-DisableKmsKeyRelease`。下一次重建会产生新 PCR0，需要重新验证并更新链上承诺。
+> **2026-10-03 KMS key release（2.7.0）已部署并验证**：两阶段 KMS key release 已上线——父实例只转发 KMS ciphertext，key policy 用 `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`（key `arn:aws:kms:us-east-1:615854521686:key/9206fce2-2bbc-42d9-95c4-8b8958213897`），enclave 用临时 RSA-2048 + NSM attestation 解封 TEE/relayer key（`.env` 含 `LLM_API_KEY` 时一并封存），父实例不再能读取私钥。新实例 `i-0ac0b18a850a8e334`，PCR0 `f081c1da…`，task 22 链上 `Verified`（12/12；`requestAnalysis` `0x09fa7330…` / `ResultSubmitted` `0xf25433a4…`），链上承诺已更新为 `keccak256(PCR0)` = `0xc9ff3018…`（`rotateTeeKey` tx `0x915bf903…`），证据 `deliverables/aws-nitro-attestation-22.json`。协议见 `docs/kms-key-release.md`；回滚用 `-DisableKmsKeyRelease`。
 
 ## 统一加密协议规范（所有 Worker 必须严格遵守）
 

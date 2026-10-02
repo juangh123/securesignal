@@ -8,24 +8,29 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 
 | Item | Value |
 |---|---|
-| Region / instance | `us-east-1` / `i-0ded6c8853f4cb1ae` |
+| Region / instance | `us-east-1` / `i-0ac0b18a850a8e334` |
 | Enclave state | `RUNNING`, `Flags: NONE` (not debug mode) |
-| Enclave ID | `i-0ded6c8853f4cb1ae-enc1a0fcc974aaa8a9` |
+| Enclave ID | `i-0ac0b18a850a8e334-enc01a0fd9b6a175d0e` |
 | API | `https://d1tubqcwiwwev5.cloudfront.net` (CloudFront HTTPS; origin restricted to CloudFront + operator IP) |
 | Attestation mode | `aws-nitro-enclaves` |
-| Service version | `2.6.0` (inputDataHash binding, dedicated relayer, serialized nonce, batched FTSO, bounded LLM budget, security headers) |
+| Service version | `2.7.0` (PCR-conditioned KMS key release, inputDataHash binding, dedicated relayer, serialized nonce, batched FTSO, bounded LLM budget, security headers) |
 | Dedicated relayer | `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72` (gas only; not the contract owner) |
-| PCR0 | `d114b727e0bd5856b3a9d6c5295a498c786d2309e7dc960d215135d2389063e4ef643b00483de37c74e0f877121d701f` |
+| PCR0 | `f081c1daa049abc23db7b64f82d674d8d3d52230e4526d7916dc4e49ee073453a3856b678db227a9e6591fceb8a61212` |
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
-| PCR2 | `c11ae9c267d8614207307f7b4da9371b98b8057c616d2702972809e46817a7ca2b5e0936ee91d49534b9a1a794cb7d07` |
-| On-chain commitment | `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f` (`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`; the contract stores the commitment but still verifies only the EIP-191 signature) |
-| Verification | Coston2 production smoke test `12/12` passed; task 21 `Verified`; evidence in `deliverables/aws-nitro-attestation-21.json` + independent NSM verification |
+| PCR2 | `f6e06e398c9fbfe2f203c1991ef62b1ee0666245d9750a9b7c360cbe2be9a7a6a264e521f6e6a95acbbf33367fe99a36` |
+| KMS key | `arn:aws:kms:us-east-1:615854521686:key/9206fce2-2bbc-42d9-95c4-8b8958213897` (`Decrypt` restricted to enclave PCR0/PCR1/PCR2 via `kms:RecipientAttestation:*`) |
+| On-chain commitment | `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` (`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`; the contract stores the commitment but still verifies only the EIP-191 signature) |
+| Verification | Coston2 production smoke test `12/12` passed; task 22 `Verified` (`requestAnalysis` `0x09fa733083965ef579aea8e0a9b9da08e0b570c49ebe690662e670bf2a54d13a`, `ResultSubmitted` `0xf25433a4e57611271379c429c63455fcbe319f0df08ccd3b8e42a950a70d8ba8`); evidence in `deliverables/aws-nitro-attestation-22.json` + independent NSM verification |
 
-> **Build provenance (2026-10-02):** this non-debug EIF was built from the
-> 2.6.0 source (on-chain `inputDataHash` binding, dedicated gas-only relayer,
+> **Build provenance (2026-10-03):** this non-debug EIF was rebuilt from the
+> 2.7.0 source, which adds PCR-conditioned KMS key release on top of the 2.6.0
+> hardening (on-chain `inputDataHash` binding, dedicated gas-only relayer,
 > serialized nonce allocation, batched FTSO reads, bounded LLM budget, API
-> security headers). The TEE key is unchanged, so the on-chain `teeAddress` and
-> `activeTeePublicKey` remained valid across the rebuild. Any future source
+> security headers). The parent receives only KMS ciphertext and
+> `kms:Decrypt` is allowed only when the enclave attestation matches
+> PCR0/PCR1/PCR2 below, so the TEE key and the dedicated relayer key are
+> released inside the enclave. The on-chain `teeAddress` and
+> `activeTeePublicKey` are unchanged across the rebuild. Any future source
 > change requires a new EIF, a new PCR0, and a fresh verification before this
 > table is updated.
 
@@ -85,6 +90,12 @@ The script:
 6. `-DisableKmsKeyRelease` keeps the old plaintext-bundle path for rollback or
    debugging only.
 
+If the local deploy script is interrupted after the PCRs have been recorded,
+`.\deploy\aws\provision-kms.ps1 -Pcr0 <pcr0> -Pcr1 <pcr1> -Pcr2 <pcr2>` can
+re-provision the KMS key policy and the sealed bundle for the already-running
+instance (this is how the 2.7.0 deployment was completed after an IAM
+propagation error).
+
 See [`docs/kms-key-release.md`](../../docs/kms-key-release.md) for the threat
 model and protocol details.
 
@@ -95,7 +106,7 @@ endpoint without a custom domain. After the instance is healthy:
 
 ```powershell
 .\deploy\aws\expose-https-cloudfront.ps1 `
-  -InstanceId i-0ded6c8853f4cb1ae
+  -InstanceId i-0ac0b18a850a8e334
 ```
 
 The script:
@@ -133,15 +144,11 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
 ## Trust boundary
 
 The parent instance relays the encrypted HTTP body and the runtime secret
-bundle over vsock and can still deny service. With KMS key release enabled
-(the default), the bundle contains only KMS ciphertexts and the parent's
-`kms:Decrypt` permission is conditioned on the enclave attestation
-PCR0/PCR1/PCR2, so the parent cannot read the TEE key or the dedicated
-relayer key.
-
-> The running 2.6.0 deployment predates KMS key release and still uses the
-> plaintext bundle. The next rebuild activates KMS key release and produces a
-> new PCR0, which must be re-verified and re-committed on-chain.
+bundle over vsock and can still deny service. The running 2.7.0 deployment
+uses KMS key release: the bundle contains only KMS ciphertexts and the
+parent's `kms:Decrypt` permission is conditioned on the enclave attestation
+PCR0/PCR1/PCR2, so the parent cannot read the TEE key or the dedicated relayer
+key.
 
 ## Cost and teardown
 
@@ -153,14 +160,14 @@ Stopping the instance takes the enclave API offline and stops compute billing
 (the EBS volume and other resources remain):
 
 ```powershell
-aws ec2 stop-instances --region us-east-1 --instance-ids i-0ded6c8853f4cb1ae
+aws ec2 stop-instances --region us-east-1 --instance-ids i-0ac0b18a850a8e334
 ```
 
 Terminating it is permanent; the EIF, PCR measurements, and runtime secrets
 would need to be rebuilt from this repository:
 
 ```powershell
-aws ec2 terminate-instances --region us-east-1 --instance-ids i-0ded6c8853f4cb1ae
+aws ec2 terminate-instances --region us-east-1 --instance-ids i-0ac0b18a850a8e334
 ```
 
 To remove the CloudFront distribution, disable it first, wait for the change to

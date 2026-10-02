@@ -30,7 +30,7 @@
 | 4 | 更新 README Live Demo 区块 | ✅ | README.md / README.en.md 已回填真实链接、合约地址、TEE 公钥与视频链接 |
 | 5 | 录制演示视频 | ✅ | `video/dist/SecureSignal_demo_1080p_v3.mp4`（2:19，1080p，英文配音+字幕，含真实 Coston2 交易） |
 | 6 | （可选）真实 LLM key | ✅ | 2026-09-30 已在 Render 配置 DeepSeek `deepseek-flash`（key 走 Dashboard/API，不入库）；Render Demo 的 `/health` 返回 `llm_configured=true`，`/analyze` 返回 `analysis_mode="llm"`。真实 enclave 路径不配置 LLM key，走规则引擎 |
-| 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署（2.6.0 重建）；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 21 链上 `Verified`（`deliverables/aws-nitro-attestation-21.json` + 独立验证） |
+| 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署（2.7.0 重建，PCR 条件化 KMS key release）；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 22 链上 `Verified`（`deliverables/aws-nitro-attestation-22.json` + 独立验证） |
 
 ## 三、评审亮点（提交描述可用）
 

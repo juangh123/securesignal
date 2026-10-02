@@ -140,8 +140,8 @@ npx hardhat run scripts/deploy.ts --network coston2
 | AnalysisRegistry | `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482` |
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | 登记 TEE 地址 | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
-| 链上 `expectedImageDigest` | `0x139c95b7fe1e269feaa9290b9c8e902553bfeda8875631afe705515d2180ca52` = `keccak256(AWS Nitro PCR0)`（2026-10-02 通过 `rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5` 提交；PCR0 为 48 字节，链上只能存 bytes32 承诺。合约仍只做 EIP-191 验签，不做链上 NSM 验证，真实度量由 NSM document + 链下 verifier 校验，见 §3.5） |
-| 最近成功任务 | task #18，2026-10-02，链上 `status=Verified`（AWS Nitro Enclave 运行，证据见 `deliverables/aws-nitro-attestation-18.json`） |
+| 链上 `expectedImageDigest` | `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` = `keccak256(AWS Nitro PCR0)`（2026-10-03 通过 `rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935` 提交；PCR0 为 48 字节，链上只能存 bytes32 承诺。合约仍只做 EIP-191 验签，不做链上 NSM 验证，真实度量由 NSM document + 链下 verifier 校验，见 §3.5） |
+| 最近成功任务 | task #22，2026-10-03，链上 `status=Verified`（AWS Nitro Enclave 2.7.0 + KMS key release，证据见 `deliverables/aws-nitro-attestation-22.json`） |
 | 最近公开 Demo 冒烟 | task #19，2026-10-02，链上 `status=Verified`（Render `dev-simulated` + 真实 DeepSeek `analysis_mode="llm"` + 批量 FTSO，12/12；证据见 `deliverables/coston2-smoke-task-19.json`） |
 | 冒烟测试 | `frontend/e2e/e2e-coston2.mjs`（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
 
@@ -307,25 +307,28 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
   <nsm_document>
 ```
 
-当前已验证部署（2026-10-02）：
+当前已验证部署（2026-10-03，2.7.0）：
 
 | 项目 | 值 |
 |---|---|
-| 区域 / 父实例 | `us-east-1` / `i-0ded6c8853f4cb1ae` |
-| Enclave | `i-0ded6c8853f4cb1ae-enc1a0fcc974aaa8a9`，非 debug（`Flags: NONE`），`attestation_mode="aws-nitro-enclaves"` |
+| 区域 / 父实例 | `us-east-1` / `i-0ac0b18a850a8e334` |
+| Enclave | `i-0ac0b18a850a8e334-enc01a0fd9b6a175d0e`，非 debug（`Flags: NONE`），`attestation_mode="aws-nitro-enclaves"` |
 | API | `https://d1tubqcwiwwev5.cloudfront.net`（CloudFront HTTPS，源站只接受 CloudFront 前缀列表 + 操作员 IP） |
-| PCR0 | `d114b727e0bd5856b3a9d6c5295a498c786d2309e7dc960d215135d2389063e4ef643b00483de37c74e0f877121d701f` |
+| PCR0 | `f081c1daa049abc23db7b64f82d674d8d3d52230e4526d7916dc4e49ee073453a3856b678db227a9e6591fceb8a61212` |
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
-| PCR2 | `c11ae9c267d8614207307f7b4da9371b98b8057c616d2702972809e46817a7ca2b5e0936ee91d49534b9a1a794cb7d07` |
+| PCR2 | `f6e06e398c9fbfe2f203c1991ef62b1ee0666245d9750a9b7c360cbe2be9a7a6a264e521f6e6a95acbbf33367fe99a36` |
+| KMS key | `arn:aws:kms:us-east-1:615854521686:key/9206fce2-2bbc-42d9-95c4-8b8958213897`（`Decrypt` 受 `kms:RecipientAttestation:PCR0/1/2` 条件限制） |
 | 专用 relayer | `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72`（只持有 gas，不是合约 owner） |
-| 端到端验证 | Coston2 冒烟测试 `12/12`；task 21 链上 `Verified`；证据 `deliverables/aws-nitro-attestation-21.json` + 独立 NSM 验证 |
-| 链上测量承诺 | `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f`（`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`；合约只存承诺，不做链上 NSM 验证） |
+| 端到端验证 | Coston2 冒烟测试 `12/12`；task 22 链上 `Verified`（`requestAnalysis` `0x09fa7330…` / `ResultSubmitted` `0xf25433a4…`）；证据 `deliverables/aws-nitro-attestation-22.json` + 独立 NSM 验证 |
+| 链上测量承诺 | `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331`（`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`；合约只存承诺，不做链上 NSM 验证） |
 
-> **构建溯源（2026-10-02）**：上述非 debug EIF 由 2.6.0 源码构建，包含
-> `/analyze` 与链上 `inputDataHash` 强绑定（读不到绑定则 503 fail-closed）、
-> 专用 gas-only relayer 账户、relayer nonce 串行化、批量 FTSO、LLM 总预算和
-> API 安全响应头。TEE 密钥未变，因此链上 `teeAddress` / `activeTeePublicKey`
-> 在重建后仍然有效；任何后续源码改动都需要新 EIF、新 PCR0，并重新验证和更新链上承诺。
+> **构建溯源（2026-10-03）**：上述非 debug EIF 由 2.7.0 源码构建，在 2.6.0
+> 安全加固（`/analyze` 与链上 `inputDataHash` 强绑定、专用 gas-only relayer、
+> relayer nonce 串行化、批量 FTSO、LLM 总预算、API 安全响应头）之上启用了
+> PCR 条件化 KMS key release：父实例只拿到 KMS ciphertext，KMS `Decrypt` 仅在
+> attestation PCR0/1/2 匹配时放行，TEE 与 relayer 私钥只在 enclave 内解封。
+> 链上 `teeAddress` / `activeTeePublicKey` 在重建后仍然有效；任何后续源码改动
+> 都需要新 EIF、新 PCR0，并重新验证和更新链上承诺。
 
 enclave 自身只监听 HTTP，且安全组最初只放行操作员 IP。公开 HTTPS 入口使用
 `deploy/aws/expose-https-cloudfront.ps1`：脚本会创建或复用 CloudFront 分发，
@@ -335,7 +338,7 @@ HTTPS 端点为 `https://d1tubqcwiwwev5.cloudfront.net`。重新部署时运行�
 
 ```powershell
 .\deploy\aws\expose-https-cloudfront.ps1 `
-  -InstanceId i-0ded6c8853f4cb1ae `
+  -InstanceId i-0ac0b18a850a8e334 `
   -Region us-east-1
 ```
 
@@ -351,8 +354,8 @@ COSE_Sign1 ES384 签名、证书链、有效期、nonce/user_data/public_key 与
 ciphertext 和 attestation-bound 的解密请求；KMS key policy 要求
 `kms:RecipientAttestation:PCR0/1/2` 匹配当前 EIF，KMS 响应再用 enclave 的
 临时 RSA 公钥加密，因此父实例无法读取 `TEE_PRIVATE_KEY` / relayer key。
-协议见 [`kms-key-release.md`](kms-key-release.md)。当前运行中的 2.6.0 EIF
-早于该改动；下一次重建生效并产生新 PCR0，需要重新验证并更新链上承诺。
+协议见 [`kms-key-release.md`](kms-key-release.md)。当前运行的 2.7.0 EIF
+已启用该模式，task 22 验证与链上承诺更新均已完成（见上表）。
 
 ---
 

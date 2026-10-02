@@ -90,14 +90,14 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | Registered TEE address | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
 
-**Verification:** production smoke test 12/12 on Coston2 against the AWS Nitro Enclave — real FTSO prices, attestation `ecrecover` == TEE address, on-chain status = Verified. The NSM COSE/CBOR document was verified separately against the pinned AWS Nitro root (certificate chain, ES384 signature, nonce, user_data, ECIES key, PCR0). Verified result transaction: `0x9c63ae3700b969deb9bf106402fb6b6e49b73cfea88b3a88bd3fcfc010653a62` (`taskId=21`, current 2.6.0 build). Raw evidence: `deliverables/aws-nitro-attestation-21.json` + verification JSON.
+**Verification:** production smoke test 12/12 on Coston2 against the AWS Nitro Enclave — real FTSO prices, attestation `ecrecover` == TEE address, on-chain status = Verified. The NSM COSE/CBOR document was verified separately against the pinned AWS Nitro root (certificate chain, ES384 signature, nonce, user_data, ECIES key, PCR0). Verified result transactions: `0x09fa733083965ef579aea8e0a9b9da08e0b570c49ebe690662e670bf2a54d13a` (requestAnalysis) and `0xf25433a4e57611271379c429c63455fcbe319f0df08ccd3b8e42a950a70d8ba8` (ResultSubmitted, `taskId=22`, current 2.7.0 build). Raw evidence: `deliverables/aws-nitro-attestation-22.json` + verification JSON. In this build the runtime secret bundle contains only KMS ciphertext and the KMS key policy conditions `Decrypt` on the attested PCR0/PCR1/PCR2, so the parent instance never sees the TEE or relayer private keys.
 
 **AWS Nitro Enclaves measurements:**
 
-- PCR0: `d114b727e0bd5856b3a9d6c5295a498c786d2309e7dc960d215135d2389063e4ef643b00483de37c74e0f877121d701f`
+- PCR0: `f081c1daa049abc23db7b64f82d674d8d3d52230e4526d7916dc4e49ee073453a3856b678db227a9e6591fceb8a61212`
 - PCR1: `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493`
-- PCR2: `c11ae9c267d8614207307f7b4da9371b98b8057c616d2702972809e46817a7ca2b5e0936ee91d49534b9a1a794cb7d07`
-- On-chain commitment: `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f` (`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`; the contract stores the commitment but only enforces the EIP-191 signature)
+- PCR2: `f6e06e398c9fbfe2f203c1991ef62b1ee0666245d9750a9b7c360cbe2be9a7a6a264e521f6e6a95acbbf33367fe99a36`
+- On-chain commitment: `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` (`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`; the contract stores the commitment but only enforces the EIP-191 signature)
 
 ### Honest Engineering Notes
 - The production attestation path is a real, non-debug AWS Nitro Enclave: the NSM document is checked against the pinned AWS Nitro root certificate, certificate chain, ES384 signature, nonce, user data, ECIES public key, and PCR0.
@@ -105,7 +105,7 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 - The analysis engine calls an OpenAI-compatible LLM when configured and falls back to a deterministic rule engine otherwise. The verified AWS run exercised the deterministic rule engine with real FTSO prices.
 
 ### Roadmap
-- Completed 2026-10: real AWS Nitro Enclaves attestation, verified end-to-end on Coston2.
+- Completed 2026-10: real AWS Nitro Enclaves attestation plus PCR-conditioned KMS key release, verified end-to-end on Coston2 (task 22).
 - Q4 2026: wallet auto-import of holdings, FAssets (FXRP) analysis, and DAO treasury multi-sig report mode.
 - 2027: Flare ecosystem grant; open the TEE analysis API to other builders; launch a Confidential Oracle service on Flare Mainnet.
 

@@ -1,5 +1,16 @@
 # KMS Key Release for the Nitro Enclave
 
+## Status
+
+Deployed and verified on 2026-10-03 as service version **2.7.0**. The running
+non-debug enclave (`i-0ac0b18a850a8e334-enc01a0fd9b6a175d0e`, PCR0
+`f081c1da…`) released the TEE and relayer keys through
+`arn:aws:kms:us-east-1:615854521686:key/9206fce2-2bbc-42d9-95c4-8b8958213897`,
+and Coston2 task 22 reached `Verified` with the sealed-bundle runtime. The
+on-chain measurement commitment was rotated to `keccak256(PCR0)` =
+`0xc9ff3018…` (`rotateTeeKey` tx `0x915bf903…`). Evidence:
+`deliverables/aws-nitro-attestation-22.json`.
+
 ## Problem
 
 The first AWS deployment delivered `TEE_PRIVATE_KEY` and the relayer key to the

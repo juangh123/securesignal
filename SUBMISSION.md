@@ -42,9 +42,10 @@ The hackathon deliverable (built July–August 2026, before the 2026-08-14 deadl
 - **Web 3.0 app** (Next.js 16): wallet connect, client-side ECIES encryption, encrypted request submission, decrypted result display, and on-chain verification UI — fully in English.
 - **Cloud deployment:** frontend on Vercel; public demo TEE on Render.
 
-Post-deadline hardening (September 29 – October 2, 2026; listed for completeness, not
+Post-deadline hardening (September 29 – October 3, 2026; listed for completeness, not
 part of the original hackathon submission):
-- AWS Nitro Enclaves hardware attestation (non-debug; NSM COSE/CBOR, PCR0) with a verified Coston2 result (initial task 18, rebuilt 2.6.0 task 21), published over CloudFront HTTPS, plus an on-chain `keccak256(PCR0)` measurement commitment.
+- AWS Nitro Enclaves hardware attestation (non-debug; NSM COSE/CBOR, PCR0) with a verified Coston2 result (initial task 18, rebuilt through 2.5.0/2.6.0, current 2.7.0 task 22), published over CloudFront HTTPS, plus an on-chain `keccak256(PCR0)` measurement commitment.
+- PCR-conditioned KMS key release: the parent instance receives only KMS ciphertext and `kms:Decrypt` is restricted to the enclave's attested PCR0/PCR1/PCR2, so the TEE signing key and the dedicated relayer key are released only inside the enclave.
 - Live DeepSeek `deepseek-flash` LLM configuration; `/analyze` reports `analysis_mode="llm"` with rule-engine fallback.
 - FTSO asset coverage expanded from 3 to 31 feeds; on-chain task gate and task-expiry hardening on `/analyze`.
 
@@ -57,14 +58,15 @@ part of the original hackathon submission):
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | Registered TEE address | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
 | TEE public key | `04088c6f6e685b84d396521b59d8b8ff794f4d6a27d47d487b716eced258fa76644e36bee0f46525f9920c9b6dd9f9ef1773d6aff610b0f944d29b0624f4cc10b6` |
-| AWS Nitro Enclave PCR0 | `d114b727e0bd5856b3a9d6c5295a498c786d2309e7dc960d215135d2389063e4ef643b00483de37c74e0f877121d701f` |
+| AWS Nitro Enclave PCR0 | `f081c1daa049abc23db7b64f82d674d8d3d52230e4526d7916dc4e49ee073453a3856b678db227a9e6591fceb8a61212` |
 | AWS Nitro Enclave PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
-| AWS Nitro Enclave PCR2 | `c11ae9c267d8614207307f7b4da9371b98b8057c616d2702972809e46817a7ca2b5e0936ee91d49534b9a1a794cb7d07` |
-| Verified result tx (task 21, 2.6.0) | `0x9c63ae3700b969deb9bf106402fb6b6e49b73cfea88b3a88bd3fcfc010653a62` |
-| On-chain measurement commitment | `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f` (`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`) |
-| Attestation evidence | `deliverables/aws-nitro-attestation-21.json` + verification JSON |
+| AWS Nitro Enclave PCR2 | `f6e06e398c9fbfe2f203c1991ef62b1ee0666245d9750a9b7c360cbe2be9a7a6a264e521f6e6a95acbbf33367fe99a36` |
+| KMS key | `arn:aws:kms:us-east-1:615854521686:key/9206fce2-2bbc-42d9-95c4-8b8958213897` (Decrypt conditioned on the PCRs above) |
+| Verified result tx (task 22, 2.7.0) | `0x09fa733083965ef579aea8e0a9b9da08e0b570c49ebe690662e670bf2a54d13a` (requestAnalysis) / `0xf25433a4e57611271379c429c63455fcbe319f0df08ccd3b8e42a950a70d8ba8` (ResultSubmitted) |
+| On-chain measurement commitment | `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` (`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`) |
+| Attestation evidence | `deliverables/aws-nitro-attestation-22.json` + verification JSON |
 
-**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, attestation `ecrecover` matches the TEE address, on-chain status = Verified. The NSM COSE/CBOR document from that run was verified separately against the pinned AWS Nitro root (certificate chain, ES384 signature, nonce, user data, ECIES public key, PCR0); task 21's raw evidence and verification output are in `deliverables/aws-nitro-attestation-21.json` and `deliverables/aws-nitro-attestation-21-verification.json`.
+**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, attestation `ecrecover` matches the TEE address, on-chain status = Verified. The NSM COSE/CBOR document from that run was verified separately against the pinned AWS Nitro root (certificate chain, ES384 signature, nonce, user data, ECIES public key, PCR0); task 22's raw evidence and verification output are in `deliverables/aws-nitro-attestation-22.json` and `deliverables/aws-nitro-attestation-22-verification.json`. On this build the runtime bundle contains only KMS ciphertext, and the KMS key policy allows `Decrypt` only for attestations matching PCR0/PCR1/PCR2, so the parent instance never sees the TEE or relayer private keys.
 
 **Testing & distribution status (honest):** 12/12 production smoke assertions on Coston2, 23/23 local end-to-end assertions, and a 2:19 recorded live demo. No external pilot users, paid distribution, or partnership commitments yet; the public live app and open-source repo are the current distribution channels.
 

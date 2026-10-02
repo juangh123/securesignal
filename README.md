@@ -83,24 +83,26 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   `deepseek-flash`；`GET /health` 返回 `llm_configured=true`、`llm_model=deepseek-flash`，
   `/analyze` 返回 `analysis_mode="llm"`。注意这会改变信任边界：持仓作为 prompt
   离开 enclave，详见 [docs/deployment.md](docs/deployment.md) §4.2。
-- ✅ **AWS Nitro Enclaves 真实硬件 attestation**（2026-10-02）——非 debug enclave
-  已在 `us-east-1` 部署（`i-0ded6c8853f4cb1ae`），HTTPS 入口
+- ✅ **AWS Nitro Enclaves 真实硬件 attestation**（2026-10-03，2.7.0 重建）——非 debug enclave
+  已在 `us-east-1` 部署（`i-0ac0b18a850a8e334`），HTTPS 入口
   `https://d1tubqcwiwwev5.cloudfront.net`；NSM document 的根证书、ES384 签名、nonce、
   `task_id + result_hash`、ECIES 公钥与 PCR0 全部验证通过。Coston2 生产冒烟
-  **12/12 通过**，task 21 已链上 `Verified`。enclave 内未配置 LLM key，分析走
+  **12/12 通过**，task 22 已链上 `Verified`。enclave 内未配置 LLM key，分析走
   确定性规则引擎，持仓不离开 TEE；relayer 使用专用 gas-only 账户。
-  - PCR0: `d114b727e0bd5856b3a9d6c5295a498c786d2309e7dc960d215135d2389063e4ef643b00483de37c74e0f877121d701f`
-  - 验证交易: `0x9c63ae3700b969deb9bf106402fb6b6e49b73cfea88b3a88bd3fcfc010653a62`（task 21）
-  - 证据包: `deliverables/aws-nitro-attestation-21.json` + 独立 NSM 验证
-  - 链上测量承诺: `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f`，`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`
-- ✅ **KMS key release（源码 2.7.0，待重建生效）**：部署脚本默认两阶段 KMS
+  - PCR0: `f081c1daa049abc23db7b64f82d674d8d3d52230e4526d7916dc4e49ee073453a3856b678db227a9e6591fceb8a61212`
+  - 验证交易: `0x09fa733083965ef579aea8e0a9b9da08e0b570c49ebe690662e670bf2a54d13a`（requestAnalysis）/ `0xf25433a4e57611271379c429c63455fcbe319f0df08ccd3b8e42a950a70d8ba8`（ResultSubmitted，task 22）
+  - 证据包: `deliverables/aws-nitro-attestation-22.json` + 独立 NSM 验证
+  - 链上测量承诺: `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331`，`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`
+- ✅ **KMS key release（2.7.0 已部署生效）**：部署脚本默认两阶段 KMS
   解封；父实例只转发 KMS ciphertext，key policy 用
-  `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`，enclave 用临时
-  RSA-2048 + NSM attestation 解封 `TEE_PRIVATE_KEY` / relayer key。协议见
+  `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`（key ARN
+  `arn:aws:kms:us-east-1:615854521686:key/9206fce2-2bbc-42d9-95c4-8b8958213897`），
+  enclave 用临时 RSA-2048 + NSM attestation 解封 `TEE_PRIVATE_KEY` / relayer
+  key（`.env` 含 `LLM_API_KEY` 时一并封存）。协议见
   [docs/kms-key-release.md](docs/kms-key-release.md)。
 - ✅ **公开 Demo 2.5.0 冒烟**（2026-10-02）——Render 路径（`dev-simulated`，非硬件证明）
   跑真实 DeepSeek（`analysis_mode="llm"`）+ 批量 FTSO，task 19 链上 `Verified`，
-  **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明以 task 21
+  **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明以 task 22
   的 AWS Nitro 证据为准。
 
 ## 环境变量快速配置
@@ -179,8 +181,8 @@ npm run dev
 4. 任一步不一致 = enclave 运行的不是已公开代码。
 
 当前链上 `expectedImageDigest` = `keccak256(AWS Nitro PCR0)`
-= `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f`
-（`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`）。
+= `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331`
+（`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`）。
 合约本身只做 EIP-191 验签，不会在链上校验 NSM 文档；真实 PCR0 由
 [deploy/aws/README.md](deploy/aws/README.md) 中的 NSM document + 链下 verifier 校验。
 任何 enclave 重建都会改变 PCR0，必须重新提交该链上承诺。
@@ -215,8 +217,9 @@ node tools/ops-status.mjs
   - 生产冒烟测试 **12/12 通过**（`frontend/e2e/e2e-coston2.mjs`）：真实 FTSO 喂价、attestation ecrecover == TEE 地址、链上 status=Verified
 - App: https://securesignal.vercel.app
 - TEE 后端（App 实际使用，真实硬件证明）: https://d1tubqcwiwwev5.cloudfront.net
-  （`/health` 返回 `version=2.5.0`、`attestation_mode=aws-nitro-enclaves`、PCR0
-  `c126dc6d…`；enclave 内未配置 LLM key，分析走确定性规则引擎，持仓不离开 TEE）
+  （`/health` 返回 `version=2.7.0`、`attestation_mode=aws-nitro-enclaves`、PCR0
+  `f081c1da…`；PCR 条件化 KMS key release 已生效，enclave 内未配置 LLM key，
+  分析走确定性规则引擎，持仓不离开 TEE）
 - 公开 Demo 对照（`dev-simulated` + DeepSeek LLM）: https://securesignal-tee.onrender.com
   （`/health` 返回 `attestation_mode=dev-simulated`、`llm_configured=true`、`llm_model=deepseek-flash`）
 - 演示视频（2:19，英文配音+字幕，含真实 Coston2 交易）: https://youtu.be/1V5yuxIENvc
@@ -226,7 +229,7 @@ node tools/ops-status.mjs
 - 一键只读巡检: `REQUIRE_REAL_TEE=1 EXPECT_ATTESTATION_MODE=aws-nitro-enclaves TEE_URL=https://d1tubqcwiwwev5.cloudfront.net node tools/ops-status.mjs`（前端 / TEE 后端 / Coston2 合约交叉核对，不发起交易、不改变链上状态）
 
 ## Roadmap
-1. **已完成**：AWS Nitro Enclaves 真实硬件 attestation（NSM COSE + PCR0 + 链上 12/12 验证）
+1. **已完成**：AWS Nitro Enclaves 真实硬件 attestation（NSM COSE + PCR0 + 链上 12/12 验证）与 PCR 条件化 KMS key release（父实例不可读 TEE/relayer 私钥）
 2. **下一步**：钱包自动导入持仓；FAssets (FXRP) 分析
 3. **Q4 2026**：DAO treasury 多签报告模式
 4. **2027**：申请 Flare 生态 grant；向其他 builder 开放 TEE 分析 API
