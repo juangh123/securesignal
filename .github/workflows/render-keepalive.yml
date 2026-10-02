@@ -1,0 +1,30 @@
+# The Render demo runs on the free plan, which spins down after ~15 minutes of
+# inactivity and then returns 502/503 on the first request. A lightweight ping
+# every 10 minutes keeps it warm; a persistent failure also surfaces as a red
+# workflow run for repository watchers.
+name: render-keepalive
+
+on:
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: keep the Render demo warm
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Ping /public-key (retry through cold start if needed)
+        run: |
+          for attempt in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
+              https://securesignal-tee.onrender.com/public-key)
+            echo "attempt ${attempt}: HTTP ${code}"
+            if [ "${code}" = "200" ]; then
+              exit 0
+            fi
+            sleep 20
+          done
+          echo "Render demo did not return HTTP 200" >&2
+          exit 1
