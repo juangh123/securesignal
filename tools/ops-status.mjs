@@ -10,6 +10,7 @@
  *   node tools/ops-status.mjs
  *   FRONTEND_URL=... TEE_URL=... RPC_URL=... node tools/ops-status.mjs
  *   EXPECT_ATTESTATION_MODE=aws-nitro-enclaves REQUIRE_REAL_TEE=1 node tools/ops-status.mjs
+ *   RELAYER_ADDRESS=0x... node tools/ops-status.mjs
  *
  * Requires frontend dependencies (viem) installed:
  *   npm --prefix frontend install
@@ -28,13 +29,14 @@ try {
   console.error('viem not found - run: npm --prefix frontend install')
   process.exit(2)
 }
-const { createPublicClient, http, defineChain, keccak256 } = viem
+const { createPublicClient, http, defineChain, keccak256, formatEther, getAddress, parseEther } = viem
 
 const FRONTEND = (process.env.FRONTEND_URL || 'https://securesignal.vercel.app').replace(/\/+$/, '')
 const TEE = (process.env.TEE_URL || 'https://securesignal-tee.onrender.com').replace(/\/+$/, '')
 const RPC = process.env.RPC_URL || 'https://coston2-api.flare.network/ext/C/rpc'
 const EXPECT_ATTESTATION_MODE = (process.env.EXPECT_ATTESTATION_MODE || '').trim()
 const REQUIRE_REAL_TEE = process.env.REQUIRE_REAL_TEE === '1'
+const RELAYER_ADDRESS = (process.env.RELAYER_ADDRESS || '').trim()
 
 const addresses = JSON.parse(readFileSync(join(__dir, '..', 'frontend', 'src', 'config', 'contract-addresses.json'), 'utf-8'))
 const artifact = JSON.parse(readFileSync(join(__dir, '..', 'tee-service', 'config', 'AnalysisRegistry.json'), 'utf-8'))
@@ -216,6 +218,21 @@ if (health?.llm_configured && Number.isFinite(Number(health.llm_total_budget_sec
     Number(health.llm_total_budget_seconds) <= 45,
     `${health.llm_total_budget_seconds}s`,
   )
+}
+
+if (RELAYER_ADDRESS) {
+  try {
+    const balance = await publicClient.getBalance({ address: getAddress(RELAYER_ADDRESS) })
+    check(
+      '[17] relayer balance >= 0.2 C2FLR',
+      balance >= parseEther('0.2'),
+      `${formatEther(balance)} C2FLR`,
+    )
+  } catch (e) {
+    check('[17] relayer balance >= 0.2 C2FLR', false, String(e.shortMessage || e.message || e))
+  }
+} else {
+  info('[17] relayer balance', 'set RELAYER_ADDRESS to enable this check')
 }
 
 if (onchain && Number(onchain.next) > 0) {

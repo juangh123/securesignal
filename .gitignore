@@ -48,3 +48,6 @@ tee-service/requirements-report.json
 # Raw and intermediate video-production assets. Keep the final dist renders.
 video/raw/
 video/tmp/
+
+# Local Vercel project link (contains no secrets, but is machine-specific).
+.vercel/

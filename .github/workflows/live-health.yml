@@ -1,0 +1,31 @@
+# Scheduled read-only health check for the real enclave path.
+# A failed run notifies repository watchers; GitHub may delay scheduled runs
+# under load, so this is monitoring, not a hard real-time SLA.
+name: live-health
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+jobs:
+  live-health:
+    name: live TEE + on-chain health
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install frontend dependencies (viem for ops-status)
+        run: npm ci --prefix frontend
+      - name: Live health, attestation and relayer balance
+        env:
+          TEE_URL: https://d1tubqcwiwwev5.cloudfront.net
+          REQUIRE_REAL_TEE: "1"
+          EXPECT_ATTESTATION_MODE: aws-nitro-enclaves
+          RELAYER_ADDRESS: "0x0A3452C5B96396F186bD2d7ed793F8701A88fF72"
+        run: node tools/ops-status.mjs

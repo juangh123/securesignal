@@ -85,7 +85,10 @@ jobs:
         with:
           node-version: "22"
       - name: Node syntax
-        run: node --check tools/ops-status.mjs
+        run: |
+          node --check tools/ops-status.mjs
+          node --check frontend/e2e/e2e-coston2.mjs
+          node --check frontend/e2e/e2e-local.mjs
       - name: JSON evidence files
         run: |
           python -m json.tool deploy/aws/deployment-policy.json > /dev/null
@@ -107,3 +110,12 @@ jobs:
             ) | Out-Null
           }
           if ($errors) { $errors | Format-List; exit 1 }
+
+  docker:
+    name: tee-service · docker build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build the production image
+        run: docker build -t securesignal-tee:ci ./tee-service

@@ -174,15 +174,19 @@ npm run dev
 4. 任一步不一致 = enclave 运行的不是已公开代码。
 
 当前链上 `expectedImageDigest` = `keccak256(AWS Nitro PCR0)`
-= `0x139c95b7fe1e269feaa9290b9c8e902553bfeda8875631afe705515d2180ca52`
-（`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`）。
+= `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f`
+（`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`）。
 合约本身只做 EIP-191 验签，不会在链上校验 NSM 文档；真实 PCR0 由
 [deploy/aws/README.md](deploy/aws/README.md) 中的 NSM document + 链下 verifier 校验。
 任何 enclave 重建都会改变 PCR0，必须重新提交该链上承诺。
 
 ## 测试与 CI
 
-三个组件各有独立测试，[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在每次推送到 `main` 与 PR 时全部跑一遍：
+三个组件各有独立测试，[`.github/workflows/ci.yml`](.github/workflows/ci.yml) 在每次推送到 `main` 与 PR 时运行
+tee-service pytest、contracts hardhat、frontend lint/build、脚本/证据语法校验，并额外构建生产 Docker 镜像（不推送）。
+[`.github/workflows/live-health.yml`](.github/workflows/live-health.yml) 每 30 分钟只读巡检线上前端、
+CloudFront、Coston2 注册表、真实 TEE 模式、PCR0、链上 `keccak256(PCR0)` 承诺与 relayer 余额；
+失败会通过 GitHub 通知仓库 watcher。依赖更新由 [`.github/dependabot.yml`](.github/dependabot.yml) 每周检查 npm/pip/Docker/Actions。
 
 ```bash
 # tee-service：单元 / 接口测试（离线，不连 RPC、不发交易）

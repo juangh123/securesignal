@@ -107,6 +107,17 @@ interface ServiceHealth {
   image_digest: string
 }
 
+/** A task that was registered on-chain but whose TEE analysis has not completed. */
+interface PendingAnalysis {
+  taskId: number
+  encryptedData: string
+  txHash: string
+  createdAt: number
+}
+
+const PENDING_TASK_KEY = 'securesignal_pending_task'
+const PENDING_TASK_MAX_AGE_MS = 900_000
+
 // ---------------------------------------------------------------------------
 // 展示常量
 // ---------------------------------------------------------------------------
@@ -384,6 +395,7 @@ export default function Home() {
   const [result, setResult] = useState<AnalysisView | null>(null)
   const [onchainStatus, setOnchainStatus] = useState('')
   const [pcrCopied, setPcrCopied] = useState(false)
+  const [pendingTask, setPendingTask] = useState<PendingAnalysis | null>(null)
   const [health, setHealth] = useState<ServiceHealth | null>(null)
   const [healthChecked, setHealthChecked] = useState(false)
   const [supportedSymbols, setSupportedSymbols] = useState<string[] | null>(null)
@@ -411,6 +423,26 @@ export default function Home() {
 
   useEffect(() => {
     let cancelled = false
+
+    // Restore a task that was paid for on-chain but whose analysis was
+    // interrupted by a reload. The session key lives in sessionStorage too.
+    const rawPending = sessionStorage.getItem(PENDING_TASK_KEY)
+    if (rawPending) {
+      try {
+        const parsed = JSON.parse(rawPending) as PendingAnalysis
+        const valid =
+          typeof parsed.taskId === 'number' &&
+          typeof parsed.encryptedData === 'string' &&
+          typeof parsed.txHash === 'string' &&
+          typeof parsed.createdAt === 'number' &&
+          Date.now() - parsed.createdAt < PENDING_TASK_MAX_AGE_MS
+        if (valid) queueMicrotask(() => setPendingTask(parsed))
+        else sessionStorage.removeItem(PENDING_TASK_KEY)
+      } catch {
+        sessionStorage.removeItem(PENDING_TASK_KEY)
+      }
+    }
+
     const readJson = (path: string) =>
       fetch(`${TEE_URL}${path}`)
         .then((r) => (r.ok ? r.json() : null))
@@ -429,6 +461,113 @@ export default function Home() {
       cancelled = true
     }
   }, [])
+
+  const readSessionKey = () => {
+    const raw = sessionStorage.getItem('securesignal_session_key')
+    if (!raw) return null
+    try {
+      return JSON.parse(raw) as ReturnType<typeof generateSessionKeyPair>
+    } catch {
+      return null
+    }
+  }
+
+  const runTeeAnalysis = async (
+    taskId: number,
+    encryptedData: string,
+    txHash: string,
+    onProgress: (step: number, status: string) => void
+  ) => {
+    const session = readSessionKey()
+    if (!session) {
+      throw new Error(
+        'Session key is missing from this browser tab; please start a new analysis'
+      )
+    }
+    onProgress(
+      4,
+      '7/7 Submitting encrypted payload to TEE and waiting… (the free-tier backend may cold-start for up to ~60s)'
+    )
+    const analyzeResp = await fetch(`${TEE_URL}/analyze`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ task_id: taskId, encrypted_data: encryptedData }),
+    })
+    if (!analyzeResp.ok) {
+      const body = await analyzeResp.text().catch(() => '')
+      const httpError = new Error(
+        `POST /analyze failed: HTTP ${analyzeResp.status} ${body}`
+      ) as Error & { httpStatus?: number }
+      httpError.httpStatus = analyzeResp.status
+      throw httpError
+    }
+    const data = (await analyzeResp.json()) as {
+      task_id: number
+      encrypted_result: string
+      attestation?: unknown
+      result_hash?: string
+      onchain_submitted?: boolean
+    }
+    if (!data.encrypted_result) throw new Error('TEE response missing encrypted_result field')
+
+    onProgress(5, '7/7 Decrypting result with session key…')
+    const decrypted = decryptResult<AnalysisResult>(session.privateKeyHex, data.encrypted_result)
+    setResult({
+      taskId: String(taskId),
+      txHash,
+      result: decrypted,
+      resultHash: data.result_hash,
+      attestation: tryParseJson(data.attestation),
+      attestationRaw: data.attestation,
+      onchainSubmitted: data.onchain_submitted,
+    })
+    sessionStorage.removeItem(PENDING_TASK_KEY)
+    setPendingTask(null)
+  }
+
+  const resumePendingAnalysis = async () => {
+    if (!pendingTask) return
+    setError('')
+    setResult(null)
+    setBusy(true)
+    setFailedStep(0)
+    setStep(4)
+    try {
+      if (Date.now() - pendingTask.createdAt >= PENDING_TASK_MAX_AGE_MS) {
+        sessionStorage.removeItem(PENDING_TASK_KEY)
+        setPendingTask(null)
+        throw new Error(
+          'This pending task is older than the 900s analysis window; please start a new analysis'
+        )
+      }
+      await runTeeAnalysis(
+        pendingTask.taskId,
+        pendingTask.encryptedData,
+        pendingTask.txHash,
+        (n, s) => {
+          setStep(n)
+          setStatus(s)
+        }
+      )
+      setStep(6)
+      setStatus('')
+    } catch (e) {
+      const err = e as Error & { httpStatus?: number }
+      if (err.httpStatus === 409 || /inputDataHash|not pending|analysis window/.test(err.message)) {
+        sessionStorage.removeItem(PENDING_TASK_KEY)
+        setPendingTask(null)
+      }
+      setFailedStep(4)
+      setError(
+        err.message === 'Failed to fetch'
+          ? 'Cannot reach the TEE service (network down or CORS not allowed for this domain). The task is still pending; retry the resume action.'
+          : err.message
+      )
+      setStatus('')
+    } finally {
+      setBusy(false)
+    }
+  }
 
   const handleAnalyze = async () => {
     setError('')
@@ -481,11 +620,8 @@ export default function Home() {
       // 3. Retrieve or generate session key pair (private key never leaves the browser).
       go(3)
       setStatus('3/7 Generating session key pair…')
-      let session: ReturnType<typeof generateSessionKeyPair>;
-      const cachedSession = sessionStorage.getItem('securesignal_session_key')
-      if (cachedSession) {
-        session = JSON.parse(cachedSession)
-      } else {
+      let session = readSessionKey()
+      if (!session) {
         session = generateSessionKeyPair()
         sessionStorage.setItem('securesignal_session_key', JSON.stringify(session))
       }
@@ -532,39 +668,20 @@ export default function Home() {
         throw new Error('No AnalysisRequested event found in receipt — could not determine taskId')
       }
 
-      // 7. Submit encrypted payload to the TEE and decrypt the response.
-      go(4)
-      setStatus('7/7 Submitting encrypted payload to TEE and waiting… (the free-tier backend may cold-start for up to ~60s)')
-      const analyzeResp = await fetch(`${TEE_URL}/analyze`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ task_id: Number(taskId), encrypted_data: encryptedData }),
-      })
-      if (!analyzeResp.ok) {
-        const body = await analyzeResp.text().catch(() => '')
-        throw new Error(`POST /analyze failed: HTTP ${analyzeResp.status} ${body}`)
-      }
-      const data = (await analyzeResp.json()) as {
-        task_id: number
-        encrypted_result: string
-        attestation?: unknown
-        result_hash?: string
-        onchain_submitted?: boolean
-      }
-      if (!data.encrypted_result) throw new Error('TEE response missing encrypted_result field')
-
-      go(5)
-      setStatus('7/7 Decrypting result with session key…')
-      const decrypted = decryptResult<AnalysisResult>(session.privateKeyHex, data.encrypted_result)
-
-      setResult({
-        taskId: taskId.toString(),
+      // 7. Persist the paid-for task before the TEE call so a reload can
+      // resume it without sending another requestAnalysis transaction.
+      const pending: PendingAnalysis = {
+        taskId: Number(taskId),
+        encryptedData,
         txHash,
-        result: decrypted,
-        resultHash: data.result_hash,
-        attestation: tryParseJson(data.attestation),
-        attestationRaw: data.attestation,
-        onchainSubmitted: data.onchain_submitted,
+        createdAt: Date.now(),
+      }
+      sessionStorage.setItem(PENDING_TASK_KEY, JSON.stringify(pending))
+      setPendingTask(pending)
+
+      await runTeeAnalysis(Number(taskId), encryptedData, txHash, (n, s) => {
+        go(n)
+        setStatus(s)
       })
       go(6)
       setStatus('')
@@ -779,6 +896,23 @@ export default function Home() {
               >
                 {busy ? 'Processing…' : 'Encrypt & analyze in TEE'}
               </button>
+
+              {pendingTask && !busy && !result && (
+                <div className="mt-2 p-4 bg-amber-950/40 border border-amber-700 rounded-lg text-sm text-amber-100">
+                  <p className="mb-2">
+                    A pending on-chain analysis from this tab can be resumed without paying gas
+                    again (task #{pendingTask.taskId}).
+                  </p>
+                  <button
+                    onClick={() => {
+                      void resumePendingAnalysis()
+                    }}
+                    className="bg-amber-700 hover:bg-amber-600 text-white text-xs font-semibold py-1.5 px-3 rounded-lg"
+                  >
+                    Resume pending analysis
+                  </button>
+                </div>
+              )}
 
               {(busy || step > 0) && (
                 <div className="mt-2 p-4 bg-slate-800 border border-slate-700 rounded-lg">

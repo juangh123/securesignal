@@ -1,0 +1,13 @@
+# The Vercel project's Root Directory is `frontend`; exclude repo-only trees
+# to keep the build upload small and keep local env/link files out of it.
+contracts/
+tee-service/
+deliverables/
+docs/
+legal-hack/
+tools/
+video/
+.github/
+tmp/
+frontend/.env*
+frontend/.vercel/
