@@ -17,6 +17,10 @@ const metadata = {
 
 // Create wagmiConfig
 const chains = [flare, flareTestnet, hardhat] as const
+// WalletConnect/injected/Coinbase/EIP-6963 connectors and the auth connector
+// all assume a browser (WalletConnect Core touches indexedDB). Keep the SSR
+// config connector-free and re-enable the connectors on the client.
+const isBrowser = typeof window !== 'undefined'
 export const config = defaultWagmiConfig({
   chains,
   projectId,
@@ -25,4 +29,11 @@ export const config = defaultWagmiConfig({
   storage: createStorage({
     storage: cookieStorage
   }),
+  enableWalletConnect: isBrowser,
+  enableInjected: isBrowser,
+  enableCoinbase: isBrowser,
+  enableEIP6963: isBrowser,
+  auth: isBrowser
+    ? undefined
+    : { email: false, socials: [], showWallets: false },
 })
