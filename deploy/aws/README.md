@@ -67,6 +67,23 @@ The script:
    vsock port 8000.
 7. Serves the runtime secret bundle to the enclave over vsock port 8001.
 
+## Publish the enclave over HTTPS
+
+The enclave service itself only serves HTTP; CloudFront can provide an HTTPS
+endpoint without a custom domain. After the instance is healthy:
+
+```powershell
+.\deploy\aws\expose-https-cloudfront.ps1 `
+  -InstanceId i-00987a244d4d6f09d
+```
+
+The script:
+
+1. Creates or reuses a CloudFront distribution with HTTPS viewer access.
+2. Uses the EC2 public DNS name as the HTTP origin.
+3. Adds the CloudFront origin-facing managed prefix list to the security group.
+4. Prints the `https://<distribution>.cloudfront.net` endpoint.
+
 `GET /health` must report `attestation_mode="aws-nitro-enclaves"`. Each
 `POST /analyze` response then contains:
 
