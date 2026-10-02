@@ -84,18 +84,18 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   `/analyze` 返回 `analysis_mode="llm"`。注意这会改变信任边界：持仓作为 prompt
   离开 enclave，详见 [docs/deployment.md](docs/deployment.md) §4.2。
 - ✅ **AWS Nitro Enclaves 真实硬件 attestation**（2026-10-02）——非 debug enclave
-  已在 `us-east-1` 部署（`i-08c3255e1c96ae343`），HTTPS 入口
+  已在 `us-east-1` 部署（`i-0ded6c8853f4cb1ae`），HTTPS 入口
   `https://d1tubqcwiwwev5.cloudfront.net`；NSM document 的根证书、ES384 签名、nonce、
   `task_id + result_hash`、ECIES 公钥与 PCR0 全部验证通过。Coston2 生产冒烟
-  **12/12 通过**，task 20 已链上 `Verified`。enclave 内未配置 LLM key，分析走
-  确定性规则引擎，持仓不离开 TEE。
-  - PCR0: `c126dc6db19cefcda5c0a412fecd692d5f12d801cf5ea5b262d954424a455cf25e6189ace615ad00be541d8295864279`
-  - 验证交易: `0xd7fea8b774b535c1fa61fb417645b624429aed70f699d7e13c27e666d2935a22`（task 20）
-  - 证据包: `deliverables/aws-nitro-attestation-20.json` + 独立 NSM 验证
-  - 链上测量承诺: `keccak256(PCR0)`，`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`
+  **12/12 通过**，task 21 已链上 `Verified`。enclave 内未配置 LLM key，分析走
+  确定性规则引擎，持仓不离开 TEE；relayer 使用专用 gas-only 账户。
+  - PCR0: `d114b727e0bd5856b3a9d6c5295a498c786d2309e7dc960d215135d2389063e4ef643b00483de37c74e0f877121d701f`
+  - 验证交易: `0x9c63ae3700b969deb9bf106402fb6b6e49b73cfea88b3a88bd3fcfc010653a62`（task 21）
+  - 证据包: `deliverables/aws-nitro-attestation-21.json` + 独立 NSM 验证
+  - 链上测量承诺: `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f`，`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`
 - ✅ **公开 Demo 2.5.0 冒烟**（2026-10-02）——Render 路径（`dev-simulated`，非硬件证明）
   跑真实 DeepSeek（`analysis_mode="llm"`）+ 批量 FTSO，task 19 链上 `Verified`，
-  **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明以 task 20
+  **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明以 task 21
   的 AWS Nitro 证据为准。
 
 ## 环境变量快速配置

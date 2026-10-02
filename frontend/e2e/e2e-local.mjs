@@ -7,7 +7,7 @@
  * Flow per case:
  *  1. Read on-chain activeTeePublicKey, cross-check with GET /public-key
  *  2. Generate session keypair (eciesjs)
- *  3. Encrypt input -> keccak256(ciphertext) -> requestAnalysis(inputDataHash)
+ *  3. Encrypt input -> keccak256(base64 ciphertext) -> requestAnalysis(inputDataHash)
  *     -> parse taskId from AnalysisRequested event
  *  4. POST /analyze { task_id, encrypted_data }
  *  5. Decrypt encrypted_result with session SK
@@ -27,7 +27,7 @@
  * uses DOGE to preserve the same honest-error coverage.
  */
 
-import { createPublicClient, createWalletClient, http, keccak256, stringToBytes,
+import { createPublicClient, createWalletClient, http, keccak256, stringToBytes, stringToHex,
          encodePacked, recoverMessageAddress, parseEventLogs, encodeFunctionData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { hardhat } from 'viem/chains';
@@ -114,7 +114,9 @@ async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
   const plaintextObj = { client_pubkey: sessionPkHex, holdings, risk_profile: 'moderate' };
   const plaintext = JSON.stringify(plaintextObj);
   const ciphertext = encrypt(svc.public_key, stringToBytes(plaintext));
-  const inputDataHash = keccak256(ciphertext);
+  // Must match the frontend and the TEE: hash the base64 transport string.
+  const encryptedData = b64encode(ciphertext);
+  const inputDataHash = keccak256(stringToHex(encryptedData));
 
   const txHash = await walletClient.writeContract({
     address: REGISTRY, abi: ABI, functionName: 'requestAnalysis', args: [inputDataHash],
@@ -131,7 +133,7 @@ async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
   const resp = await fetch(`${TEE}/analyze`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ task_id: Number(taskId), encrypted_data: b64encode(ciphertext) }),
+    body: JSON.stringify({ task_id: Number(taskId), encrypted_data: encryptedData }),
   });
   if (!resp.ok) {
     check(`${label} [4] POST /analyze 200`, false, `HTTP ${resp.status}: ${await resp.text()}`);

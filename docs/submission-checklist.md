@@ -30,7 +30,7 @@
 | 4 | 更新 README Live Demo 区块 | ✅ | README.md / README.en.md 已回填真实链接、合约地址、TEE 公钥与视频链接 |
 | 5 | 录制演示视频 | ✅ | `video/dist/SecureSignal_demo_1080p_v3.mp4`（2:19，1080p，英文配音+字幕，含真实 Coston2 交易） |
 | 6 | （可选）真实 LLM key | ✅ | 2026-09-30 已在 Render 配置 DeepSeek `deepseek-flash`（key 走 Dashboard/API，不入库）；Render Demo 的 `/health` 返回 `llm_configured=true`，`/analyze` 返回 `analysis_mode="llm"`。真实 enclave 路径不配置 LLM key，走规则引擎 |
-| 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署（2.5.0 重建）；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 20 链上 `Verified`（`deliverables/aws-nitro-attestation-20.json` + 独立验证） |
+| 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署（2.6.0 重建）；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 21 链上 `Verified`（`deliverables/aws-nitro-attestation-21.json` + 独立验证） |
 
 ## 三、评审亮点（提交描述可用）
 
@@ -38,7 +38,7 @@
 2. **安全不是贴纸**：`rotateTeeKey` 无访问控制的原漏洞已修复（onlyOwner）；合约端 ecrecover 验签拒绝伪造 attestation，含负例测试。
 3. **FTSO 真实消费**：直读 Coston2 官方 FtsoV2 合约（经 FlareContractRegistry 解析），失败显式报错、绝不静默返回假价；离线模式显式标注。
 4. **真实硬件证明 + 诚实分级**：生产路径运行在 AWS Nitro Enclave，返回可验证的 NSM attestation document；公共 Render demo 仍明确标注 `dev-simulated`，两者不混淆。
-5. **可复现构建**：基础镜像 digest 锁定 + 79 个 pip 依赖 sha256 哈希锁定；链上 `expectedImageDigest` 已更新为 `keccak256(AWS Nitro PCR0)`（`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`）。合约仍只做 EIP-191 验签，NSM 文档验证在链下完成。
+5. **可复现构建**：基础镜像 digest 锁定 + 79 个 pip 依赖 sha256 哈希锁定；链上 `expectedImageDigest` 已更新为 `keccak256(AWS Nitro PCR0)`（`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`）。合约仍只做 EIP-191 验签，NSM 文档验证在链下完成。
 
 ## 四、已知限制（评审问答预案）
 

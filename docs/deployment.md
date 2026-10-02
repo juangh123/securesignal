@@ -306,24 +306,21 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
 
 | 项目 | 值 |
 |---|---|
-| 区域 / 父实例 | `us-east-1` / `i-08c3255e1c96ae343` |
-| Enclave | `i-08c3255e1c96ae343-enc01a0fc912c2bd846`，非 debug（`Flags: NONE`），`attestation_mode="aws-nitro-enclaves"` |
+| 区域 / 父实例 | `us-east-1` / `i-0ded6c8853f4cb1ae` |
+| Enclave | `i-0ded6c8853f4cb1ae-enc1a0fcc974aaa8a9`，非 debug（`Flags: NONE`），`attestation_mode="aws-nitro-enclaves"` |
 | API | `https://d1tubqcwiwwev5.cloudfront.net`（CloudFront HTTPS，源站只接受 CloudFront 前缀列表 + 操作员 IP） |
-| PCR0 | `c126dc6db19cefcda5c0a412fecd692d5f12d801cf5ea5b262d954424a455cf25e6189ace615ad00be541d8295864279` |
+| PCR0 | `d114b727e0bd5856b3a9d6c5295a498c786d2309e7dc960d215135d2389063e4ef643b00483de37c74e0f877121d701f` |
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
-| PCR2 | `ee61bc92db0b07d247c054e0402bea829d6272d7d6427892de7ef678e367081f5ee21c2d3eefdbacf84c71ceaf677bfb` |
-| 端到端验证 | Coston2 冒烟测试 `12/12`；task 20 链上 `Verified`；证据 `deliverables/aws-nitro-attestation-20.json` + 独立 NSM 验证 |
-| 链上测量承诺 | `keccak256(PCR0)` = `0x139c95b7fe1e269feaa9290b9c8e902553bfeda8875631afe705515d2180ca52`（`rotateTeeKey` tx `0x1de5dcd04bee67f6039d83b1efb139275b2252b1ce909bd374bed4d1fd5064c5`；合约只存承诺，不做链上 NSM 验证） |
+| PCR2 | `c11ae9c267d8614207307f7b4da9371b98b8057c616d2702972809e46817a7ca2b5e0936ee91d49534b9a1a794cb7d07` |
+| 专用 relayer | `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72`（只持有 gas，不是合约 owner） |
+| 端到端验证 | Coston2 冒烟测试 `12/12`；task 21 链上 `Verified`；证据 `deliverables/aws-nitro-attestation-21.json` + 独立 NSM 验证 |
+| 链上测量承诺 | `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f`（`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`；合约只存承诺，不做链上 NSM 验证） |
 
-> **构建溯源（2026-10-02）**：上述非 debug EIF 由 2.5.0 源码（批量 FTSO、LLM 总预算、
-> API 安全响应头）构建。TEE 密钥未变，因此链上 `teeAddress` / `activeTeePublicKey`
+> **构建溯源（2026-10-02）**：上述非 debug EIF 由 2.6.0 源码构建，包含
+> `/analyze` 与链上 `inputDataHash` 强绑定（读不到绑定则 503 fail-closed）、
+> 专用 gas-only relayer 账户、relayer nonce 串行化、批量 FTSO、LLM 总预算和
+> API 安全响应头。TEE 密钥未变，因此链上 `teeAddress` / `activeTeePublicKey`
 > 在重建后仍然有效；任何后续源码改动都需要新 EIF、新 PCR0，并重新验证和更新链上承诺。
-
-> **源码 2.6.0（待重建）**：源码已新增 `/analyze` 与链上 `inputDataHash` 的强绑定
-> （不可读取绑定则 503 fail-closed）、专用 gas-only relayer 账户
-> `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72`，以及 relayer nonce 串行化。
-> 当前运行的 2.5.0 EIF 尚未包含这些改动；下一次重建会生成新 PCR0，需要重新跑
-> task 验证并再次更新链上 `expectedImageDigest` 承诺。
 
 enclave 自身只监听 HTTP，且安全组最初只放行操作员 IP。公开 HTTPS 入口使用
 `deploy/aws/expose-https-cloudfront.ps1`：脚本会创建或复用 CloudFront 分发，
@@ -333,7 +330,7 @@ HTTPS 端点为 `https://d1tubqcwiwwev5.cloudfront.net`。重新部署时运行�
 
 ```powershell
 .\deploy\aws\expose-https-cloudfront.ps1 `
-  -InstanceId i-08c3255e1c96ae343 `
+  -InstanceId i-0ded6c8853f4cb1ae `
   -Region us-east-1
 ```
 

@@ -13,7 +13,7 @@
  * Spends real (testnet) gas: 1 requestAnalysis tx + relayer submitResult tx.
  */
 
-import { createPublicClient, createWalletClient, http, keccak256, stringToBytes,
+import { createPublicClient, createWalletClient, http, keccak256, stringToBytes, stringToHex,
          encodePacked, recoverMessageAddress, parseEventLogs, defineChain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { encrypt, decrypt, PrivateKey } from 'eciesjs';
@@ -88,7 +88,10 @@ const sessionPkHex = sessionSK.publicKey.toHex(false);
 // 3. Encrypt input -> hash -> requestAnalysis -> taskId from event
 const plaintext = JSON.stringify({ client_pubkey: sessionPkHex, holdings, risk_profile: 'moderate' });
 const ciphertext = encrypt(svc.public_key, stringToBytes(plaintext));
-const inputDataHash = keccak256(ciphertext);
+// The on-chain input commitment is keccak256(base64 ciphertext string),
+// matching the frontend and the TEE's inputDataHash check.
+const encryptedData = b64encode(ciphertext);
+const inputDataHash = keccak256(stringToHex(encryptedData));
 
 const txHash = await walletClient.writeContract({
   address: REGISTRY, abi: ABI, functionName: 'requestAnalysis', args: [inputDataHash],
@@ -105,7 +108,7 @@ check('[3] requestAnalysis mined on Coston2, taskId from event',
 const resp = await fetch(`${TEE}/analyze`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ task_id: Number(taskId), encrypted_data: b64encode(ciphertext) }),
+  body: JSON.stringify({ task_id: Number(taskId), encrypted_data: encryptedData }),
 });
 if (!resp.ok) {
   check('[4] POST /analyze 200', false, `HTTP ${resp.status}: ${await resp.text()}`);
