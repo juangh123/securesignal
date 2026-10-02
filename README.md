@@ -64,8 +64,9 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
 
 **dev-simulated（代码与响应中均有明确标注，非生产声明）：**
 - attestation token 是结构化 JSON（`mode: "dev-simulated"`）+ TEE secp256k1 签名，
-  **不是** GCP Confidential Space vTPM JWT；接真实 vTPM 的改造路线见
-  `tee-service/attestation/vtpm.py` 的 TODO 与 [docs/deployment.md](docs/deployment.md) §3。
+  **不是**生产级硬件 attestation；当前代码已同时支持 GCP Confidential Space
+  OIDC/JWT 与 AWS Nitro Enclaves NSM/COSE，真实部署步骤见
+  [docs/deployment.md](docs/deployment.md) §3。
 - 本地运行时"TEE"只是普通 FastAPI 进程 —— 开发机上没有真实 enclave。
 - 本地链没有 FTSO，localhost 默认走 `ANALYSIS_OFFLINE=1` fixture 价（有标注）。
 - 本地链上登记的 `expectedImageDigest` 是 `keccak256("dev-image")` 占位值。
@@ -76,8 +77,12 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   `deepseek-flash`；`GET /health` 返回 `llm_configured=true`、`llm_model=deepseek-flash`，
   `/analyze` 返回 `analysis_mode="llm"`。注意这会改变信任边界：持仓作为 prompt
   离开 enclave，详见 [docs/deployment.md](docs/deployment.md) §4.2。
-- ⛔ **GCP Confidential Space**（需 GCP TEE 环境）——线上 attestation 目前仍是
-  `dev-simulated`，这是唯一剩下的生产阻塞项。
+- ✅ **AWS Nitro Enclaves 真实硬件 attestation**（2026-10-02）——非 debug enclave
+  已在 `us-east-1` 部署；NSM document 的根证书、ES384 签名、nonce、
+  `task_id + result_hash`、ECIES 公钥与 PCR0 全部验证通过。Coston2 生产冒烟
+  **12/12 通过**，task 17 已链上 `Verified`。
+  - PCR0: `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b`
+  - 验证交易: `0x50a5eedd0b4ea43cd9e0c2980332c25f078d865952b5b515845bc70f141002e2`
 
 ## 环境变量快速配置
 
@@ -185,7 +190,8 @@ node tools/ops-status.mjs
 - 一键只读巡检: `node tools/ops-status.mjs`（前端 / TEE 后端 / Coston2 合约交叉核对，不发起交易、不改变链上状态）
 
 ## Roadmap
-1. **Q3 2026**：真实 GCP Confidential Space vTPM attestation；钱包自动导入持仓；FAssets (FXRP) 分析
-2. **Q4 2026**：DAO treasury 多签报告模式
-3. **2027**：申请 Flare 生态 grant；向其他 builder 开放 TEE 分析 API
+1. **已完成**：AWS Nitro Enclaves 真实硬件 attestation（NSM COSE + PCR0 + 链上 12/12 验证）
+2. **下一步**：钱包自动导入持仓；FAssets (FXRP) 分析
+3. **Q4 2026**：DAO treasury 多签报告模式
+4. **2027**：申请 Flare 生态 grant；向其他 builder 开放 TEE 分析 API
 

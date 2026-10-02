@@ -266,12 +266,13 @@ class OnlineMockedTests(_EnvTestCase):
     def test_rpc_timeout_is_10_seconds(self):
         captured = {}
 
-        class RecordingProvider(_FakeHTTPProvider):
-            def __init__(self, endpoint_uri=None, request_kwargs=None):
-                super().__init__(endpoint_uri, request_kwargs)
-                captured.update(self.request_kwargs)
+        def recording_provider(endpoint_uri, timeout):
+            captured["timeout"] = timeout
+            return _FakeHTTPProvider(endpoint_uri, {"timeout": timeout})
 
-        with mock.patch.object(_FakeWeb3, "HTTPProvider", RecordingProvider):
+        with mock.patch.object(
+            price_provider, "make_provider", recording_provider
+        ):
             price_provider.get_prices(["BTC"])
         self.assertEqual(captured.get("timeout"), 10)
 

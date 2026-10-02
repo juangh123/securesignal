@@ -1,7 +1,7 @@
 # SecureSignal 黑客松提交清单
 
 > Flare Summer Signal Hackathon — Bounty 2: Confidential Compute Apps
-> 状态日期：2026-08-13（提交前终检）。提交截止：2026-08-14 19:59（DoraHacks）。✅ = 已完成并有验证证据；⏳ = 等待外部凭据/人工操作。
+> 状态日期：2026-10-02（提交前终检）。Flare Summer Signal 截止 2026-08-14 19:59；BLI Legal Tech Hackathon 2 截止 2026-11-01 01:01（DoraHacks）。✅ = 已完成并有验证证据；⏳ = 等待外部凭据/人工操作。
 
 ## 一、代码与功能（✅ 全部完成）
 
@@ -30,18 +30,18 @@
 | 4 | 更新 README Live Demo 区块 | ✅ | README.md / README.en.md 已回填真实链接、合约地址、TEE 公钥与视频链接 |
 | 5 | 录制演示视频 | ✅ | `video/dist/SecureSignal_demo_1080p_v3.mp4`（2:19，1080p，英文配音+字幕，含真实 Coston2 交易） |
 | 6 | （可选）真实 LLM key | ✅ | 2026-09-30 已在 Render 配置 DeepSeek `deepseek-flash`（key 走 Dashboard/API，不入库）；线上 `/health` 返回 `llm_configured=true`，`/analyze` 返回 `analysis_mode="llm"` |
-| 7 | （可选，加分项）GCP Confidential Space 真实 vTPM | ◻ | `docs/deployment.md` §3 改造路线 |
+| 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 17 链上 `Verified` |
 
 ## 三、评审亮点（提交描述可用）
 
 1. **信任链完整闭环**：客户端 ECIES 加密 → enclave 内解密分析 → 结果哈希 + TEE 签名上链 → 任何人都可对链验证结果出自登记的 TEE 密钥。
 2. **安全不是贴纸**：`rotateTeeKey` 无访问控制的原漏洞已修复（onlyOwner）；合约端 ecrecover 验签拒绝伪造 attestation，含负例测试。
 3. **FTSO 真实消费**：直读 Coston2 官方 FtsoV2 合约（经 FlareContractRegistry 解析），失败显式报错、绝不静默返回假价；离线模式显式标注。
-4. **诚实的工程标注**：dev-simulated 部分（attestation token、本地 enclave、fixture 价）在代码、API 响应、UI 徽标、README 四处一致标注。
+4. **真实硬件证明 + 诚实分级**：生产路径运行在 AWS Nitro Enclave，返回可验证的 NSM attestation document；公共 Render demo 仍明确标注 `dev-simulated`，两者不混淆。
 5. **可复现构建**：基础镜像 digest 锁定 + 77 个 pip 依赖 sha256 哈希锁定，支撑"镜像 digest 上链验证"叙事。
 
 ## 四、已知限制（评审问答预案）
 
-- **Q: attestation 是真的 vTPM 吗？** A: 当前是 dev-simulated（结构化 JSON + 真实 secp256k1 签名 + 链上 ecrecover），改造路线已写就（vtpm.py TODO + deployment.md §3），合约层已预留生产接入点。
+- **Q: attestation 是真的硬件证明吗？** A: AWS Nitro Enclaves 路径是真实硬件证明：我们固定 AWS Nitro root、验证 COSE/ES384 签名链，并核对 nonce、`task_id + result_hash`、ECIES 公钥和 PCR0。公共 Render demo 仍可能使用明确标注的 `dev-simulated` 模式。
 - **Q: LLM 调用在 TEE 内吗？** A: LLM API 调用由 enclave 内进程发起；TEE→LLM provider 链路的信任模型与缓解选项见 deployment.md §4。
 - **Q: 为什么本地演示用 fixture 价？** A: 本地 hardhat 链无 FTSO；对 Coston2 RPC 的在线模式已联机实测（价格与时间戳见 README），部署后默认走真实喂价。

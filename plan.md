@@ -2,7 +2,7 @@
 
 > 基于 2026-07-18 完成度审计（总完成度约 30–35%）。目标：打通端到端真实链路，落地核心安全价值，工程化收尾。
 >
-> **状态总览（2026-09-30 更新）**：Stage 1 ✅ 完成（合约安全修复 / ECIES 端到端加密 / 结果上链 relayer）；Stage 2 ✅ 完成（本地端到端验证 23/23 断言通过）；Stage 3 ✅ 完成（工程化收尾，见下文验收勾选）；Stage A ✅ 完成（LLM 分析引擎）；Stage B ✅ 完成（FTSO 真实读价联机实测）。**线上已启用真实 LLM**（2026-09-30：Render 配置 DeepSeek `deepseek-flash`，`/health` 的 `llm_configured=true`、`analysis_mode="llm"`）。**剩余外部依赖**只剩 GCP Confidential Space 真实 attestation，接入手册见 `docs/deployment.md`。
+> **状态总览（2026-10-02 更新）**：Stage 1 ✅ 完成（合约安全修复 / ECIES 端到端加密 / 结果上链 relayer）；Stage 2 ✅ 完成（本地端到端验证 23/23 断言通过）；Stage 3 ✅ 完成（工程化收尾，见下文验收勾选）；Stage A ✅ 完成（LLM 分析引擎）；Stage B ✅ 完成（FTSO 真实读价联机实测）。**线上已启用真实 LLM**（2026-09-30：Render 配置 DeepSeek `deepseek-flash`，`/health` 的 `llm_configured=true`、`analysis_mode="llm"`）。**真实 TEE 代码链路已完成两条**：GCP Confidential Space（OIDC JWT + launcher socket）和 AWS Nitro Enclaves（NSM COSE/CBOR + PCR + vsock + verifier）。**AWS Nitro Enclaves 已完成真实部署与联机验证**：Coston2 冒烟测试 12/12 通过（真实 FTSO、NSM attestation、ecrecover、链上 `Verified`）；当前运行 PCR0 见 `deploy/aws/README.md`。
 
 ## 统一加密协议规范（所有 Worker 必须严格遵守）
 
@@ -19,7 +19,7 @@
 5. TEE 计算 `result_hash = keccak256(result_json)`，用 TEE 签名私钥签名 `(task_id, result_hash)` 作为 attestation，并以 relayer 身份调用 `submitResult(task_id, result_hash, attestation)` 上链
 6. 响应：`{ task_id, encrypted_result, attestation, result_hash, onchain_submitted }`；前端用会话私钥解密、并可对链校验 result_hash
 
-**Attestation（开发期诚实实现）**：结构化 JSON `{ result_hash, task_id, image_digest, tee_address, timestamp, mode: "dev-simulated" }` + TEE secp256k1 签名。合约端 `_verifyAttestation` 用 ecrecover 校验签名者 == 登记的 `teeAddress`。生产接 GCP Confidential Space 的真实 JWT 留 TODO 注释。
+**Attestation（历史开发约定）**：结构化 JSON + TEE secp256k1 签名；合约端 `_verifyAttestation` 用 ecrecover 校验签名者 == 登记的 `teeAddress`。生产路径现已由 AWS Nitro Enclaves 的真实 NSM COSE/CBOR attestation 实现并验证。
 
 ## 阶段划分
 
@@ -79,7 +79,8 @@
 | 事项 | 阻塞原因 | 手册章节 |
 |---|---|---|
 | ~~Coston2 真实部署~~ ✅ **已完成 2026-07-19，2026-09-30 扩展 31 资产**：当前生效 AnalysisRegistry `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`、FtsoV2Reader `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`（早期部署 `0xfA3126…`/`0xe60745…` 已取代）、登记 TEE `0xEe4975C290FBF46757A1D90F02c3CF555163556E`；生产冒烟测试 12/12 通过（`frontend/e2e/e2e-coston2.mjs`，真实 FTSO 喂价 + 链上 Verified），只读巡检 9/9 通过 | 已完成 | deployment.md §2.5 |
-| GCP Confidential Space vTPM attestation | 需 GCP TEE 环境；改造锚点：`tee-service/attestation/vtpm.py` docstring TODO、`AnalysisRegistry.sol` `_verifyAttestation` TODO | deployment.md §3 |
+| GCP Confidential Space vTPM attestation | 代码/脚本/测试已完成；中国内地无法创建免费试用/结算账号，保留为可选路径 | deploy/gcp/README.md、deployment.md §3 |
+| AWS Nitro Enclaves attestation | ✅ 已部署并验证：非 debug enclave RUNNING，NSM document 签名/nonce/user_data/public_key/PCR0 全部验证通过，Coston2 端到端 12/12 | deploy/aws/README.md、deployment.md §3.5 |
 | ~~真实 LLM 调用~~ ✅ 已在线上启用（DeepSeek `deepseek-flash`，2026-09-30；信任模型注意事项见手册 §4.2） | — | deployment.md §4 |
 | ~~`scripts/setup-tee.ts` 生产化~~ ✅ 已完成：脚本已网络感知（localhost 用 dev key，其余网络走 `TEE_PRIVATE_KEY`/`TEE_IMAGE_DIGEST` env） | 已完成 | deployment.md §2.4 |
 | WalletConnect project id | 需 WalletConnect Cloud 账号（前端必填 env） | deployment.md §1.3 |

@@ -70,6 +70,13 @@ interface AttestationParsed {
   timestamp?: string | number
   mode?: string
   signature?: string
+  jwt?: string
+  attestation_audience?: string
+  attestation_nonce?: string
+  nsm_document?: string
+  nsm_nonce?: string
+  nsm_user_data?: string
+  pcr0?: string
   [key: string]: unknown
 }
 
@@ -256,6 +263,12 @@ function TrustNotice({ health, checked }: { health: ServiceHealth | null; checke
     )
   }
   const confidential = health.attestation_mode !== 'dev-simulated'
+  const attestationLabel =
+    health.attestation_mode === 'aws-nitro-enclaves'
+      ? 'AWS Nitro Enclaves attestation'
+      : health.attestation_mode === 'gcp-confidential-space'
+        ? 'GCP Confidential Space attestation'
+        : 'dev-simulated attestation'
   return (
     <div className="flex flex-col gap-2 bg-slate-800/80 border border-slate-600 text-slate-300 text-sm p-3 rounded-lg mb-2">
       <div className="flex flex-wrap gap-1.5">
@@ -276,7 +289,7 @@ function TrustNotice({ health, checked }: { health: ServiceHealth | null; checke
             confidential ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
           }
         >
-          {confidential ? 'Confidential Space attestation' : 'dev-simulated attestation'}
+          {attestationLabel}
         </Badge>
       </div>
       {health.llm_configured ? (
@@ -960,6 +973,48 @@ export default function Home() {
                       <p className="break-all">
                         Image digest: <span className="font-mono">{att.image_digest}</span>
                       </p>
+                    )}
+                    {att.attestation_audience && (
+                      <p className="break-all">
+                        JWT audience: <span className="font-mono">{att.attestation_audience}</span>
+                      </p>
+                    )}
+                    {att.attestation_nonce && (
+                      <p className="break-all">
+                        JWT nonce: <span className="font-mono">{att.attestation_nonce}</span>
+                      </p>
+                    )}
+                    {typeof att.jwt === 'string' && (
+                      <details className="text-xs text-slate-400">
+                        <summary className="cursor-pointer">
+                          Google-signed Confidential Space JWT attached
+                        </summary>
+                        <pre className="mt-1 break-all whitespace-pre-wrap">
+                          {att.jwt}
+                        </pre>
+                      </details>
+                    )}
+                    {typeof att.nsm_document === 'string' && (
+                      <>
+                        {att.nsm_nonce && (
+                          <p className="break-all">
+                            NSM nonce: <span className="font-mono">{att.nsm_nonce}</span>
+                          </p>
+                        )}
+                        {att.pcr0 && (
+                          <p className="break-all">
+                            PCR0: <span className="font-mono">{att.pcr0}</span>
+                          </p>
+                        )}
+                        <details className="text-xs text-slate-400">
+                          <summary className="cursor-pointer">
+                            AWS Nitro NSM attestation document attached
+                          </summary>
+                          <pre className="mt-1 break-all whitespace-pre-wrap">
+                            {att.nsm_document}
+                          </pre>
+                        </details>
+                      </>
                     )}
                     {attHashMatch !== undefined && (
                       <p className={attHashMatch ? 'text-emerald-700' : 'text-rose-700'}>

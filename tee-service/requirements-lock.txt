@@ -30,6 +30,9 @@ attrs==26.1.0 \
 bitarray==3.9.0 \
     --hash=sha256:19b6cbca02cdfb27a6fb6e0d4f9170a53da2c37fce70bc5afa6d58aab6d1f1af \
     --hash=sha256:af5f91e61d868c8f457f66cd726ef31d69264f71edbaccd70fdbb13548c1d652
+cbor2==5.6.5 \
+    --hash=sha256:34cf5ab0dc310c3d0196caa6ae062dc09f6c242e2544bea01691fe60c0230596 \
+    --hash=sha256:b682820677ee1dbba45f7da11898d2720f92e06be36acec290867d5ebf3d7e09
 certifi==2026.6.17 \
     --hash=sha256:2227dcbaafe0d2f59279d1762ddddc37783ed4354594f194ffc31d20f41fc3db \
     --hash=sha256:024c88eeec92ca068db80f02b8b07c9cef7b9fe261d1d535abfd5abd6f6af432

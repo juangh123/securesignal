@@ -1,3 +1,12 @@
+# ── NSM helper: official AWS Nitro Enclaves API ─────────────────────────────
+FROM rust:1.92-slim-bookworm AS nsm-builder
+
+WORKDIR /build
+COPY aws-nsm-helper/Cargo.toml ./
+COPY aws-nsm-helper/Cargo.lock ./
+COPY aws-nsm-helper/src ./src
+RUN cargo build --release --locked
+
 # ── Base image: pinned by digest for reproducible builds ─────────────────────
 # Digest fetched 2026-07-19 from the Docker Registry HTTP API (manifest list,
 # multi-arch). To verify or refresh it:
@@ -18,6 +27,7 @@ WORKDIR /app
 # back to building from an sdist.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
+    socat \
     && rm -rf /var/lib/apt/lists/*
 
 # Hash-locked dependency install: requirements-lock.txt pins every package
@@ -30,10 +40,13 @@ RUN pip install --no-cache-dir --require-hashes -r requirements-lock.txt
 
 # Copy source code
 COPY . .
+COPY aws_enclave_entrypoint.sh /usr/local/bin/aws_enclave_entrypoint.sh
+COPY --from=nsm-builder /build/target/release/nsm-attest /usr/local/bin/nsm-attest
+RUN chmod +x /usr/local/bin/nsm-attest /usr/local/bin/aws_enclave_entrypoint.sh
 
 # Expose port
 EXPOSE 8000
 
-# Start server — honor the PORT env injected by hosts like Render
-# (default 8000 for local/docker-compose use)
-CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# Start through the enclave-aware entrypoint. Outside Nitro/GCP the entrypoint
+# falls back to the normal uvicorn bootstrap used by Render and local Docker.
+CMD ["sh", "/usr/local/bin/aws_enclave_entrypoint.sh"]

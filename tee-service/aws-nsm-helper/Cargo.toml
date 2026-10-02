@@ -1,0 +1,9 @@
+[package]
+name = "nsm-attest"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+
+[dependencies]
+aws-nitro-enclaves-nsm-api = "=0.5.2"
+serde_bytes = "0.11"

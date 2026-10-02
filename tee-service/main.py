@@ -38,7 +38,11 @@ from pydantic import BaseModel
 
 from analysis import llm, price_provider
 from analysis.engine import analyze_portfolio
-from attestation.vtpm import generate_attestation_token
+from attestation.vtpm import (
+    attestation_mode,
+    ensure_attestation_runtime,
+    generate_attestation_token,
+)
 from crypto import keys as tee_keys
 from flare import contracts as relayer
 
@@ -46,8 +50,10 @@ from flare import contracts as relayer
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     tee_keys.init_keys()
+    ensure_attestation_runtime()
     print(f"[main] TEE public key: {tee_keys.get_public_key_hex()}")
     print(f"[main] TEE address:    {tee_keys.get_tee_address()}")
+    print(f"[main] Attestation mode: {attestation_mode()}")
     if relayer.is_configured():
         print("[main] Relayer configured: results will be submitted on-chain")
     else:
@@ -58,7 +64,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-SERVICE_VERSION = "2.2.0"
+SERVICE_VERSION = "2.4.0"
 
 app = FastAPI(title="SecureSignal TEE Service", version=SERVICE_VERSION, lifespan=lifespan)
 
@@ -157,6 +163,7 @@ async def health():
     Exposes only booleans, derived addresses, and mode labels — never key
     material, the RPC URL, or the LLM API key.
     """
+    mode = attestation_mode()
     return {
         "status": "ok",
         "version": app.version,
@@ -168,10 +175,12 @@ async def health():
         # Model name only (never the key or base URL). Lets the UI and ops
         # tooling show which engine is actually answering.
         "llm_model": llm.configured_model() if llm.is_configured() else None,
-        "attestation_mode": (
-            "gcp-confidential-space" if os.getenv("ENV") == "prod" else "dev-simulated"
+        "attestation_mode": mode,
+        "image_digest": (
+            os.getenv("AWS_NITRO_PCR0", "prod")
+            if mode == "aws-nitro-enclaves"
+            else os.getenv("TEE_IMAGE_DIGEST", "dev")
         ),
-        "image_digest": os.getenv("TEE_IMAGE_DIGEST", "dev"),
         # Effective behaviour (false when no registry/relayer is configured,
         # since the task state cannot be read in that case).
         "analyze_requires_onchain_task": _gate_enabled(),

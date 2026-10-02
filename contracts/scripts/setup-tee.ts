@@ -52,15 +52,13 @@ async function main() {
   // 65-byte uncompressed public key (0x04 prefix) of the TEE private key
   const teePublicKey = SigningKey_computeUncompressed(TEE_PRIVATE_KEY);
   const teeAddress = new ethers.Wallet(TEE_PRIVATE_KEY).address;
-  const imageDigest =
-    process.env.TEE_IMAGE_DIGEST &&
-    /^0x[0-9a-fA-F]{64}$/.test(process.env.TEE_IMAGE_DIGEST)
-      ? process.env.TEE_IMAGE_DIGEST
-      : ethers.keccak256(ethers.toUtf8Bytes("dev-image"));
+  const imageDigest = process.env.TEE_IMAGE_DIGEST
+    ? normalizeImageDigest(process.env.TEE_IMAGE_DIGEST)
+    : ethers.keccak256(ethers.toUtf8Bytes("dev-image"));
 
   console.log("TEE public key (65B uncompressed):", teePublicKey);
   console.log("TEE address:", teeAddress);
-  console.log("Image digest (keccak256('dev-image')):", imageDigest);
+  console.log("Image digest:", imageDigest);
 
   const registry = await ethers.getContractAt(
     "AnalysisRegistry",
@@ -93,6 +91,19 @@ function SigningKey_computeUncompressed(privKey: string): string {
   // ethers v6: SigningKey.computePublicKey(key, false) -> 0x04 || X || Y
   const { SigningKey } = require("ethers") as typeof import("ethers");
   return SigningKey.computePublicKey(privKey, false);
+}
+
+function normalizeImageDigest(raw: string | undefined): string {
+  const value = (raw ?? "").trim();
+  if (/^0x[0-9a-fA-F]{64}$/.test(value)) {
+    return value.toLowerCase();
+  }
+  if (/^sha256:[0-9a-fA-F]{64}$/.test(value)) {
+    return `0x${value.slice("sha256:".length).toLowerCase()}`;
+  }
+  throw new Error(
+    "TEE_IMAGE_DIGEST must be either sha256:<64 hex> or 0x<64 hex>"
+  );
 }
 
 main().catch((error) => {

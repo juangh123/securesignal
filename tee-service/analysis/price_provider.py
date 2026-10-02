@@ -58,6 +58,8 @@ from typing import Any
 
 from web3 import Web3
 
+from flare.rpc import make_provider
+
 __all__ = [
     "SUPPORTED_SYMBOLS",
     "FEED_IDS",
@@ -222,13 +224,17 @@ def _read_online(symbol: str) -> tuple[float, int]:
     global _detected_chain_name
     rpc_url = _rpc_url()
     try:
-        w3 = Web3(
-            Web3.HTTPProvider(
-                rpc_url, request_kwargs={"timeout": RPC_TIMEOUT_SECONDS}
-            )
-        )
+        w3 = Web3(make_provider(rpc_url, timeout=RPC_TIMEOUT_SECONDS))
         if not w3.is_connected():
-            raise PriceProviderError(f"cannot connect to RPC {rpc_url}")
+            try:
+                probe = w3.provider.make_request("web3_clientVersion", [])
+            except Exception as exc:
+                raise PriceProviderError(
+                    f"cannot connect to RPC {rpc_url}: {exc}"
+                ) from exc
+            raise PriceProviderError(
+                f"cannot connect to RPC {rpc_url}: {probe}"
+            )
 
         # Chain detection — only used for the "<chain>-ftso" source label.
         try:

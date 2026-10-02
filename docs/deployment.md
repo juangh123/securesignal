@@ -2,7 +2,7 @@
 
 > 适用范围：Coston2 testnet 部署、GCP Confidential Space 生产化接入、LLM 分析引擎启用。
 > 本文所有命令、路径、环境变量名均已与代码逐一核对（`tee-service/main.py`、`analysis/llm.py`、`analysis/price_provider.py`、`flare/contracts.py`、`attestation/vtpm.py`、`contracts/scripts/*.ts`、`contracts/hardhat.config.ts`、`docker-compose.yml`、`frontend/.env.example`）。
-> 最后核对日期：2026-07-19。
+> 最后核对日期：2026-10-01。
 
 ---
 
@@ -45,7 +45,19 @@
 | `LLM_TIMEOUT` | 可选 | `30` | LLM 请求超时（秒）；非数字时回退 30 | `60` |
 | `ANALYZE_REQUIRE_ONCHAIN_TASK` | 可选 | 未设 = 开启（`"0"` 关闭） | `/analyze` 是公开无鉴权端点，启用 LLM 后每次调用都产生费用。开启时只分析链上真实处于 `Requested` 的任务，刷接口必须先付 C2FLR gas 注册任务。未配置 relayer（读不到 registry）时门禁自动失效 | `0` |
 | `ANALYZE_TASK_MAX_AGE_SECONDS` | 可选 | `900`（`0` = 不限时） | 任务时效窗口：只分析 `requestedAt` 在窗口内的 `Requested` 任务。防止长期卡在 `Requested` 的僵尸任务被当成免费 LLM 触发器反复调用 | `3600` |
-| `TEE_IMAGE_DIGEST` | 可选 | `dev` | 写入 attestation token 的 `image_digest` 字段。见 `attestation/vtpm.py` | `sha256:<镜像digest>` |
+| `TEE_IMAGE_DIGEST` | 生产推荐 | `dev` | 期望的 Confidential Space workload 镜像 digest；生产必须与 JWT 的 `submods.container.image_digest` 一致，否则 attestation 失败。见 `attestation/vtpm.py` | `sha256:<64 hex>` |
+| `GCP_ATTESTATION_AUDIENCE` | 生产可选 | `https://securesignal.app` | Confidential Space OIDC token 的自定义 audience；验证方必须使用同值。 | `https://securesignal.app` |
+| `GCP_ATTESTATION_SOCKET` | 可选 | `/run/container_launcher/teeserver.sock` | Confidential Space launcher 暴露的 Unix socket。 | 默认值 |
+| `GCP_SECRETS_ENABLED` | GCP 部署必填 | `0` | 设为 `1` 时，启动脚本先经 Secret Manager 加载下方映射；缺 mapping 会 fail-closed。 | `1` |
+| `GCP_SECRET_TEE_PRIVATE_KEY` | GCP Secret Manager 模式必填 | 无 | `TEE_PRIVATE_KEY` 对应的 Secret Manager secret resource name（不是值）。 | `securesignal-tee-private-key` |
+| `GCP_SECRET_PRIVATE_KEY` | GCP Secret Manager 模式必填 | 无 | relayer `PRIVATE_KEY` 对应的 Secret Manager secret resource name。 | `securesignal-relayer-private-key` |
+| `GCP_SECRET_LLM_API_KEY` | 可选 | 无 | `LLM_API_KEY` 对应的 Secret Manager secret resource name；留空则不启用 LLM secret 拉取。 | `securesignal-llm-api-key` |
+| `ATTESTATION_PROVIDER` | 生产必填 | `dev-simulated`（本地）；`ENV=prod` 时默认 GCP | `dev-simulated` / `gcp-confidential-space` / `aws-nitro-enclaves`。 | `aws-nitro-enclaves` |
+| `AWS_NITRO_ENCLAVES` | AWS 模式兼容开关 | `0` | 设为 `1` 时也选择 AWS Nitro attestation provider。 | `1` |
+| `AWS_NITRO_PCR0` | AWS 生产必填 | 无 | EIF 构建输出的 PCR0；父实例启动时写入 runtime bundle，并随 `nsm_document` 返回。 | `<96 hex>` |
+| `AWS_NITRO_PCR1` / `AWS_NITRO_PCR2` | AWS 生产可选 | 无 | EIF 构建输出的 PCR1/PCR2，随 attestation token 返回。 | `<96 hex>` |
+| `AWS_NSM_HELPER` | 可选 | `/usr/local/bin/nsm-attest` | 镜像内调用 `/dev/nsm` 的 helper 路径。 | 默认值 |
+| `AWS_NITRO_SECRET_PORT` | 可选 | `8001` | 父实例通过 vsock 给 enclave 注入 runtime bundle 的端口。 | `8001` |
 | `FTSO_READER_ADDRESS` | —（当前**未被代码消费**） | — | 仅 `docker-compose.yml` 透传预留。当前 `price_provider.py` 经 FlareContractRegistry 直读链上官方 `FtsoV2`，无需部署的 `FtsoV2Reader` 地址；该 env 属历史遗留 | — |
 | `ANALYSIS_LIVE_TEST` | 可选（仅测试） | 未设 = 跳过联机单测 | 设为 `1` 时 `python -m unittest analysis.test_price_provider -v` 会执行真实 Coston2 RPC 联机用例 | `1` |
 
@@ -185,61 +197,115 @@ npm install && npm run build && npm start   # 或 npm run dev
 
 ---
 
-## 3. GCP Confidential Space 接入指南
+## 3. GCP Confidential Space 接入
 
-### 3.1 现状与目标架构
+### 3.1 当前实现
 
-**现状（诚实标注）**：当前 `attestation/vtpm.py` 产出的是结构化 JSON token（`mode: "dev-simulated"`）+ TEE secp256k1 签名；合约端 `_verifyAttestation` 用 `ecrecover` 校验签名者 == 登记的 `teeAddress`。这只能证明「持有登记私钥」，**不能**证明「代码运行在真实 enclave 中」。本地开发机上也没有真实 enclave。
+`tee-service/attestation/vtpm.py` 现在同时支持两条路径：
 
-**目标架构**：tee-service 镜像部署到 GCP Confidential Space（基于 AMD SEV 的 Confidential VM）：
+- `ENV != prod`：返回 `mode: "dev-simulated"` 的结构化 JSON + TEE secp256k1 签名。
+- `ENV=prod`：通过 Confidential Space launcher 的 Unix socket
+  `/run/container_launcher/teeserver.sock` 向 `http://localhost/v1/token`
+  发 `POST`，请求 Google 签名的 OIDC attestation JWT。请求包含自定义
+  audience 与绑定 `(task_id, result_hash)` 的 `eat_nonce`；返回 token 同时带有链上
+  ecrecover 所需的 EIP-191 签名。
 
+生产模式是 fail-closed：launcher socket 不存在、token endpoint 失败、audience/nonce
+不匹配或 `TEE_IMAGE_DIGEST` 与 JWT 的
+`submods.container.image_digest` 不一致时，服务会报错而不会降级为
+`gcp-confidential-space` 伪 attestation。
+
+完整部署脚本和操作步骤见
+[`deploy/gcp/README.md`](../deploy/gcp/README.md)。脚本会：
+
+1. 用 Cloud Build 构建 `linux/amd64` 镜像并取得 `sha256:<digest>`。
+2. 把私钥写入 Secret Manager，以 resource name 形式传给 VM。
+3. 容器启动时由 `gcp_secrets_bootstrap.py` 通过 workload service account
+   拉取实际值，避免私钥进入 Confidential Space attestation JWT 的
+   `container.env` claims。
+4. 以 `tee-image-reference=<image>@<digest>` 创建/更新 Confidential Space VM。
+
+### 3.2 部署
+
+```powershell
+gcloud auth login
+gcloud config set project PROJECT_ID
+.\deploy\gcp\deploy-confidential-space.ps1 -ProjectId PROJECT_ID
 ```
-frontend ──ECIES──> tee-service @ Confidential Space
-                        │
-                        ├─ 1. enclave 内生成/加载 secp256k1 密钥
-                        ├─ 2. 向 metadata server 请求 OIDC attestation JWT
-                        │     （audience 绑定，claims 含 image_digest / eat_nonce）
-                        ├─ 3. JWT + 签名随 attestation 返回
-                        └─ 4. 验证方确认 JWT 签名链（Google root）与 image_digest
-                                     │
-                                     v
-                    AnalysisRegistry（Coston2/Flare）
-                    teeAddress / expectedImageDigest 登记 + ecrecover 校验
+
+默认创建 `us-central1-a` 下的 `n2d-standard-2` Confidential Space VM，并开放
+`tcp:8000` 供首轮联调。生产前端应改用 HTTPS 负载均衡或受控反向代理。
+
+### 3.3 验证 JWT 与登记链上 digest
+
+使用仓库自带 verifier 校验 Google OIDC 签名链与关键 claims：
+
+```bash
+cd tee-service
+python tools/verify_confidential_space_token.py \
+  --audience https://securesignal.app \
+  --nonce <attestation_nonce> \
+  --image-digest sha256:<digest> \
+  "<jwt>"
 ```
 
-### 3.2 代码中的 TODO 位置（改造锚点）
+把 `sha256:<64 hex>` 或等价的 `0x<64 hex>` 传给登记脚本：
 
-1. **`tee-service/attestation/vtpm.py` 模块 docstring（约第 24–31 行）**——`TODO(production)`：
-   从 metadata server 获取 JWT（`http://metadata.google.internal/computeMetadata/v1/instance/attributes/attestation-token?audience=...`，以 GCP 官方文档为准），把 `report_data`（`task_id + result_hash` 的哈希）绑定进 token 的 `eat_nonce` claim，并由合约/验证方对 Google root certs 校验 JWT 签名链与 image digest。参考：https://cloud.google.com/confidential-computing/confidential-space/docs/attestation
-2. **`contracts/contracts/AnalysisRegistry.sol` `_verifyAttestation`（约第 85–88 行）**——`TODO(production)`：
-   除 ecrecover 外，还需验证 GCP Confidential Space JWT / Flare vTPM attestation 合约证明，确认 `teeAddress` 确实在 `expectedImageDigest` 对应的镜像内生成；仅签名检查只证明持有登记密钥。
+```bash
+cd contracts
+TEE_PRIVATE_KEY=0x<TEE私钥> \
+TEE_IMAGE_DIGEST=sha256:<digest> \
+npx hardhat run scripts/setup-tee.ts --network coston2
+```
 
-### 3.3 改造路线（建议步骤）
+当次黑客松/首期上线采用「链下验证 JWT + owner 调用 `rotateTeeKey`」方案；
+合约仍只验证 EIP-191 签名和登记地址，因此登记流程的审计证据必须保存。
+链上直接验证 JWT 或接入 Flare attestation verifier 属于后续增强。
 
-**Step 1 — 镜像与密钥**
-- 用现有 `tee-service/Dockerfile`（基础镜像已按 digest 锁定、`--require-hashes` 安装）构建 linux/amd64 镜像，推送到 Confidential Space 可用的 registry。
-- 密钥策略二选一：
-  a. enclave 启动时生成密钥，公钥/地址通过带 attestation 的登记流程上链（最贴近 TEE 信任模型）；
-  b. 通过 Confidential Space 的 secret 挂载注入 `TEE_PRIVATE_KEY`（运维简单，但密钥在 enclave 外存在过）。
+### 3.4 信任边界说明
 
-**Step 2 — `vtpm.py` 改造**
-- 新增 `fetch_attestation_jwt(audience, nonce)`：按 TODO 注释中的 metadata server 端点请求 OIDC JWT；`nonce/eat_nonce` 绑定 `keccak256(task_id || result_hash)`。
-- `generate_attestation_token` 扩展字段：`jwt`、`image_digest`（取 JWT claim 中的 `submods.container.image_digest`，同时设 `TEE_IMAGE_DIGEST` 为同值）、保留现有 `signature`（EIP-191，供链上 ecrecover）。
-- token `mode` 改为 `"gcp-confidential-space"`（前端/审计可区分）。
+当前部署从 Secret Manager 注入固定 `TEE_PRIVATE_KEY`。JWT 可以证明 workload
+镜像/VM 运行在 Confidential Space，但**不证明该 secp256k1 私钥是在 enclave 内生成
+或由 KMS 解封的**。要达到更完整的密钥来源证明，需要后续改用 enclave 内生成密钥，
+或通过 Confidential Space attestation + KMS key release 解封密钥。
 
-**Step 3 — 链上验证方案选项**（对应合约 TODO，按信任假设与 gas 成本权衡）
+### 3.5 AWS Nitro Enclaves（无 GCP 可用时的生产路径）
 
-| 方案 | 做法 | 信任假设 | 成本/复杂度 |
-|---|---|---|---|
-| A. 链下验证 + owner 登记 | 部署/轮换密钥时，链下验证 JWT（签名链、audience、image_digest、exp），通过则 owner 调 `rotateTeeKey` 登记新 `teeAddress` | 信任 owner 验证流程（一次性操作） | 最低；合约无需改动 |
-| B. 链上验证 JWT | 合约内验 RS256 签名（需内置/预置 Google root 公钥，解析 JWT claims 比对 image_digest） | 仅信任 Google root | gas 极高，实现复杂 |
-| C. 专用验证合约 / 预编译 | 借助 Flare 生态的 attestation 验证设施或独立 verifier 合约缓存已验证的 JWT 哈希 | 信任 verifier 合约实现 | 中等，取决于生态设施成熟度 |
+`ATTESTATION_PROVIDER=aws-nitro-enclaves` 时，服务通过镜像内的
+`nsm-attest` helper 调用 `/dev/nsm`，为每次 `(task_id, result_hash)` 请求
+NSM attestation document：
 
-**务实建议**：黑客松/首期上线用方案 A（合约保持现状，轮换流程文档化）；方案 B/C 作为后续路线。
+- `user_data` = `abi.encodePacked(task_id, result_hash)` 的原始 64 字节；
+- `nonce` = `sha256(task_id + ":" + result_hash)`；
+- `public_key` = 当前 TEE ECIES 公钥（65 字节未压缩点）；
+- token 额外返回 `nsm_document`、`nsm_document_sha256`、PCR0/PCR1/PCR2。
 
-**Step 4 — 部署形态**
-- Confidential Space 要求 workload 为容器镜像 + 特定 VM 镜像与 launcher 配置；env（`PRIVATE_KEY`、`LLM_API_KEY` 等）通过 Confidential Space 的环境注入机制传入。
-- 注意 `tee-service` 需出网访问：Flare RPC（FTSO + relayer）与 LLM API，需在 Confidential Space 网络策略中放行。
+部署与验证：
+
+```powershell
+aws configure sso
+$env:AWS_PROFILE = "<profile>"
+aws sts get-caller-identity
+
+.\deploy\aws\deploy-nitro-enclaves.ps1 `
+  -Region us-east-1 `
+  -ApiCidr "<your IP>/32"
+
+python tee-service\tools\verify_aws_nitro_attestation.py `
+  --nonce-hex <nsm_nonce> `
+  --user-data-hex <nsm_user_data> `
+  --public-key-hex <TEE public key> `
+  --pcr0 <pcr0> `
+  <nsm_document>
+```
+
+AWS 根证书固定在
+`tee-service/attestation/aws_nitro_root_g1.pem`，verifier 会校验
+COSE_Sign1 ES384 签名、证书链、有效期、nonce/user_data/public_key 与 PCR0。
+
+**信任边界**：首版部署由父实例通过 vsock 转发 runtime secret bundle。
+父实例在 enclave 信任边界之外，可以拒绝服务，因此更强方案应把
+`TEE_PRIVATE_KEY` 改为 KMS 封存密钥，并用 PCR0/PCR3/PCR8 限制 `kms:Decrypt`。
 
 ---
 

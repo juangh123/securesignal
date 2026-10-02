@@ -22,6 +22,8 @@ from typing import Optional
 
 from web3 import Web3
 
+from flare.rpc import make_provider
+
 DEFAULT_RPC_URL = "https://coston2-api.flare.network/ext/C/rpc"
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -77,7 +79,7 @@ def task_state(task_id: int, rpc_url: Optional[str] = None) -> Optional[tuple[in
         if not registry_address or registry_address.lower() == ZERO_ADDRESS.lower():
             return None
         rpc_url = rpc_url or os.environ.get("RPC_URL", DEFAULT_RPC_URL)
-        w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 10}))
+        w3 = Web3(make_provider(rpc_url, timeout=10))
         contract = w3.eth.contract(
             address=Web3.to_checksum_address(registry_address),
             abi=_load_abi(),
@@ -124,8 +126,10 @@ def submit_result(
         )
 
     rpc_url = rpc_url or os.environ.get("RPC_URL", DEFAULT_RPC_URL)
-    w3 = Web3(Web3.HTTPProvider(rpc_url, request_kwargs={"timeout": 30}))
-    if not w3.is_connected():
+    w3 = Web3(make_provider(rpc_url, timeout=30))
+    # web3.py's IPCProvider can report is_connected False on a short-lived
+    # bridge connection; let the actual transaction call surface the error.
+    if not rpc_url.startswith("ipc://") and not w3.is_connected():
         raise ConnectionError(f"Cannot connect to RPC {rpc_url}")
 
     account = w3.eth.account.from_key(private_key)
@@ -162,9 +166,7 @@ def submit_result(
     if raw_tx is None:
         raise RuntimeError("SignedTransaction has neither raw_transaction nor rawTransaction attribute")
     tx_hash = w3.eth.send_raw_transaction(raw_tx)
-    receipt = w3.eth.wait_for_transaction_receipt(tx_hash, timeout=60)
-    if receipt.status != 1:
-        raise RuntimeError(
-            f"submitResult reverted on-chain (tx {tx_hash.hex()})"
-        )
+    # Do not block the enclave request while waiting for a receipt. The
+    # transaction is already broadcast; callers and ops tooling can follow the
+    # returned hash. This keeps the vsock/TCP relay connection short-lived.
     return tx_hash.hex()

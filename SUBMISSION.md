@@ -28,7 +28,7 @@ SecureSignal lets users get personalized crypto portfolio risk analysis and reba
 - **Source:** https://github.com/juangh123/securesignal (contracts/, tee-service/, frontend/, docs/)
 
 ## 6. How We Use Flare
-1. **Confidential Compute (TEE):** The analysis engine (Python) is built to run inside a Gramine/TDX TEE on Flare’s confidential compute infrastructure. The TEE public key is registered on-chain; every result carries an attestation signature that the contract verifies with `ecrecover`.
+1. **Confidential Compute (TEE):** The analysis engine runs inside a real, non-debug AWS Nitro Enclave in production. The enclave produces an AWS NSM COSE/CBOR attestation document bound to the task, result hash, nonce, and ECIES public key. The TEE public key is registered on-chain; every result also carries the EIP-191 signature verified by `ecrecover`.
 2. **Coston2 Smart Contracts:** `AnalysisRegistry` stores the TEE key/address, verifies attestations, rejects forged signatures, and logs every task result (`ResultSubmitted`), so results are publicly auditable. A companion `FtsoV2Reader` wraps Flare’s official price feed contract.
 3. **FTSO (live):** The TEE engine reads real-time, decentralized price feeds directly from the official FtsoV2 contract on Coston2 inside the analysis flow — no centralized price source.
 4. **EVM compatibility:** Users interact through standard MetaMask-style wallets; ECIES session keys are exchanged over the normal wallet UX without separate key-pair management.
@@ -36,10 +36,10 @@ SecureSignal lets users get personalized crypto portfolio risk analysis and reba
 ## 7. What We Built During the Hackathon
 Pre-hackathon state: none — this is a new project, not an existing product.
 Everything below was built from zero to working prototype within the hackathon window:
-- **TEE analysis engine** (Python/FastAPI): ECIES decryption, portfolio risk scoring (LLM-ready with deterministic rule-engine fallback), live FTSO pricing, attestation signing, result relaying to the chain.
+- **TEE analysis engine** (Python/FastAPI): ECIES decryption, portfolio risk scoring (LLM-ready with deterministic rule-engine fallback), live FTSO pricing, AWS NSM attestation, result relaying to the chain.
 - **Smart contracts** (Solidity/Hardhat): `AnalysisRegistry` + `FtsoV2Reader`, deployed to Coston2 and verified end-to-end (12/12 production smoke tests).
 - **Web 3.0 app** (Next.js 16): wallet connect, client-side ECIES encryption, encrypted request submission, decrypted result display, and on-chain verification UI — fully in English.
-- **Cloud deployment:** TEE backend live on Render, frontend live on Vercel; final demo video recorded against the live stack with a real Coston2 transaction.
+- **Cloud deployment:** frontend on Vercel; public demo TEE on Render; production attestation path deployed and verified on AWS Nitro Enclaves (`us-east-1`).
 
 ## 8. Contract & Deployment Details
 **Network:** Flare Coston2 Testnet (chainId 114)
@@ -50,18 +50,21 @@ Everything below was built from zero to working prototype within the hackathon w
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | Registered TEE address | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
 | TEE public key | `04088c6f6e685b84d396521b59d8b8ff794f4d6a27d47d487b716eced258fa76644e36bee0f46525f9920c9b6dd9f9ef1773d6aff610b0f944d29b0624f4cc10b6` |
-| Example on-chain result (Coston2 tx) | `0xe2d4321b7d49aaf5bd1bc9995c6cf0f12a936b3ae424b6460ace3bad60d457b3` (→ AnalysisRegistry, block `0x2065fbd`) |
+| AWS Nitro Enclave PCR0 | `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b` |
+| AWS Nitro Enclave PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
+| Verified result tx (task 17) | `0x50a5eedd0b4ea43cd9e0c2980332c25f078d865952b5b515845bc70f141002e2` |
 
-**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices, attestation `ecrecover` matches the TEE address, on-chain status = Verified.
+**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, AWS NSM COSE signature verified against the pinned root, attestation `ecrecover` matches the TEE address, on-chain status = Verified.
 
 **Testing & distribution status (honest):** 12/12 production smoke assertions on Coston2, 23/23 local end-to-end assertions, and a 2:19 recorded live demo. No external pilot users, paid distribution, or partnership commitments yet; the public live app and open-source repo are the current distribution channels.
 
 ## 9. Honest Engineering Notes
-- **Attestation:** today’s attestation is a dev-simulated vTPM (structured JSON + real secp256k1 signing + on-chain `ecrecover`). The production upgrade path to real GCP Confidential Space vTPM with on-chain image-digest anchoring is designed and documented in `docs/deployment.md`; the contract layer already reserves the production interface.
+- **Attestation:** the verified production path is a real AWS Nitro Enclave. We validate the NSM COSE/CBOR document against the pinned AWS Nitro root certificate, the certificate chain, ES384 signature, nonce, user data, ECIES public key, and measured PCR0. The public Render endpoint can still choose the explicitly labelled `dev-simulated` mode for demos.
 - **LLM:** the engine calls an OpenAI-compatible LLM when configured; otherwise it falls back to a deterministic rule engine. The recorded live demo ran the rule engine (output fully in English); as of 2026-09-30 the live deployment is configured with DeepSeek `deepseek-flash`, so `/analyze` now reports `analysis_mode="llm"` with the rule engine still in place as fallback.
 - **Mainnet:** contracts are deployed on Coston2 testnet; mainnet deployment is part of the roadmap.
 
 ## 10. Roadmap
-- **Q3 2026:** real vTPM attestation (GCP Confidential Space), wallet auto-import of holdings, FAssets (FXRP) analysis.
+- **Completed:** real hardware-rooted TEE attestation on AWS Nitro Enclaves with verified PCR0 and on-chain result anchoring.
+- **Q3–Q4 2026:** wallet auto-import of holdings, FAssets (FXRP) analysis.
 - **Q4 2026:** DAO treasury multi-sig report mode.
 - **2027:** Flare ecosystem grant; open the TEE analysis API to other builders and launch a Confidential Oracle service on Flare Mainnet.

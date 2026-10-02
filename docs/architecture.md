@@ -33,16 +33,22 @@ The flow is as follows:
    - The analysis engine (rule-based + LLM-assisted evaluation) scores the
      portfolio.
    - The result JSON is re-encrypted to the client's session public key.
-5. **Attestation & Verification**: The service builds a structured attestation
-   token (`{ result_hash, task_id, image_digest, tee_address, timestamp,
-   mode }`) and signs `(task_id, result_hash)` with the TEE's secp256k1
-   signing key. It then calls `submitResult(taskId, resultHash, attestation)`
-   as a relayer. On-chain, `_verifyAttestation` uses `ecrecover` to check that
-   the signer equals the registered `teeAddress`; mismatches revert.
-   - *Dev-simulated*: in the hackathon build the token carries
-     `mode: "dev-simulated"` — it is a TEE-signed document, not a GCP vTPM
-     JWT. Swapping in real Confidential Space attestation is a documented TODO
-     (`tee-service/attestation/vtpm.py`).
+5. **Attestation & Verification**: The service builds an attestation token and
+   signs `(task_id, result_hash)` with the TEE's secp256k1 signing key. It then
+   calls `submitResult(taskId, resultHash, attestation)` as a relayer.
+   On-chain, `_verifyAttestation` uses `ecrecover` to check that the signer
+   equals the registered `teeAddress`; mismatches revert.
+   - In normal local development the token carries
+     `mode: "dev-simulated"` and is explicitly labelled as non-production
+     evidence.
+   - With `ATTESTATION_PROVIDER=gcp-confidential-space`, the service requests
+     a Google-signed OIDC JWT through `/run/container_launcher/teeserver.sock`
+     and binds the task/result nonce and image digest.
+   - With `ATTESTATION_PROVIDER=aws-nitro-enclaves`, the service requests a
+     COSE/CBOR NSM attestation document through `/dev/nsm`, binding task,
+     result hash, nonce, ECIES public key, and measured PCRs.
+   - Missing runtime devices/claims fail closed; the service never silently
+     downgrades a production token.
 6. **Delivery**: The `/analyze` response returns `{ task_id, encrypted_result,
    attestation, result_hash, onchain_submitted }` directly. The client
    decrypts the result with its session private key and can independently
@@ -60,9 +66,9 @@ The flow is as follows:
   available). `FtsoV2` itself is resolved through the canonical
   FlareContractRegistry (`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`).
 - **TEE Backend**: Python FastAPI. `eciespy` for secp256k1 ECIES, `web3.py`
-  for FTSO reads and relayer submission, structured dev attestation in
-  `attestation/vtpm.py`. Production target: GCP Confidential Space with real
-  vTPM attestation.
+  for FTSO reads and relayer submission, fail-closed GCP Confidential Space
+  OIDC/JWT attestation, and AWS Nitro Enclaves NSM attestation.
+  Deployment tooling is under `deploy/gcp/` and `deploy/aws/`.
 - **Encryption protocol**: secp256k1 ECIES (ECDH → HKDF-SHA256 → AES-256-GCM),
   wire format `65B ephemeral pubkey || 16B nonce || 16B tag || ciphertext`,
   base64-encoded. Byte-compatible between `eciesjs` and `eciespy`; verified

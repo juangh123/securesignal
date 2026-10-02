@@ -16,3 +16,6 @@ pandas==2.2.2
 # analysis/llm.py calls the OpenAI-compatible chat completions API directly
 # over HTTP (no openai SDK). Pin matches requirements-lock.txt.
 requests==2.34.2
+# AWS Nitro Enclaves attestation documents are CBOR/COSE. Used by the
+# verification tooling and tests, not by the GCP/development execution path.
+cbor2==5.6.5

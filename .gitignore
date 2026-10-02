@@ -38,10 +38,12 @@ Thumbs.db
 Desktop.ini
 
 tee-service/venv/
+tee-service/aws-nsm-helper/target/
 
 tmp/
 tmp */
 deploy*.log
+tee-service/requirements-report.json
 
 # Raw and intermediate video-production assets. Keep the final dist renders.
 video/raw/

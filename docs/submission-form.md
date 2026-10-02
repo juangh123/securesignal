@@ -59,8 +59,9 @@ SecureSignal runs the analysis engine inside a TEE (Trusted Execution Environmen
 ### How It Works
 1. **Client-side encryption** — the browser encrypts holdings with an ECIES session key (eciesjs ↔ eciespy, byte-compatible).
 2. **On-chain registration** — the app registers the analysis task on Flare Coston2.
-3. **TEE analysis** — the enclave decrypts, reads live prices from the official FtsoV2 contract, and runs risk analysis (LLM when configured, deterministic rule engine otherwise).
-4. **Verifiable result** — the signed attestation + result hash are submitted on-chain; the contract verifies the signature with `ecrecover` against the registered TEE key.
+3. **TEE analysis** — the AWS Nitro Enclave decrypts the payload, reads live prices from the official FtsoV2 contract through an enclave-local RPC bridge, and runs risk analysis (LLM when configured, deterministic rule engine otherwise).
+4. **Hardware attestation** — each result also carries an AWS NSM COSE/CBOR attestation document bound to `task_id + result_hash + nonce + ECIES public key`. The document is verified against the pinned AWS Nitro root and the measured PCR0.
+5. **Verifiable result** — the signed attestation + result hash are submitted on-chain; the contract verifies the signature with `ecrecover` against the registered TEE key.
 
 ### Why Flare
 - **Confidential Compute** — on-chain attestation makes the TEE verifiable without trusting us.
@@ -71,7 +72,7 @@ SecureSignal runs the analysis engine inside a TEE (Trusted Execution Environmen
 - **TEE engine** (Python/FastAPI): ECIES decryption, portfolio risk scoring, FTSO pricing, attestation signing, result relaying.
 - **Smart contracts** (Solidity/Hardhat): `AnalysisRegistry` + `FtsoV2Reader`, deployed and verified end-to-end on Coston2.
 - **Web 3.0 app** (Next.js 16): wallet connect, client-side encryption, decrypted result & on-chain verification UI.
-- **Live deployment**: TEE backend on Render, frontend on Vercel.
+- **Live deployment**: frontend on Vercel; the Render service remains the public demo endpoint, while the production attestation path is deployed and verified on AWS Nitro Enclaves (`us-east-1`).
 
 ### Demo
 Video (2:19): https://youtu.be/1V5yuxIENvc
@@ -87,11 +88,17 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | Registered TEE address | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
 
-**Verification:** production smoke test 12/12 — real FTSO prices, attestation `ecrecover` == TEE address, on-chain status = Verified. Example on-chain result (Coston2 tx): `0xe2d4321b7d49aaf5bd1bc9995c6cf0f12a936b3ae424b6460ace3bad60d457b3`.
+**Verification:** production smoke test 12/12 on Coston2 using the AWS Nitro Enclave — real FTSO prices, NSM COSE signature, attestation `ecrecover` == TEE address, on-chain status = Verified. Verified result transaction: `0x50a5eedd0b4ea43cd9e0c2980332c25f078d865952b5b515845bc70f141002e2` (`taskId=17`).
+
+**AWS Nitro Enclaves measurements:**
+
+- PCR0: `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b`
+- PCR1: `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493`
 
 ### Honest Engineering Notes
-- Attestation today is a dev-simulated vTPM (structured JSON + real secp256k1 signing + on-chain `ecrecover`); production-grade GCP Confidential Space vTPM with on-chain image-digest anchoring is the documented upgrade path.
-- The analysis engine calls an OpenAI-compatible LLM when configured and falls back to a deterministic rule engine otherwise; the live demo ran the rule engine (English output).
+- The production attestation path is a real, non-debug AWS Nitro Enclave: the NSM document is checked against the pinned AWS Nitro root certificate, certificate chain, ES384 signature, nonce, user data, ECIES public key, and PCR0.
+- The public Render demo can still label itself `dev-simulated`; this is a deployment-mode distinction, not a claim that the AWS deployment is simulated.
+- The analysis engine calls an OpenAI-compatible LLM when configured and falls back to a deterministic rule engine otherwise. The verified AWS run exercised the deterministic rule engine with real FTSO prices.
 
 ### Roadmap
 - Q3 2026: real vTPM attestation, wallet auto-import of holdings, FAssets (FXRP) analysis.
