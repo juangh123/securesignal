@@ -42,10 +42,12 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
   --user-data-hex 0000000000000000000000000000000000000000000000000000000000000014dafec5abee3006d4dc8f56ff666a49a26180da5b5b3dfc1fd487a00039b99b3d `
   --public-key-hex 04088c6f6e685b84d396521b59d8b8ff794f4d6a27d47d487b716eced258fa76644e36bee0f46525f9920c9b6dd9f9ef1773d6aff610b0f944d29b0624f4cc10b6 `
   --pcr0 c126dc6db19cefcda5c0a412fecd692d5f12d801cf5ea5b262d954424a455cf25e6189ace615ad00be541d8295864279 `
-  --max-age-seconds 31536000 `
+  --now-utc 2026-10-02T12:25:30Z `
+  --max-age-seconds 60 `
   "<base64 nsm_document from aws-nitro-attestation-20.json>"
 ```
 
-The `--max-age-seconds` override only relaxes the timestamp freshness check for
-this archived document (the live default is 600 seconds); every cryptographic
-binding is still enforced by the command.
+`--now-utc` pins the documented issuance instant because AWS NSM leaf
+certificates are only valid for a few hours; the `--max-age-seconds 60` window
+is then applied at that instant. Every cryptographic binding is still enforced
+by the command, and live verification keeps the normal wall-clock behaviour.

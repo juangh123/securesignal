@@ -109,7 +109,15 @@ def verify_document(
     expected_pcr0: str | None = None,
     trusted_root: x509.Certificate | None = None,
     max_age_seconds: int = 600,
+    now: datetime | None = None,
 ) -> dict:
+    """Verify a COSE_Sign1 NSM document.
+
+    ``now`` pins the instant used for certificate validity and timestamp
+    freshness. Live callers leave it unset; archived evidence can pass the
+    documented issuance time because AWS NSM leaf certificates are only valid
+    for a few hours.
+    """
     root = trusted_root or load_root_certificate()
     decoded = cbor2.loads(document)
     if isinstance(decoded, cbor2.CBORTag):
@@ -134,8 +142,10 @@ def verify_document(
         raise NitroAttestationError(f"attestation document is missing: {sorted(missing)}")
 
     certificate = x509.load_der_x509_certificate(payload["certificate"])
-    now = datetime.now(timezone.utc)
-    _verify_chain(certificate, payload["cabundle"], root, now)
+    verified_at = now or datetime.now(timezone.utc)
+    if verified_at.tzinfo is None:
+        raise NitroAttestationError("verification time must be timezone-aware")
+    _verify_chain(certificate, payload["cabundle"], root, verified_at)
 
     sig_structure = cbor2.dumps(
         ["Signature1", protected_bytes, b"", payload_bytes]
@@ -156,7 +166,7 @@ def verify_document(
         raise NitroAttestationError("attestation COSE signature is invalid") from exc
 
     timestamp_ms = payload["timestamp"]
-    age = int(time.time() * 1000) - int(timestamp_ms)
+    age = int(verified_at.timestamp() * 1000) - int(timestamp_ms)
     if age < -60_000 or age > max_age_seconds * 1000:
         raise NitroAttestationError(
             f"attestation timestamp is outside the {max_age_seconds}s window"
@@ -179,6 +189,7 @@ def verify_document(
         raise NitroAttestationError("attestation PCR0 mismatch")
 
     return {
+        "verified_at": verified_at.isoformat(),
         "module_id": payload["module_id"],
         "digest": payload["digest"],
         "timestamp": timestamp_ms,
@@ -198,11 +209,23 @@ def main() -> None:
     parser.add_argument("--public-key-hex")
     parser.add_argument("--pcr0")
     parser.add_argument("--max-age-seconds", type=int, default=600)
+    parser.add_argument(
+        "--now-utc",
+        help=(
+            "timezone-aware ISO-8601 instant used for certificate validity and "
+            "freshness checks; default is the current time. Pinning the "
+            "documented issuance time keeps archived evidence verifiable after "
+            "the short-lived NSM leaf certificate expires."
+        ),
+    )
     args = parser.parse_args()
 
     encoded = args.document or sys.stdin.read().strip()
     try:
         document = base64.b64decode(encoded, validate=True)
+        now = datetime.fromisoformat(args.now_utc) if args.now_utc else None
+        if now is not None and now.tzinfo is None:
+            raise ValueError("--now-utc must include a timezone offset")
         summary = verify_document(
             document,
             expected_nonce=bytes.fromhex(args.nonce_hex) if args.nonce_hex else None,
@@ -214,6 +237,7 @@ def main() -> None:
             ),
             expected_pcr0=args.pcr0,
             max_age_seconds=args.max_age_seconds,
+            now=now,
         )
     except (ValueError, NitroAttestationError) as exc:
         print(f"invalid AWS Nitro attestation: {exc}", file=sys.stderr)
