@@ -59,6 +59,11 @@
 | `AWS_NITRO_PCR1` / `AWS_NITRO_PCR2` | AWS 生产可选 | 无 | EIF 构建输出的 PCR1/PCR2，随 attestation token 返回。 | `<96 hex>` |
 | `AWS_NSM_HELPER` | 可选 | `/usr/local/bin/nsm-attest` | 镜像内调用 `/dev/nsm` 的 helper 路径。 | 默认值 |
 | `AWS_NITRO_SECRET_PORT` | 可选 | `8001` | 父实例通过 vsock 给 enclave 注入 runtime bundle 的端口。 | `8001` |
+| `KMS_KEY_RELEASE` | KMS 模式必填 | `0` | 设为 `1` 时 runtime bundle 只含 KMS ciphertext；enclave 通过父实例 KMS 代理（vsock 8600）解封 `TEE_PRIVATE_KEY` / `PRIVATE_KEY` / `LLM_API_KEY`。见 [`kms-key-release.md`](kms-key-release.md) | `1` |
+| `KMS_KEY_ID` | KMS 模式必填 | 无 | KMS key ARN/ID；key policy 要求 `kms:RecipientAttestation:PCR0/1/2` 匹配 enclave attestation | `arn:aws:kms:us-east-1:...:key/...` |
+| `KMS_REGION` | 可选 | `AWS_REGION` 或 `us-east-1` | 父实例 KMS 代理调用的区域。 | `us-east-1` |
+| `KMS_VSOCK_PORT` | 可选 | `8600` | 父实例 KMS 代理监听的 vsock 端口。 | `8600` |
+| `TEE_PRIVATE_KEY_CIPHERTEXT` / `PRIVATE_KEY_CIPHERTEXT` / `LLM_API_KEY_CIPHERTEXT` | KMS 模式必填（有对应密钥时） | 无 | `kms:Encrypt` 生成的 base64 ciphertext；enclave 解封后写入对应 env，父实例不可读 | `<base64>` |
 | `FTSO_READER_ADDRESS` | —（当前**未被代码消费**） | — | 仅 `docker-compose.yml` 透传预留。当前 `price_provider.py` 经 FlareContractRegistry 直读链上官方 `FtsoV2`，无需部署的 `FtsoV2Reader` 地址；该 env 属历史遗留 | — |
 | `ANALYSIS_LIVE_TEST` | 可选（仅测试） | 未设 = 跳过联机单测 | 设为 `1` 时 `python -m unittest analysis.test_price_provider -v` 会执行真实 Coston2 RPC 联机用例 | `1` |
 
@@ -342,9 +347,12 @@ AWS 根证书固定在
 `tee-service/attestation/aws_nitro_root_g1.pem`，verifier 会校验
 COSE_Sign1 ES384 签名、证书链、有效期、nonce/user_data/public_key 与 PCR0。
 
-**信任边界**：首版部署由父实例通过 vsock 转发 runtime secret bundle。
-父实例在 enclave 信任边界之外，可以拒绝服务，因此更强方案应把
-`TEE_PRIVATE_KEY` 改为 KMS 封存密钥，并用 PCR0/PCR3/PCR8 限制 `kms:Decrypt`。
+**信任边界**：KMS key release 模式（部署脚本默认）下，父实例只转发 KMS
+ciphertext 和 attestation-bound 的解密请求；KMS key policy 要求
+`kms:RecipientAttestation:PCR0/1/2` 匹配当前 EIF，KMS 响应再用 enclave 的
+临时 RSA 公钥加密，因此父实例无法读取 `TEE_PRIVATE_KEY` / relayer key。
+协议见 [`kms-key-release.md`](kms-key-release.md)。当前运行中的 2.6.0 EIF
+早于该改动；下一次重建生效并产生新 PCR0，需要重新验证并更新链上承诺。
 
 ---
 

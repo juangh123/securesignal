@@ -10,6 +10,8 @@
 
 > **2026-10-02 AWS Nitro 2.6.0 安全加固 + 重建**：`/analyze` 强绑定链上 `inputDataHash`（读不到绑定即 503 fail-closed）；relayer 改为专用 gas-only 账户 `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72`，合约 owner key 不再进入 enclave/父实例；relayer nonce 分配串行化。新实例 `i-0ded6c8853f4cb1ae`，PCR0 `d114b727…`，task 21 链上 `Verified`（12/12），链上承诺更新为 `keccak256(PCR0)` = `0x92ba6b19…`（`rotateTeeKey` tx `0xe3538388…`），证据 `deliverables/aws-nitro-attestation-21.json`。
 
+> **2026-10-03 KMS key release（源码 2.7.0，待重建）**：部署脚本默认改为两阶段 KMS key release；父实例只转发 KMS ciphertext，key policy 用 `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`，enclave 用临时 RSA-2048 + NSM attestation 解封 TEE/relayer key，父实例不再能读取私钥。协议见 `docs/kms-key-release.md`；回滚用 `-DisableKmsKeyRelease`。下一次重建会产生新 PCR0，需要重新验证并更新链上承诺。
+
 ## 统一加密协议规范（所有 Worker 必须严格遵守）
 
 **算法**：secp256k1 ECIES = 临时密钥 ECDH → HKDF-SHA256 → AES-256-GCM

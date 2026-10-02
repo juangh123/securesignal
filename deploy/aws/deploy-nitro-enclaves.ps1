@@ -9,7 +9,9 @@ param(
     [string]$RpcUrl = "https://coston2-api.flare.network/ext/C/rpc",
     [string]$LlmBaseUrl = "https://api.deepseek.com/v1",
     [string]$LlmModel = "deepseek-flash",
-    [string]$EnvFile = (Join-Path $PSScriptRoot "..\..\tee-service\.env")
+    [string]$EnvFile = (Join-Path $PSScriptRoot "..\..\tee-service\.env"),
+    # Fallback for rollback/testing: serve the plaintext key bundle as before.
+    [switch]$DisableKmsKeyRelease
 )
 
 $ErrorActionPreference = "Stop"
@@ -111,6 +113,10 @@ $roleName = "$NamePrefix-ec2-role"
 $profileName = "$NamePrefix-ec2-profile"
 $securityGroupName = "$NamePrefix-api"
 $instanceName = "$NamePrefix-tee"
+$useKms = -not $DisableKmsKeyRelease
+$buildInfoKey = "tee-service/$NamePrefix-build.json"
+$kmsBundleKey = "tee-service/$NamePrefix-kms-bundle.json"
+$kmsKeyAlias = "$NamePrefix-tee-key"
 
 if (-not $ApiCidr) {
     $publicIp = (Invoke-RestMethod -Uri "https://checkip.amazonaws.com" -TimeoutSec 15).Trim()
@@ -160,6 +166,8 @@ try {
         "requirements-lock.txt",
         "main.py",
         "aws_rpc_gateway.py",
+        "aws_kms_proxy.py",
+        "aws_kms_release.py",
         "aws_vsock_proxy.py",
         "aws_vsock_rpc_bridge.py",
         "aws_enclave_entrypoint.sh",
@@ -211,7 +219,22 @@ foreach ($key in "TEE_PRIVATE_KEY", "PRIVATE_KEY", "LLM_API_KEY") {
 if (-not $bundle["TEE_PRIVATE_KEY"] -or -not $bundle["PRIVATE_KEY"]) {
     throw "TEE_PRIVATE_KEY and PRIVATE_KEY are required in $EnvFile"
 }
-Set-SecretValue -SecretId $secretId -Body ($bundle | ConvertTo-Json -Compress)
+if ($useKms) {
+    # The plaintext keys stay local until the EIF build reveals the PCR
+    # measurements; only the KMS-sealed bundle is written to AWS.
+    $placeholder = @{}
+    foreach ($key in $bundle.Keys) {
+        if ($key -notin @("TEE_PRIVATE_KEY", "PRIVATE_KEY", "LLM_API_KEY")) {
+            $placeholder[$key] = $bundle[$key]
+        }
+    }
+    $placeholder["KMS_KEY_RELEASE"] = "1"
+    $placeholder["KMS_BOOTSTRAP_PENDING"] = "1"
+    Set-SecretValue -SecretId $secretId -Body ($placeholder | ConvertTo-Json -Compress)
+}
+else {
+    Set-SecretValue -SecretId $secretId -Body ($bundle | ConvertTo-Json -Compress)
+}
 
 $trustPolicy = @'
 {
@@ -270,8 +293,16 @@ $instancePolicy = @"
     },
     {
       "Effect": "Allow",
-      "Action": ["s3:GetObject"],
-      "Resource": "arn:aws:s3:::$bucket/$sourceKey"
+      "Action": ["s3:GetObject", "s3:PutObject"],
+      "Resource": [
+        "arn:aws:s3:::$bucket/$sourceKey",
+        "arn:aws:s3:::$bucket/tee-service/$NamePrefix-*"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["kms:Decrypt", "kms:DescribeKey"],
+      "Resource": "*"
     },
     {
       "Effect": "Allow",
@@ -392,6 +423,9 @@ S3_BUCKET="__S3_BUCKET__"
 S3_KEY="__S3_KEY__"
 IMAGE_URI="__IMAGE_URI__"
 ENCLAVE_CID=16
+KMS_ENABLED="__KMS_ENABLED__"
+KMS_BUNDLE_KEY="__KMS_BUNDLE_KEY__"
+BUILD_INFO_KEY="__BUILD_INFO_KEY__"
 export NITRO_CLI_ARTIFACTS=/var/nitro_enclaves
 
 dnf update -y
@@ -423,7 +457,22 @@ PCR0=$(jq -r '.Measurements.PCR0' /opt/securesignal/build.json)
 PCR1=$(jq -r '.Measurements.PCR1' /opt/securesignal/build.json)
 PCR2=$(jq -r '.Measurements.PCR2' /opt/securesignal/build.json)
 
-aws secretsmanager get-secret-value --region "$REGION" --secret-id "$SECRET_ID" --query SecretString --output text > /opt/securesignal/runtime-env.json
+if [ "$KMS_ENABLED" = "1" ]; then
+  cat > /opt/securesignal/build-info.json <<EOF
+{"PCR0":"$PCR0","PCR1":"$PCR1","PCR2":"$PCR2"}
+EOF
+  aws s3 cp /opt/securesignal/build-info.json "s3://${S3_BUCKET}/${BUILD_INFO_KEY}" --region "$REGION"
+  for _ in $(seq 1 80); do
+    if aws s3 cp "s3://${S3_BUCKET}/${KMS_BUNDLE_KEY}" /opt/securesignal/runtime-env.json --region "$REGION" 2>/dev/null; then
+      break
+    fi
+    echo "waiting for the KMS-sealed runtime bundle..."
+    sleep 15
+  done
+  test -s /opt/securesignal/runtime-env.json
+else
+  aws secretsmanager get-secret-value --region "$REGION" --secret-id "$SECRET_ID" --query SecretString --output text > /opt/securesignal/runtime-env.json
+fi
 jq --arg pcr0 "$PCR0" --arg pcr1 "$PCR1" --arg pcr2 "$PCR2" \
   '. + {AWS_NITRO_PCR0:$pcr0, AWS_NITRO_PCR1:$pcr1, AWS_NITRO_PCR2:$pcr2}' \
   /opt/securesignal/runtime-env.json > /opt/securesignal/runtime-env.with-pcrs.json
@@ -455,6 +504,26 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
+if [ "$KMS_ENABLED" = "1" ]; then
+  dnf install -y python3-pip
+  python3 -m pip install --no-cache-dir boto3 || python3 -m pip install --no-cache-dir --break-system-packages boto3
+fi
+
+cat >/etc/systemd/system/securesignal-kms.service <<EOF
+[Unit]
+Description=SecureSignal KMS key-release proxy
+After=network-online.target
+
+[Service]
+Environment=AWS_REGION=$REGION
+Environment=KMS_VSOCK_PORT=8600
+ExecStart=/usr/bin/python3 /opt/securesignal/src/aws_kms_proxy.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
 cat >/etc/systemd/system/securesignal-proxy.service <<EOF
 [Unit]
 Description=SecureSignal enclave HTTP proxy
@@ -469,6 +538,9 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
+if [ "$KMS_ENABLED" = "1" ]; then
+  systemctl enable --now securesignal-kms.service
+fi
 systemctl enable --now securesignal-secrets.service
 systemctl enable --now securesignal-rpc.service
 nitro-cli terminate-enclave --all || true
@@ -481,12 +553,16 @@ nitro-cli run-enclave \
 systemctl enable --now securesignal-proxy.service
 '@
 
+$kmsEnabledValue = if ($useKms) { "1" } else { "0" }
 $userData = $userDataTemplate.
     Replace("__REGION__", $Region).
     Replace("__SECRET_ID__", $secretId).
     Replace("__S3_BUCKET__", $bucket).
     Replace("__S3_KEY__", $sourceKey).
     Replace("__IMAGE_URI__", $imageUri).
+    Replace("__KMS_ENABLED__", $kmsEnabledValue).
+    Replace("__KMS_BUNDLE_KEY__", $kmsBundleKey).
+    Replace("__BUILD_INFO_KEY__", $buildInfoKey).
     Replace("__RPC_URL__", $RpcUrl)
 $userDataPath = Join-Path $env:TEMP "securesignal-user-data-$([guid]::NewGuid().ToString('N')).sh"
 [System.IO.File]::WriteAllText($userDataPath, $userData, [System.Text.UTF8Encoding]::new($false))
@@ -530,11 +606,217 @@ $publicIp = (& $script:Aws ec2 describe-instances `
     --output text `
     --region $Region).Trim()
 
+if ($useKms) {
+    Write-Host "Waiting for the EIF build to report PCR measurements..."
+    $buildInfo = $null
+    for ($attempt = 0; $attempt -lt 80; $attempt++) {
+        $raw = (& $script:Aws s3 cp "s3://$bucket/$buildInfoKey" - --region $Region 2>$null) -join "`n"
+        if ($LASTEXITCODE -eq 0 -and $raw) {
+            try {
+                $candidate = $raw | ConvertFrom-Json
+                if ($candidate.PCR0 -and $candidate.PCR1 -and $candidate.PCR2) {
+                    $buildInfo = $candidate
+                    break
+                }
+            }
+            catch {
+                # The object may still be uploading; retry.
+            }
+        }
+        Start-Sleep -Seconds 15
+    }
+    if (-not $buildInfo) {
+        throw "Timed out waiting for the EIF build info at s3://$bucket/$buildInfoKey"
+    }
+
+    $pcr0 = [string]$buildInfo.PCR0
+    $pcr1 = [string]$buildInfo.PCR1
+    $pcr2 = [string]$buildInfo.PCR2
+    Write-Host "PCR0: $pcr0"
+
+    $aliasName = "alias/$kmsKeyAlias"
+    $keyId = (& $script:Aws kms list-aliases `
+        --query "Aliases[?AliasName=='$aliasName'].TargetKeyId" `
+        --output text `
+        --region $Region).Trim()
+    if (-not $keyId -or $keyId -eq "None") {
+        $keyId = (& $script:Aws kms create-key `
+            --description "SecureSignal TEE key release ($NamePrefix)" `
+            --key-usage ENCRYPT_DECRYPT `
+            --origin AWS_KMS `
+            --tags "TagKey=Project,TagValue=SecureSignal" `
+            --query "KeyMetadata.KeyId" `
+            --output text `
+            --region $Region).Trim()
+        if ($LASTEXITCODE -ne 0 -or -not $keyId) {
+            throw "kms create-key failed."
+        }
+        Invoke-Aws @(
+            "kms", "create-alias",
+            "--alias-name", $aliasName,
+            "--target-key-id", $keyId,
+            "--region", $Region
+        ) | Out-Null
+    }
+    $keyArn = "arn:aws:kms:$Region`:$accountId`:key/$keyId"
+    $roleArn = "arn:aws:iam::$accountId`:role/$roleName"
+    # Symmetric KMS keys support automatic yearly rotation; repeated calls are
+    # harmless if rotation is already enabled.
+    & $script:Aws kms enable-key-rotation --key-id $keyId --region $Region *> $null
+
+    # The key policy is the security boundary: the parent role may only
+    # Decrypt when the KMS recipient attestation matches the measured PCRs.
+    $keyPolicy = [ordered]@{
+        Version = "2012-10-17"
+        Statement = @(
+            [ordered]@{
+                Sid = "KeyAdministration"
+                Effect = "Allow"
+                Principal = @{ AWS = $identity.Arn }
+                Action = "kms:*"
+                Resource = "*"
+            },
+            [ordered]@{
+                Sid = "AllowDeployEncrypt"
+                Effect = "Allow"
+                Principal = @{ AWS = $identity.Arn }
+                Action = @("kms:Encrypt", "kms:DescribeKey")
+                Resource = "*"
+            },
+            [ordered]@{
+                Sid = "AllowEnclaveDecrypt"
+                Effect = "Allow"
+                Principal = @{ AWS = $roleArn }
+                Action = @("kms:Decrypt", "kms:DescribeKey")
+                Resource = "*"
+                Condition = @{
+                    StringEquals = @{
+                        "kms:RecipientAttestation:PCR0" = @($pcr0.ToLower(), $pcr0.ToUpper())
+                        "kms:RecipientAttestation:PCR1" = @($pcr1.ToLower(), $pcr1.ToUpper())
+                        "kms:RecipientAttestation:PCR2" = @($pcr2.ToLower(), $pcr2.ToUpper())
+                    }
+                }
+            }
+        )
+    }
+    $policyPath = Write-TempFile -Content ($keyPolicy | ConvertTo-Json -Depth 12)
+    try {
+        Invoke-Aws @(
+            "kms", "put-key-policy",
+            "--key-id", $keyId,
+            "--policy-name", "default",
+            "--policy", "file://$policyPath",
+            "--region", $Region
+        ) | Out-Null
+    }
+    finally {
+        Remove-Item -LiteralPath $policyPath -Force -ErrorAction SilentlyContinue
+    }
+
+    function Get-KmsCiphertext {
+        param([string]$Plaintext)
+        $plaintextPath = Join-Path $env:TEMP "securesignal-kms-plaintext-$([guid]::NewGuid().ToString('N')).txt"
+        [System.IO.File]::WriteAllText(
+            $plaintextPath,
+            $Plaintext,
+            [System.Text.UTF8Encoding]::new($false)
+        )
+        try {
+            $ciphertext = (& $script:Aws kms encrypt `
+                --key-id $keyArn `
+                --plaintext "fileb://$plaintextPath" `
+                --encryption-context "app=securesignal,purpose=tee-key-release" `
+                --query "CiphertextBlob" `
+                --output text `
+                --region $Region).Trim()
+            if ($LASTEXITCODE -ne 0 -or -not $ciphertext) {
+                throw "kms encrypt failed."
+            }
+            return $ciphertext
+        }
+        finally {
+            Remove-Item -LiteralPath $plaintextPath -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    $sealed = [ordered]@{}
+    foreach ($key in $bundle.Keys) {
+        if ($key -notin @("TEE_PRIVATE_KEY", "PRIVATE_KEY", "LLM_API_KEY")) {
+            $sealed[$key] = $bundle[$key]
+        }
+    }
+    $sealed["KMS_KEY_RELEASE"] = "1"
+    $sealed["KMS_KEY_ID"] = $keyArn
+    $sealed["KMS_REGION"] = $Region
+    $sealed["KMS_VSOCK_PORT"] = "8600"
+    $sealed["AWS_NITRO_PCR0"] = $pcr0
+    $sealed["AWS_NITRO_PCR1"] = $pcr1
+    $sealed["AWS_NITRO_PCR2"] = $pcr2
+    $sealed["TEE_PRIVATE_KEY_CIPHERTEXT"] = Get-KmsCiphertext -Plaintext $bundle["TEE_PRIVATE_KEY"]
+    $sealed["PRIVATE_KEY_CIPHERTEXT"] = Get-KmsCiphertext -Plaintext $bundle["PRIVATE_KEY"]
+    if ($bundle["LLM_API_KEY"]) {
+        $sealed["LLM_API_KEY_CIPHERTEXT"] = Get-KmsCiphertext -Plaintext $bundle["LLM_API_KEY"]
+    }
+
+    Set-SecretValue -SecretId $secretId -Body ($sealed | ConvertTo-Json -Compress)
+    $sealedPath = Write-TempFile -Content ($sealed | ConvertTo-Json -Compress)
+    try {
+        Invoke-Aws @(
+            "s3", "cp", $sealedPath, "s3://$bucket/$kmsBundleKey",
+            "--region", $Region
+        ) | Out-Null
+    }
+    finally {
+        Remove-Item -LiteralPath $sealedPath -Force -ErrorAction SilentlyContinue
+    }
+
+    function Test-EnclaveHealth {
+        $commandId = (& $script:Aws ssm send-command `
+            --instance-ids $instanceId `
+            --document-name "AWS-RunShellScript" `
+            --parameters 'commands=["curl -s -m 5 http://127.0.0.1:8000/health"]' `
+            --query "Command.CommandId" `
+            --output text `
+            --region $Region).Trim()
+        if (-not $commandId) {
+            return $false
+        }
+        Start-Sleep -Seconds 8
+        $output = (& $script:Aws ssm get-command-invocation `
+            --command-id $commandId `
+            --instance-id $instanceId `
+            --query "StandardOutputContent" `
+            --output text `
+            --region $Region) -join "`n"
+        return $output -match '"status"\s*:\s*"ok"'
+    }
+
+    Write-Host "Waiting for the enclave to complete KMS key release and become healthy..."
+    $deadline = (Get-Date).AddMinutes(12)
+    $healthy = $false
+    while ((Get-Date) -lt $deadline) {
+        if (Test-EnclaveHealth) {
+            $healthy = $true
+            break
+        }
+        Start-Sleep -Seconds 15
+    }
+    if (-not $healthy) {
+        throw "The enclave did not become healthy after KMS key release. Inspect /var/log/securesignal-bootstrap.log on $instanceId via SSM."
+    }
+}
+
 Write-Host ""
 Write-Host "Nitro Enclaves deployment submitted."
 Write-Host "Instance:  $instanceId"
 Write-Host "Public IP: $publicIp"
+Write-Host "KMS key release: $(if ($useKms) { 'active' } else { 'disabled (plaintext bundle)' })"
 Write-Host "Bootstrap log: /var/log/securesignal-bootstrap.log"
 Write-Host "Health: http://$publicIp`:8000/health"
 Write-Host ""
-Write-Host "The first boot builds the EIF and can take 5-10 minutes."
+if ($useKms) {
+    Write-Host "The EIF was rebuilt, KMS-sealed keys were released, and the enclave is healthy."
+}
+else {
+    Write-Host "The first boot builds the EIF and can take 5-10 minutes."
+}

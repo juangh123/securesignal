@@ -93,6 +93,11 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   - 验证交易: `0x9c63ae3700b969deb9bf106402fb6b6e49b73cfea88b3a88bd3fcfc010653a62`（task 21）
   - 证据包: `deliverables/aws-nitro-attestation-21.json` + 独立 NSM 验证
   - 链上测量承诺: `keccak256(PCR0)` = `0x92ba6b1956182011f2cf46fa032d9c45b64f779e66697775439e21b93614be0f`，`rotateTeeKey` tx `0xe353838836c44053aa3372110b56db307ac48016bbe9637e66f90996c7db4cde`
+- ✅ **KMS key release（源码 2.7.0，待重建生效）**：部署脚本默认两阶段 KMS
+  解封；父实例只转发 KMS ciphertext，key policy 用
+  `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`，enclave 用临时
+  RSA-2048 + NSM attestation 解封 `TEE_PRIVATE_KEY` / relayer key。协议见
+  [docs/kms-key-release.md](docs/kms-key-release.md)。
 - ✅ **公开 Demo 2.5.0 冒烟**（2026-10-02）——Render 路径（`dev-simulated`，非硬件证明）
   跑真实 DeepSeek（`analysis_mode="llm"`）+ 批量 FTSO，task 19 链上 `Verified`，
   **12/12 断言通过**；证据 `deliverables/coston2-smoke-task-19.json`。硬件证明以 task 21

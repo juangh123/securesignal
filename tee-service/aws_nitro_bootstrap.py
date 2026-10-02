@@ -6,9 +6,14 @@ import socket
 import sys
 import time
 
+from aws_kms_release import KmsReleaseError, release_bundle
+
 PARENT_CID = 3
 SECRET_PORT = int(os.environ.get("AWS_NITRO_SECRET_PORT", "8001"))
 MAX_BUNDLE_BYTES = 256 * 1024
+KMS_BOOTSTRAP_TIMEOUT_SECONDS = int(
+    os.environ.get("KMS_BOOTSTRAP_TIMEOUT_SECONDS", "1200")
+)
 
 
 def read_bundle() -> dict:
@@ -42,9 +47,30 @@ def read_bundle() -> dict:
     raise RuntimeError(f"failed to read configuration from the parent: {last_error}")
 
 
+def wait_for_kms_bundle(timeout_seconds: int = KMS_BOOTSTRAP_TIMEOUT_SECONDS) -> dict:
+    """Wait until the deploy script replaces the pending placeholder bundle."""
+    deadline = time.time() + timeout_seconds
+    while time.time() < deadline:
+        bundle = read_bundle()
+        if str(bundle.get("KMS_BOOTSTRAP_PENDING", "")).strip() != "1":
+            return bundle
+        time.sleep(5.0)
+    raise RuntimeError("timed out waiting for the KMS key-release bundle")
+
+
 def main() -> None:
     try:
         bundle = read_bundle()
+        if str(bundle.get("KMS_BOOTSTRAP_PENDING", "")).strip() == "1":
+            bundle = wait_for_kms_bundle()
+        try:
+            port = int(bundle.get("KMS_VSOCK_PORT", "8600"))
+        except (TypeError, ValueError):
+            port = 8600
+        bundle = release_bundle(bundle, port=port)
+    except KmsReleaseError as exc:
+        print(f"[aws-nitro] fatal: KMS key release failed: {exc}", file=sys.stderr)
+        raise SystemExit(1)
     except RuntimeError as exc:
         print(f"[aws-nitro] fatal: {exc}", file=sys.stderr)
         raise SystemExit(1)

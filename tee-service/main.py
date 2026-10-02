@@ -65,7 +65,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-SERVICE_VERSION = "2.6.0"
+SERVICE_VERSION = "2.7.0"
 
 app = FastAPI(title="SecureSignal TEE Service", version=SERVICE_VERSION, lifespan=lifespan)
 

@@ -91,6 +91,26 @@
       "Resource": "*"
     },
     {
+      "Sid": "DeploymentKmsKeyRelease",
+      "Effect": "Allow",
+      "Action": [
+        "kms:CreateKey",
+        "kms:CreateAlias",
+        "kms:ListAliases",
+        "kms:DescribeKey",
+        "kms:GetKeyPolicy",
+        "kms:GetKeyRotationStatus",
+        "kms:ListResourceTags",
+        "kms:PutKeyPolicy",
+        "kms:TagResource",
+        "kms:EnableKeyRotation",
+        "kms:Encrypt",
+        "kms:Decrypt",
+        "kms:ScheduleKeyDeletion"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "DeploymentSsm",
       "Effect": "Allow",
       "Action": [

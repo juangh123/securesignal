@@ -20,7 +20,7 @@
 | **功能实现 (Code Completeness)** | ✅ *Pass* | ECIES 加解密链路前后端对齐；合约 `rotateTeeKey` 访问控制 (`onlyOwner`) 规范且经验证测试通过；`ecrecover` 机制正确应用于 Attestation 验签。 |
 | **LLM 与 FTSO 引擎 (Engine)** | ✅ *Pass* | LLM与FTSO容错机制清晰，“绝不静默伪造假价或伪造LLM响应”。在异常时能以明确的 `rule-fallback` 退回，状态标注诚实。 |
 | **机密计算 (TEE Attestation)** | ✅ *Pass (2026-10-02)* | 生产路径运行于非 debug 的 AWS Nitro Enclave（2.6.0 重建）；NSM COSE/CBOR 文档已对固定 AWS 根证书验签，证书链、ES384 签名、nonce、`task_id + result_hash` user_data、ECIES 公钥与 PCR0 全部通过。Coston2 task 21 链上 `Verified`，证据见 `deliverables/aws-nitro-attestation-21.json` 与独立 verifier 输出；链上 `expectedImageDigest` 已更新为 `keccak256(PCR0)` 承诺。`/analyze` 已把密文与链上 `inputDataHash` 强绑定（不可读取则 fail-closed）。公共 Render 端点仍明确标注 `dev-simulated`。 |
-| **私钥生命周期 (Key Lifecycle)** | ✅ *Pass (2026-10-02)* | `crypto/keys.py` 在 `ENV=prod` 且缺少/空白 `TEE_PRIVATE_KEY` 时直接抛错（fail-closed），临时密钥仅允许在 dev 模式生成；`crypto/test_keys.py` 覆盖 5 个密钥生命周期用例。enclave relayer 已切换为专用 gas-only 账户 `0x0A3452C5B96396F186bD2d7ed793F8701A88fF72`（合约 owner 私钥不再进入 enclave/父实例），relayer nonce 分配已串行化。KMS key release 仍是后续强化项。 |
+| **私钥生命周期 (Key Lifecycle)** | ✅ *Pass（KMS 源码 2.7.0）* | `crypto/keys.py` 在 `ENV=prod` 且缺少/空白 `TEE_PRIVATE_KEY` 时直接抛错（fail-closed）；enclave relayer 已切换为专用 gas-only 账户，relayer nonce 分配已串行化。源码 2.7.0 的部署脚本默认启用两阶段 KMS key release：父实例只转发 KMS ciphertext，key policy 用 `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`，enclave 用临时 RSA-2048 + NSM attestation 解封私钥（见 `docs/kms-key-release.md`）。当前运行中的 2.6.0 EIF 尚未包含该改动，下一次重建生效。 |
 | **LLM 数据边界泄露** | ⚠️ *Follow-up（已披露）* | 前端 TrustNotice 会依据实时 `/health` 显示：配置 LLM 时，holdings/symbols 等字段会作为 prompt 文本发给通用模型供应商，保密范围仅覆盖 browser → TEE 传输。剩余风险是无法在不更换机密推理供应商的前提下消除，属于明确的用户知情选择。 |
 | **依赖安全 (Supply Chain)** | ✅ *Pass* | Docker 镜像 digest 的锁定以及 `requirements-lock.txt` 下的所有 Python 依赖进行了 SHA256 哈希硬编码，这有效防范了针对 `pip` 的水坑攻击。 |
 
@@ -39,8 +39,8 @@
 
 1. **链上验证真正的 TEE 证明**：
    当前 `AnalysisRegistry` 只校验 EIP-191 TEE 签名；NSM/COSE 验证由链下 verifier 完成，owner 登记 TEE key 的信任假设仍然存在。长期方案是在合约或 Flare attestation 中间层验证 NSM/JWT 证明（含 PCR 白名单），让链上状态不依赖 owner 的人工审查。
-2. **私钥无磁盘化（Keyless Architecture）**：
-   当前父实例通过 vsock 转发 runtime secret bundle，父实例可以拒绝服务，但仍在其信任边界之外。下一步应把 `TEE_PRIVATE_KEY` 改为 KMS 封存密钥，并用 `kms:RecipientAttestation:PCR0`（配合 PCR3/PCR8）限制 `kms:Decrypt`，让密钥只在通过证明的 enclave 内解封。
+2. **KMS key release 的自动化与轮换**：
+   两阶段 KMS key release 已在部署脚本/启动器中实现（PCR0/1/2 条件 + RSA-OAEP 响应加密），下一次重建生效。后续可补：KMS key 自动轮换的运维告警、key policy 的最小权限收缩（把父角色 `kms:Decrypt` 的资源范围收窄到具体 key ARN）、以及 KMS key 删除/重建的演练。
 3. **LLM 模型信任边界 (Disclosure)**：
    前端已实时披露通用 LLM 会接收 prompt 文本、保密范围只到 TEE 边界。若要在产品层面消除该越界，需要替换为机密推理 API 或允许用户选择纯规则引擎模式。
 4. **前端重载提示（Rehydration Issue）**：

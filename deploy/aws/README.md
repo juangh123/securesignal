@@ -71,14 +71,22 @@ Prerequisites:
 The script:
 
 1. Packages `tee-service` and uploads it to a private staging S3 bucket.
-2. Builds and pushes the `linux/amd64` image from the parent instance.
-3. Stores runtime environment and secrets in AWS Secrets Manager.
-4. Creates a least-privilege EC2 role, security group, and AL2023 parent
+2. Creates a least-privilege EC2 role, security group, and AL2023 parent
    instance.
-5. Uses `nitro-cli build-enclave` to create the EIF and records PCR0/PCR1/PCR2.
-6. Starts the enclave without `--debug-mode`, then proxies TCP port 8000 to
-   vsock port 8000.
-7. Serves the runtime secret bundle to the enclave over vsock port 8001.
+3. On first boot the parent builds and pushes the `linux/amd64` image, runs
+   `nitro-cli build-enclave`, records PCR0/PCR1/PCR2 in S3, and waits for the
+   sealed runtime bundle.
+4. The local script creates or reuses the KMS key, writes a policy that only
+   allows `kms:Decrypt` when the enclave attestation matches those PCRs,
+   encrypts the local keys with `kms:Encrypt`, and uploads the sealed bundle.
+5. The parent serves the sealed bundle over vsock port 8001; the enclave
+   performs the KMS key-release handshake and then starts without
+   `--debug-mode`. TCP port 8000 is proxied to vsock port 8000.
+6. `-DisableKmsKeyRelease` keeps the old plaintext-bundle path for rollback or
+   debugging only.
+
+See [`docs/kms-key-release.md`](../../docs/kms-key-release.md) for the threat
+model and protocol details.
 
 ## Publish the enclave over HTTPS
 
@@ -125,10 +133,15 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
 ## Trust boundary
 
 The parent instance relays the encrypted HTTP body and the runtime secret
-bundle over vsock. The parent is outside the enclave trust boundary and can
-deny service, so this first deployment does not yet use KMS key release. For a
-stronger key lifecycle, move `TEE_PRIVATE_KEY` into KMS and gate `Decrypt` on
-PCR0/PCR3/PCR8.
+bundle over vsock and can still deny service. With KMS key release enabled
+(the default), the bundle contains only KMS ciphertexts and the parent's
+`kms:Decrypt` permission is conditioned on the enclave attestation
+PCR0/PCR1/PCR2, so the parent cannot read the TEE key or the dedicated
+relayer key.
+
+> The running 2.6.0 deployment predates KMS key release and still uses the
+> plaintext bundle. The next rebuild activates KMS key release and produces a
+> new PCR0, which must be re-verified and re-committed on-chain.
 
 ## Cost and teardown
 
