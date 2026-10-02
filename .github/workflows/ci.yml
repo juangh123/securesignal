@@ -112,6 +112,19 @@ jobs:
             ) | Out-Null
           }
           if ($errors) { $errors | Format-List; exit 1 }
+      - name: Validate the EC2 user-data bash template
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          text = Path("deploy/aws/deploy-nitro-enclaves.ps1").read_text(encoding="utf-8")
+          match = re.search(r"\$userDataTemplate\s*=\s*@'\n(.*?)\n'@", text, re.S)
+          if not match:
+              raise SystemExit("user-data template not found in deploy-nitro-enclaves.ps1")
+          Path("/tmp/securesignal-userdata.sh").write_text(match.group(1), encoding="utf-8")
+          PY
+          bash -n /tmp/securesignal-userdata.sh
 
   live-health:
     # GitHub's schedule trigger is best-effort and has not started these cron

@@ -546,19 +546,60 @@ Restart=always
 WantedBy=multi-user.target
 EOF
 
+cat >/opt/securesignal/enclave-watchdog.sh <<'WDEOF'
+#!/bin/bash
+# nitro-cli starts the enclave in the background, so it is not a systemd
+# service. This watchdog keeps it running across enclave crashes and parent
+# instance reboots, reusing the fixed CID so the vsock proxies keep working.
+set -u
+STATE=$(/usr/bin/nitro-cli describe-enclaves | /usr/bin/jq -r '.[] | select(.EnclaveName=="securesignal-tee") | .State' 2>/dev/null | head -n1)
+if [ "$STATE" = "RUNNING" ]; then
+  exit 0
+fi
+echo "securesignal enclave state=${STATE:-missing}; restarting"
+/usr/bin/nitro-cli terminate-enclave --all >/dev/null 2>&1 || true
+/usr/bin/nitro-cli run-enclave \
+  --enclave-name securesignal-tee \
+  --cpu-count 2 \
+  --memory 3072 \
+  --eif-path /opt/securesignal/securesignal.eif \
+  --enclave-cid "$(cat /opt/securesignal/enclave-cid)"
+/usr/bin/systemctl restart securesignal-proxy.service
+WDEOF
+chmod +x /opt/securesignal/enclave-watchdog.sh
+
+cat >/etc/systemd/system/securesignal-enclave-watchdog.service <<EOF
+[Unit]
+Description=SecureSignal enclave watchdog
+After=nitro-enclaves-allocator.service securesignal-secrets.service securesignal-rpc.service
+
+[Service]
+Type=oneshot
+ExecStart=/opt/securesignal/enclave-watchdog.sh
+EOF
+
+cat >/etc/systemd/system/securesignal-enclave-watchdog.timer <<EOF
+[Unit]
+Description=Run the SecureSignal enclave watchdog every 30 seconds
+
+[Timer]
+OnBootSec=45
+OnUnitActiveSec=30
+Unit=securesignal-enclave-watchdog.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 systemctl daemon-reload
 if [ "$KMS_ENABLED" = "1" ]; then
   systemctl enable --now securesignal-kms.service
 fi
 systemctl enable --now securesignal-secrets.service
 systemctl enable --now securesignal-rpc.service
-nitro-cli terminate-enclave --all || true
-nitro-cli run-enclave \
-  --enclave-name securesignal-tee \
-  --cpu-count 2 \
-  --memory 3072 \
-  --eif-path /opt/securesignal/securesignal.eif \
-  --enclave-cid "$ENCLAVE_CID"
+echo "$ENCLAVE_CID" > /opt/securesignal/enclave-cid
+systemctl enable --now securesignal-enclave-watchdog.timer
+systemctl start securesignal-enclave-watchdog.service
 systemctl enable --now securesignal-proxy.service
 '@
 
