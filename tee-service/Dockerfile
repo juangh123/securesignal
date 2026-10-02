@@ -1,5 +1,5 @@
 # ── NSM helper: official AWS Nitro Enclaves API ─────────────────────────────
-FROM rust:1.92-slim-bookworm AS nsm-builder
+FROM rust:1.98-slim-bookworm AS nsm-builder
 
 WORKDIR /build
 COPY aws-nsm-helper/Cargo.toml ./
