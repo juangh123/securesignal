@@ -235,3 +235,7 @@ node tools/ops-status.mjs
 3. **Q4 2026**：DAO treasury 多签报告模式
 4. **2027**：申请 Flare 生态 grant；向其他 builder 开放 TEE 分析 API
 
+## License
+
+MIT，见 [LICENSE](LICENSE)。
+

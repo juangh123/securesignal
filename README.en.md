@@ -59,3 +59,7 @@ Direct video fallback: https://github.com/juangh123/securesignal/raw/main/video/
 - Extend hardware attestation to additional TEE providers and add automatic key rotation.
 - Provide a Zero-Knowledge proof mechanism for users to demonstrate their 'Risk Score' to credit protocols without showing absolute balances.
 - Generalize the product to offer a Confidential Oracle service for third-party dApps on Flare Mainnet.
+
+## License
+
+MIT. See [LICENSE](LICENSE).

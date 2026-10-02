@@ -136,6 +136,13 @@ $keyPolicy = [ordered]@{
     Version = "2012-10-17"
     Statement = @(
         [ordered]@{
+            Sid = "KeyAdministrationAccountRoot"
+            Effect = "Allow"
+            Principal = @{ AWS = "arn:aws:iam::$accountId`:root" }
+            Action = "kms:*"
+            Resource = "*"
+        },
+        [ordered]@{
             Sid = "KeyAdministration"
             Effect = "Allow"
             Principal = @{ AWS = $identity.Arn }

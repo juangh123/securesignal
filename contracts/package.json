@@ -14,7 +14,7 @@
   },
   "keywords": ["flare", "confidential-compute", "tee", "attestation"],
   "author": "SecureSignal",
-  "license": "ISC",
+  "license": "MIT",
   "devDependencies": {
     "@nomicfoundation/hardhat-toolbox": "^5.0.0",
     "@types/node": "^26.1.1",
