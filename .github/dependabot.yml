@@ -1,35 +1,65 @@
 version: 2
+
+# Policy: never auto-open major-version PRs; group minor/patch updates into one
+# reviewable PR per ecosystem; keep Python hash-locked dependency bumps manual
+# (Dependabot security updates still open their own PRs).
 updates:
-  # Keep the CI/monitoring workflows' actions current without hand-editing
-  # pinned revisions.
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 1
+    groups:
+      actions-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/frontend"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    groups:
+      frontend-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/contracts"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 2
+    groups:
+      contracts-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "pip"
     directory: "/tee-service"
     schedule:
       interval: "weekly"
-    open-pull-requests-limit: 5
+    # Version updates off; the hash-locked runtime deps are upgraded manually.
+    # Dependabot security updates are a separate feature and still open PRs.
+    open-pull-requests-limit: 0
 
-  # The production Dockerfile pins the Python base image by digest; keep the
-  # digest fresh via reviewable Dependabot PRs.
   - package-ecosystem: "docker"
     directory: "/tee-service"
     schedule:
-      interval: "weekly"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 1
+    groups:
+      docker-minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

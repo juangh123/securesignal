@@ -14,6 +14,9 @@ services:
     dockerfilePath: ./tee-service/Dockerfile
     plan: free
     healthCheckPath: /public-key
+    # Do not create per-PR preview environments for this demo service; only the
+    # main production deployment is needed.
+    previewsEnabled: false
     envVars:
       # 显式锁定演示模式，避免 ENV/ATTESTATION_PROVIDER 漂移后被误当成生产环境。
       - key: ENV
