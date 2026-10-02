@@ -35,11 +35,17 @@ SecureSignal lets users get personalized crypto portfolio risk analysis and reba
 
 ## 7. What We Built During the Hackathon
 Pre-hackathon state: none — this is a new project, not an existing product.
-Everything below was built from zero to working prototype within the hackathon window:
-- **TEE analysis engine** (Python/FastAPI): ECIES decryption, portfolio risk scoring (LLM-ready with deterministic rule-engine fallback), live FTSO pricing, AWS NSM attestation, result relaying to the chain.
-- **Smart contracts** (Solidity/Hardhat): `AnalysisRegistry` + `FtsoV2Reader`, deployed to Coston2 and verified end-to-end (12/12 production smoke tests).
+The hackathon deliverable (built July–August 2026, before the 2026-08-14 deadline):
+- **TEE analysis engine** (Python/FastAPI): ECIES decryption, portfolio risk scoring (LLM-ready with deterministic rule-engine fallback), live FTSO pricing, result relaying to the chain.
+- **Smart contracts** (Solidity/Hardhat): `AnalysisRegistry` + `FtsoV2Reader`, deployed to Coston2 and verified end-to-end (12/12 production smoke test, 2026-07-19).
 - **Web 3.0 app** (Next.js 16): wallet connect, client-side ECIES encryption, encrypted request submission, decrypted result display, and on-chain verification UI — fully in English.
-- **Cloud deployment:** frontend on Vercel; public demo TEE on Render; production attestation path deployed and verified on AWS Nitro Enclaves (`us-east-1`).
+- **Cloud deployment:** frontend on Vercel; public demo TEE on Render.
+
+Post-deadline hardening (September 29 – October 2, 2026; listed for completeness, not
+part of the original hackathon submission):
+- AWS Nitro Enclaves hardware attestation (non-debug; NSM COSE/CBOR, PCR0) with a verified Coston2 result (task 18).
+- Live DeepSeek `deepseek-flash` LLM configuration; `/analyze` reports `analysis_mode="llm"` with rule-engine fallback.
+- FTSO asset coverage expanded from 3 to 31 feeds; on-chain task gate and task-expiry hardening on `/analyze`.
 
 ## 8. Contract & Deployment Details
 **Network:** Flare Coston2 Testnet (chainId 114)
@@ -55,7 +61,7 @@ Everything below was built from zero to working prototype within the hackathon w
 | Verified result tx (task 18) | `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04` |
 | Attestation evidence | `deliverables/aws-nitro-attestation-18.json` + verification JSON |
 
-**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, AWS NSM COSE signature verified against the pinned root, attestation `ecrecover` matches the TEE address, on-chain status = Verified. Task 18 also includes a repository evidence bundle under `deliverables/`.
+**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, attestation `ecrecover` matches the TEE address, on-chain status = Verified. The NSM COSE/CBOR document from that run was verified separately against the pinned AWS Nitro root (certificate chain, ES384 signature, nonce, user data, ECIES public key, PCR0); task 18's raw evidence and verification output are in `deliverables/aws-nitro-attestation-18.json` and `deliverables/aws-nitro-attestation-18-verification.json`.
 
 **Testing & distribution status (honest):** 12/12 production smoke assertions on Coston2, 23/23 local end-to-end assertions, and a 2:19 recorded live demo. No external pilot users, paid distribution, or partnership commitments yet; the public live app and open-source repo are the current distribution channels.
 

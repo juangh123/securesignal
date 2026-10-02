@@ -88,7 +88,7 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | Registered TEE address | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
 
-**Verification:** production smoke test 12/12 on Coston2 using the AWS Nitro Enclave — real FTSO prices, NSM COSE signature, attestation `ecrecover` == TEE address, on-chain status = Verified. Verified result transaction: `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04` (`taskId=18`). Raw evidence: `deliverables/aws-nitro-attestation-18.json`.
+**Verification:** production smoke test 12/12 on Coston2 against the AWS Nitro Enclave — real FTSO prices, attestation `ecrecover` == TEE address, on-chain status = Verified. The NSM COSE/CBOR document was verified separately against the pinned AWS Nitro root (certificate chain, ES384 signature, nonce, user_data, ECIES key, PCR0). Verified result transaction: `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04` (`taskId=18`). Raw evidence: `deliverables/aws-nitro-attestation-18.json`.
 
 **AWS Nitro Enclaves measurements:**
 
@@ -101,8 +101,8 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 - The analysis engine calls an OpenAI-compatible LLM when configured and falls back to a deterministic rule engine otherwise. The verified AWS run exercised the deterministic rule engine with real FTSO prices.
 
 ### Roadmap
-- Q3 2026: real vTPM attestation, wallet auto-import of holdings, FAssets (FXRP) analysis.
-- Q4 2026: DAO treasury multi-sig report mode.
+- Completed 2026-10: real AWS Nitro Enclaves attestation, verified end-to-end on Coston2.
+- Q4 2026: wallet auto-import of holdings, FAssets (FXRP) analysis, and DAO treasury multi-sig report mode.
 - 2027: Flare ecosystem grant; open the TEE analysis API to other builders; launch a Confidential Oracle service on Flare Mainnet.
 
 ## 10. Team page

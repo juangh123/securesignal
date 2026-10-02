@@ -44,7 +44,7 @@ SecureSignal 已有并验证过的资产（上一赛事 Flare Summer Signal 完�
 - `AnalysisRegistry` 合约：TEE 密钥登记、attestation `ecrecover` 验签、结果哈希上链（含负例测试）
 - Coston2 已部署合约 + 12/12 生产冒烟测试 + FTSO 真实读价
 - 真实 AWS Nitro Enclaves 硬件 attestation：非 debug enclave、NSM COSE/CBOR、
-  AWS root 验签、nonce/user_data/ECIES key/PCR0 全验证，task 17 链上 `Verified`
+  AWS root 验签、nonce/user_data/ECIES key/PCR0 全验证，task 18 链上 `Verified`
 - Next.js 前端全流程 + LLM 分析引擎（OpenAI 兼容，规则引擎回退）
 - Vercel + Render 在线 Demo + 演示视频管线
 

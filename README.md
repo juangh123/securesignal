@@ -44,7 +44,7 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   长期卡在 `Requested` 的僵尸任务不会被反复分析。`GET /health` 的 `analyze_requires_onchain_task`
   反映门禁实际是否生效。
 - **LLM 分析引擎**：OpenAI 兼容 API（env `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`）。
-  LLM 只产出判断字段（risk_score / risk_level / rebalance / 中文 summary），组合数学全部由
+  LLM 只产出判断字段（risk_score / risk_level / rebalance / 英文 summary），组合数学全部由
   `analysis/engine.py` 确定性计算；失败自动重试一次后回退规则引擎，响应以
   `analysis_mode: "llm" | "rule-fallback"` 如实标注。未配置 API key 时静默使用规则引擎。
 - **FTSO 真实读价**：`analysis/price_provider.py` 经 FlareContractRegistry 直读 Coston2 官方
@@ -52,10 +52,12 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   当前支持 **31 个资产**（BTC/ETH/FLR/XRP/SOL/LINK/USDC/DOGE…，完整清单见 `GET /assets`），
   feed ID 由 `SUPPORTED_SYMBOLS` 按 `0x01 || "<SYM>/USD"` 规则生成，每个都经 Coston2 实读验证；
   前端用该清单在**发起交易前**拦截不支持的 symbol，避免用户白付 gas。
-  联机实测（2026-07-19，`ANALYSIS_LIVE_TEST=1 python -m unittest analysis.test_price_provider`，
-  完整输出见 `tee-service/ftso-live-test.log`）：
-  BTC/USD **$64,649.78**、ETH/USD **$1,866.52**、FLR/USD **$0.006560**
-  （feed 时间戳 2026-07-19 04:03 UTC，`price_source="coston2-ftso"`）。
+  联机实测：
+  - 2026-07-19（BTC/ETH/FLR）：BTC/USD **$64,649.78**、ETH/USD **$1,866.52**、
+    FLR/USD **$0.006560**（feed 时间戳 2026-07-19 04:03 UTC，`price_source="coston2-ftso"`）。
+  - 2026-10-02 全量巡检：**31/31 feeds 全部读取成功且新鲜**（age 1–21s），
+    完整 JSON 证据见 `deliverables/ftso-live-check-2026-10-02.json`；
+    可用 `python tee-service/tools/live_ftso_check.py --out <path>` 复跑。
   仅当显式 `ANALYSIS_OFFLINE=1` 时使用 dev fixture 价，且标注 `price_source: "offline-fixture"`。
 - 本地端到端集成验证 **23/23 断言通过**（`frontend/e2e/e2e-local-run.log`）：
   起链 → 部署 → 加密 → `/analyze` → 解密 → 链上 resultHash 一致 → ecrecover 一致。
@@ -80,7 +82,7 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
 - ✅ **AWS Nitro Enclaves 真实硬件 attestation**（2026-10-02）——非 debug enclave
   已在 `us-east-1` 部署；NSM document 的根证书、ES384 签名、nonce、
   `task_id + result_hash`、ECIES 公钥与 PCR0 全部验证通过。Coston2 生产冒烟
-  **12/12 通过**，task 17 已链上 `Verified`。
+  **12/12 通过**，task 18 已链上 `Verified`。
   - PCR0: `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b`
   - 验证交易: `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04`（task 18）
   - 证据包: `deliverables/aws-nitro-attestation-18.json`
@@ -156,7 +158,9 @@ npm run dev
 2. 比对镜像 digest 与链上 `expectedImageDigest`。
 3. 不一致 = enclave 运行的不是已公开代码。
 
-当前 dev 构建中第 2–3 步用的是 `setup-tee.ts` 登记的占位 digest；真实 vTPM 度量是上述 TODO。
+链上登记的 `expectedImageDigest` 仍是 `setup-tee.ts` 的 dev 占位值（见
+[docs/deployment.md](docs/deployment.md) §2.5）；AWS Nitro 的真实硬件度量（PCR0）
+与验证方式见 [deploy/aws/README.md](deploy/aws/README.md)。
 
 ## 测试与 CI
 

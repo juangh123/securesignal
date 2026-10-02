@@ -1,7 +1,7 @@
 # SecureSignal 黑客松提交清单
 
 > Flare Summer Signal Hackathon — Bounty 2: Confidential Compute Apps
-> 状态日期：2026-10-02（提交前终检）。Flare Summer Signal 截止 2026-08-14 19:59；BLI Legal Tech Hackathon 2 截止 2026-11-01 01:01（DoraHacks）。✅ = 已完成并有验证证据；⏳ = 等待外部凭据/人工操作。
+> 状态日期：2026-10-02（提交材料复核与提交后证据补充）。Flare Summer Signal 已于 2026-08-14 19:59 截止（BUIDL 47690）；BLI Legal Tech Hackathon 2 截止 2026-11-01 01:01（DoraHacks）。✅ = 已完成并有验证证据；⏳ = 等待外部凭据/人工操作。
 
 ## 一、代码与功能（✅ 全部完成）
 
@@ -20,7 +20,7 @@
 | 文档（架构 / 部署手册 / 双语 README） | ✅ | docs/ 三份 + README.md / README.en.md |
 | 版本管理 | ✅ | git init，首次提交 2c6a6ec |
 
-## 二、提交前必办事项（状态：1–5 已完成）
+## 二、提交事项（1–7 均已完成）
 
 | # | 事项 | 状态 | 验证证据 / 指引 |
 |---|---|---|---|
@@ -30,7 +30,7 @@
 | 4 | 更新 README Live Demo 区块 | ✅ | README.md / README.en.md 已回填真实链接、合约地址、TEE 公钥与视频链接 |
 | 5 | 录制演示视频 | ✅ | `video/dist/SecureSignal_demo_1080p_v3.mp4`（2:19，1080p，英文配音+字幕，含真实 Coston2 交易） |
 | 6 | （可选）真实 LLM key | ✅ | 2026-09-30 已在 Render 配置 DeepSeek `deepseek-flash`（key 走 Dashboard/API，不入库）；线上 `/health` 返回 `llm_configured=true`，`/analyze` 返回 `analysis_mode="llm"` |
-| 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 17 链上 `Verified` |
+| 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 18 链上 `Verified`（`deliverables/aws-nitro-attestation-18.json`） |
 
 ## 三、评审亮点（提交描述可用）
 
@@ -38,7 +38,7 @@
 2. **安全不是贴纸**：`rotateTeeKey` 无访问控制的原漏洞已修复（onlyOwner）；合约端 ecrecover 验签拒绝伪造 attestation，含负例测试。
 3. **FTSO 真实消费**：直读 Coston2 官方 FtsoV2 合约（经 FlareContractRegistry 解析），失败显式报错、绝不静默返回假价；离线模式显式标注。
 4. **真实硬件证明 + 诚实分级**：生产路径运行在 AWS Nitro Enclave，返回可验证的 NSM attestation document；公共 Render demo 仍明确标注 `dev-simulated`，两者不混淆。
-5. **可复现构建**：基础镜像 digest 锁定 + 77 个 pip 依赖 sha256 哈希锁定，支撑"镜像 digest 上链验证"叙事。
+5. **可复现构建**：基础镜像 digest 锁定 + 79 个 pip 依赖 sha256 哈希锁定；链上 `expectedImageDigest` 目前仍是 dev 占位值，真实 AWS Nitro 测量由 NSM document + 链下 verifier 验证。
 
 ## 四、已知限制（评审问答预案）
 

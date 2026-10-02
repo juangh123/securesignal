@@ -20,7 +20,9 @@ The flow is as follows:
    is read from the `AnalysisRequested` event.
 3. **TEE Service**: The client posts the encrypted payload
    (`{ task_id, encrypted_data }`) to the FastAPI service. In production this
-   runs inside GCP Confidential Space; in local dev it is a plain process.
+   runs inside a non-debug AWS Nitro Enclave (the verified deployment); GCP
+   Confidential Space is a supported alternative. In local dev it is a plain
+   process.
 4. **Processing**: Inside the service:
    - The payload is decrypted with the TEE's private key (`eciespy`), which is
      sourced from `TEE_PRIVATE_KEY` and never leaves the service.
@@ -66,9 +68,10 @@ The flow is as follows:
   available). `FtsoV2` itself is resolved through the canonical
   FlareContractRegistry (`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`).
 - **TEE Backend**: Python FastAPI. `eciespy` for secp256k1 ECIES, `web3.py`
-  for FTSO reads and relayer submission, fail-closed GCP Confidential Space
-  OIDC/JWT attestation, and AWS Nitro Enclaves NSM attestation.
-  Deployment tooling is under `deploy/gcp/` and `deploy/aws/`.
+  for FTSO reads and relayer submission, AWS Nitro Enclaves NSM attestation
+  (verified production path), and fail-closed GCP Confidential Space
+  OIDC/JWT attestation. Deployment tooling is under `deploy/aws/` and
+  `deploy/gcp/`.
 - **Encryption protocol**: secp256k1 ECIES (ECDH → HKDF-SHA256 → AES-256-GCM),
   wire format `65B ephemeral pubkey || 16B nonce || 16B tag || ciphertext`,
   base64-encoded. Byte-compatible between `eciesjs` and `eciespy`; verified

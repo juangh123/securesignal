@@ -40,7 +40,7 @@ For this program, we built the entire stack from zero to prototype:
 ## Demo
 Try the Live App: https://securesignal.vercel.app/
 (Ensure you are connected to the Flare Coston2 Testnet)
-Live TEE Endpoint: https://securesignal-tee.onrender.com (`/public-key`; `/health` ships in the current source once redeployed)
+Live TEE Endpoint: https://securesignal-tee.onrender.com (`/public-key`, `/health`, `/assets`)
 One-command read-only status check: `node tools/ops-status.mjs`
 Demo Video (2:19, English): https://youtu.be/1V5yuxIENvc
 

@@ -39,7 +39,7 @@
 
 ### Stage 3 — 工程化收尾（1 个 coder，Stage 2 通过后启动）✅ 已完成（2026-07-19）
 
-交付收尾工程师：① `tee-service/Dockerfile` 锁定基础镜像 digest + `pip install --require-hashes` ✅（digest 经 Registry API 查实；`requirements-lock.txt` 77 包 sha256 锁定，目标 linux/amd64 py3.11）② `docker-compose.yml` 增加 deploy 初始化服务（hardhat 健康检查 → deploy.ts → setup-tee.ts → tee-service/frontend 依赖启动）✅，修复无效 env（移除无人消费的 `RUNNING_IN_TEE`、移除覆盖真实值的 `NEXT_PUBLIC_PROJECT_ID=dummy`，tee-service 补齐 `ANALYSIS_OFFLINE/RPC_URL/TEE_PRIVATE_KEY/PRIVATE_KEY/FTSO_READER_ADDRESS/TEE_IMAGE_DIGEST` 透传）✅ ③ 根 `README.md` 如实更新：真实完成状态、五步本地运行指南、dev-simulated 诚实标注、Live Demo 标注待部署 ✅ ④ 更新 `docs/architecture.md` 与实现对齐（第 5/6 步按实现重写、Next.js 16 等事实修正）✅ ⑤ 全项目 TODO/占位符最终扫描 ✅（无假数据残留，合法 TODO 保留并登记）⑥ 更新本 plan.md 状态为完成 ✅
+交付收尾工程师：① `tee-service/Dockerfile` 锁定基础镜像 digest + `pip install --require-hashes` ✅（digest 经 Registry API 查实；`requirements-lock.txt` 79 包 sha256 锁定，目标 linux/amd64 py3.11）② `docker-compose.yml` 增加 deploy 初始化服务（hardhat 健康检查 → deploy.ts → setup-tee.ts → tee-service/frontend 依赖启动）✅，修复无效 env（移除无人消费的 `RUNNING_IN_TEE`、移除覆盖真实值的 `NEXT_PUBLIC_PROJECT_ID=dummy`，tee-service 补齐 `ANALYSIS_OFFLINE/RPC_URL/TEE_PRIVATE_KEY/PRIVATE_KEY/FTSO_READER_ADDRESS/TEE_IMAGE_DIGEST` 透传）✅ ③ 根 `README.md` 如实更新：真实完成状态、五步本地运行指南、dev-simulated 诚实标注、Live Demo 标注待部署 ✅ ④ 更新 `docs/architecture.md` 与实现对齐（第 5/6 步按实现重写、Next.js 16 等事实修正）✅ ⑤ 全项目 TODO/占位符最终扫描 ✅（无假数据残留，合法 TODO 保留并登记）⑥ 更新本 plan.md 状态为完成 ✅
 
 ## 验收标准
 - [x] `npx hardhat test` 全绿（含权限/签名负例）— Stage 1 完成
@@ -72,7 +72,8 @@
 - 失败策略：任何网络/RPC/数据异常抛 `PriceProviderError`，**无静默回退假价**；未知 symbol 在任何网络访问前抛 `ValueError`。
 - 离线模式：仅 `ANALYSIS_OFFLINE=1` 用 fixture 价（BTC 65000 / ETH 3500 / FLR 0.02），`price_source="offline-fixture"` 明确标注非真实市价。
 - 单测：offline 5 例 + mocked online 14 例全过；联机用例 `ANALYSIS_LIVE_TEST=1` 门控。
-- **联机实测（2026-07-19，`LiveCoston2Tests` 通过，完整输出见 `tee-service/ftso-live-test.log`）**：BTC/USD $64,649.78、ETH/USD $1,866.52、FLR/USD $0.006560；feed 时间戳 2026-07-19 04:03 UTC（新鲜度秒级）；`price_source="coston2-ftso"`。
+- **联机实测（2026-07-19，`LiveCoston2Tests` 通过）**：BTC/USD $64,649.78、ETH/USD $1,866.52、FLR/USD $0.006560；feed 时间戳 2026-07-19 04:03 UTC（新鲜度秒级）；`price_source="coston2-ftso"`。
+- **全量巡检（2026-10-02）**：`tools/live_ftso_check.py` 对 `SUPPORTED_SYMBOLS` 全量 `getFeedById` 实读，**31/31 feeds ok**、age 1–21s、`price_source="coston2-ftso"`；证据 `deliverables/ftso-live-check-2026-10-02.json`，可用 `python tee-service/tools/live_ftso_check.py --out <path>` 复跑。
 
 ## 遗留外部依赖清单（本地无法闭环，接入手册：`docs/deployment.md`）
 
@@ -84,4 +85,5 @@
 | ~~真实 LLM 调用~~ ✅ 已在线上启用（DeepSeek `deepseek-flash`，2026-09-30；信任模型注意事项见手册 §4.2） | — | deployment.md §4 |
 | ~~`scripts/setup-tee.ts` 生产化~~ ✅ 已完成：脚本已网络感知（localhost 用 dev key，其余网络走 `TEE_PRIVATE_KEY`/`TEE_IMAGE_DIGEST` env） | 已完成 | deployment.md §2.4 |
 | WalletConnect project id | 需 WalletConnect Cloud 账号（前端必填 env） | deployment.md §1.3 |
-| Live Demo（App / 视频 / 主网合约） | 依赖上述部署完成 | README「Live Demo」节 |
+| Live Demo（App / 视频） | ✅ 已完成：Vercel 前端 + Render 公开 Demo + AWS Nitro Enclave 真实路径 + 已发布演示视频 | README「Live Demo」节 |
+| Flare 主网合约 | 仍在路线图；当前生产验证网络为 Coston2 测试网 | SUBMISSION.md「Roadmap」 |

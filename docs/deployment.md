@@ -35,7 +35,7 @@
 
 | 变量 | 必填性 | 默认值 | 说明 | 示例 |
 |---|---|---|---|---|
-| `TEE_PRIVATE_KEY` | 生产**必填** | 未设：进程内生成**临时**密钥并打印醒目警告（仅 dev；重启即换钥，链上登记随之失效） | TEE 的 secp256k1 私钥（ECIES 解密 + attestation 签名共用），32 字节 hex，可带 `0x` 前缀。见 `crypto/keys.py` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`（hardhat account #1，**仅本地**） |
+| `TEE_PRIVATE_KEY` | 生产**必填** | 未设且 `ENV=prod`：启动直接抛错（**fail-closed**，禁止临时密钥兜底）；仅 dev 模式允许生成进程内临时密钥并打印醒目警告（重启即换钥，链上登记随之失效） | TEE 的 secp256k1 私钥（ECIES 解密 + attestation 签名共用），32 字节 hex，可带 `0x` 前缀。见 `crypto/keys.py` 与 `crypto/test_keys.py` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`（hardhat account #1，**仅本地**） |
 | `PRIVATE_KEY` | 可选 | 未设：relayer 关闭，响应 `onchain_submitted=false`，启动日志打印 `Relayer NOT configured` | 结果上链 relayer 账户私钥（付 gas 调 `submitResult`）。见 `flare/contracts.py` | `0xac0974...f4f2ff80`（hardhat account #0，**仅本地**） |
 | `RPC_URL` | 可选 | `https://coston2-api.flare.network/ext/C/rpc`（relayer 与 FTSO 读价共用同一默认值） | EVM JSON-RPC 端点 | `http://127.0.0.1:8545`（本地） |
 | `ANALYSIS_OFFLINE` | 可选 | 未设 = 在线模式（真实 FTSO 读价） | 恰好等于 `"1"` 时启用 dev fixture 价（BTC 65000 / ETH 3500 / FLR 0.02，**非真实市价**），结果标注 `price_source="offline-fixture"`。见 `analysis/price_provider.py` | `1` |
@@ -134,8 +134,8 @@ npx hardhat run scripts/deploy.ts --network coston2
 | AnalysisRegistry | `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482` |
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | 登记 TEE 地址 | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
-| 链上 `expectedImageDigest` | `keccak256("dev-image")`（dev 占位值，接入真实 vTPM 后替换） |
-| 最近成功任务 | task #5，2026-08-12，链上 `status=Verified` |
+| 链上 `expectedImageDigest` | `keccak256("dev-image")`（dev 占位值；该字段是 `bytes32`，AWS Nitro PCR0 为 48 字节，若上链只能存 `keccak256(PCR0)` 承诺，当前尚未替换。真实 PCR0 由 NSM document + 链下 verifier 校验，见 §3.5） |
+| 最近成功任务 | task #18，2026-10-02，链上 `status=Verified`（AWS Nitro Enclave 运行，证据见 `deliverables/aws-nitro-attestation-18.json`） |
 | 冒烟测试 | `frontend/e2e/e2e-coston2.mjs`（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
 
 > 早期部署（2026-07-19 首次上线）为 `AnalysisRegistry 0xfA3126Ca8f6F4CEc3cf3a6266B9cd71d4B7fB531` / `FtsoV2Reader 0xe60745669C54b66F67ae85Ce031D4bDED4311163`，已被上表部署取代，勿再引用。
@@ -190,7 +190,7 @@ npm install && npm run build && npm start   # 或 npm run dev
 | 4 | `POST /analyze` 响应 | `onchain_submitted=true`；`price_source="coston2-ftso"`；`prices_used` 为正值真实价 |
 | 5 | 链上核对 | explorer 上 `tasks(taskId).status == 3 (Verified)`，`resultHash` == 响应 `result_hash`；`ResultSubmitted` 事件可查 |
 | 6 | 前端解密展示 | 会话私钥解密 `encrypted_result` 成功，显示 risk_score / rebalance / summary；`analysis_mode` 为 `llm` 或 `rule-fallback`（两者皆合法） |
-| 7 | attestation | token JSON 中 `tee_address` == 链上 `teeAddress`，`mode` 字段如实标注（当前为 `dev-simulated`，见 §3） |
+| 7 | attestation | token JSON 中 `tee_address` == 链上 `teeAddress`，`mode` 字段如实标注：公共 Render Demo 为 `dev-simulated`；AWS Nitro 生产路径为 `aws-nitro-enclaves`，并带 NSM document、PCR0/PCR1/PCR2 与 `nsm_document_sha256`（见 §3.5） |
 | 8 | `curl https://<tee>/health` | 返回 `status:"ok"`；`relayer_configured` / `llm_configured` / `price_mode` / `attestation_mode` 与实际部署一致（响应不含任何密钥） |
 | 9 | `curl https://<tee>/assets` | 返回可定价资产清单（当前 31 个，含 BTC/ETH/FLR）；前端用它拦截不支持的 symbol，避免用户为必然失败的请求付 gas |
 | 10 | `POST /analyze` 传一个不存在的 taskId | 返回 `409 not pending on-chain`（除非显式设了 `ANALYZE_REQUIRE_ONCHAIN_TASK=0`） |
@@ -297,6 +297,28 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
   --public-key-hex <TEE public key> `
   --pcr0 <pcr0> `
   <nsm_document>
+```
+
+当前已验证部署（2026-10-02）：
+
+| 项目 | 值 |
+|---|---|
+| 区域 / 父实例 | `us-east-1` / `i-00987a244d4d6f09d` |
+| Enclave | 非 debug（`Flags: NONE`），`attestation_mode="aws-nitro-enclaves"` |
+| PCR0 | `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b` |
+| PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
+| 端到端验证 | Coston2 冒烟测试 `12/12`；task 18 链上 `Verified`；证据 `deliverables/aws-nitro-attestation-18.json` |
+
+enclave 自身只监听 HTTP，且安全组最初只放行操作员 IP。公开 HTTPS 入口使用
+`deploy/aws/expose-https-cloudfront.ps1`：脚本会创建或复用 CloudFront 分发，
+把 CloudFront origin-facing 托管前缀列表加入安全组，并输出
+`https://<distribution>.cloudfront.net`。该脚本已提交但尚未执行（部署用临时凭据
+已删除，当前没有 CloudFront 域名）；重新登录 AWS 后运行：
+
+```powershell
+.\deploy\aws\expose-https-cloudfront.ps1 `
+  -InstanceId i-00987a244d4d6f09d `
+  -Region us-east-1
 ```
 
 AWS 根证书固定在
