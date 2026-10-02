@@ -165,6 +165,9 @@ recovers without operator action:
   reconnecting the vsock HTTP proxy with the same enclave CID. The enclave is
   started in the background by `nitro-cli`, not as a systemd process, so this
   watchdog is what brings it back after an enclave crash or a parent reboot.
+  The unit sets `KillMode=process`; without it systemd kills the enclave when
+  the oneshot watchdog unit exits, which was caught by a controlled restart
+  test on 2026-10-03.
 - CloudWatch alarm `securesignal-instance-recover` (`StatusCheckFailed_System`)
   triggers the built-in EC2 recover action; `securesignal-instance-reboot`
   (`StatusCheckFailed_Instance`) reboots the instance, after which the watchdog

@@ -575,6 +575,8 @@ After=nitro-enclaves-allocator.service securesignal-secrets.service securesignal
 
 [Service]
 Type=oneshot
+# systemd must not kill the enclave process when this oneshot unit exits.
+KillMode=process
 ExecStart=/opt/securesignal/enclave-watchdog.sh
 EOF
 
@@ -585,6 +587,8 @@ Description=Run the SecureSignal enclave watchdog every 30 seconds
 [Timer]
 OnBootSec=45
 OnUnitActiveSec=30
+AccuracySec=5s
+RandomizedDelaySec=0
 Unit=securesignal-enclave-watchdog.service
 
 [Install]
