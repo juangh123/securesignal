@@ -20,7 +20,7 @@
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "viem": "^2.55.1",
-    "wagmi": "^3.7.1"
+    "wagmi": "^3.7.7"
   },
   "overrides": {
     "@walletconnect/ethereum-provider": "2.21.1",
