@@ -34,8 +34,13 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 > change requires a new EIF, a new PCR0, and a fresh verification before this
 > table is updated.
 
-The temporary IAM access keys used for deployment were deleted. The dedicated
-IAM user and least-privilege policy remain for future rotations.
+The temporary IAM access key used for this deployment was revoked on
+2026-10-03 and the local copy deleted. The dedicated IAM user and
+least-privilege policy remain for future rotations. The deploy identity
+intentionally cannot list or delete its own access keys, so temporary keys are
+created and revoked with the admin profile (or the IAM console). The previous
+2.6.0 instance `i-0ded6c8853f4cb1ae` was stopped on the same day; its EBS volume
+is retained and it can be terminated once no longer needed for rollback.
 
 ## Why not use the root user
 
