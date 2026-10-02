@@ -17,6 +17,13 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 | PCR2 | stored in the enclave runtime measurements; read from `nitro-cli describe-enclaves` |
 | Verification | Coston2 production smoke test `12/12` passed; task 18 `Verified`; evidence in `deliverables/aws-nitro-attestation-18.json` |
 
+> **Build provenance (2026-10-02):** the running EIF and the PCR0 above were
+> built before the 2.5.0 performance changes (batched FTSO reads, bounded LLM
+> budget) and the later documentation updates. Rebuilding from the current
+> `main` will produce a different PCR0; rerun the verifier, publish the new
+> measurement, and update this table before claiming the running enclave
+> matches the current source.
+
 The temporary IAM access keys used for deployment were deleted. The dedicated
 IAM user and least-privilege policy remain for future rotations.
 

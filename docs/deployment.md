@@ -311,6 +311,10 @@ python tee-service\tools\verify_aws_nitro_attestation.py `
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
 | 端到端验证 | Coston2 冒烟测试 `12/12`；task 18 链上 `Verified`；证据 `deliverables/aws-nitro-attestation-18.json` |
 
+> **构建溯源（2026-10-02）**：上述运行中的 EIF 与 PCR0 构建于 2.5.0 性能改动
+> （批量 FTSO、LLM 总预算）之前。从当前 `main` 重建会得到**不同的 PCR0**；在重新
+> 验证并公布新测量值之前，不应声称运行中的 enclave 与当前源码逐字节一致。
+
 enclave 自身只监听 HTTP，且安全组最初只放行操作员 IP。公开 HTTPS 入口使用
 `deploy/aws/expose-https-cloudfront.ps1`：脚本会创建或复用 CloudFront 分发，
 把 CloudFront origin-facing 托管前缀列表加入安全组，并输出
