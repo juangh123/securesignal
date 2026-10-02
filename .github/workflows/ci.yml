@@ -21,7 +21,8 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          # Match the production image (python:3.11-slim in tee-service/Dockerfile).
+          python-version: "3.11"
           cache: pip
           cache-dependency-path: |
             tee-service/requirements.txt
@@ -74,3 +75,30 @@ jobs:
           # enough to compile; real deploys set the production project id.
           NEXT_PUBLIC_PROJECT_ID: ci-build-placeholder
         run: npm run build
+
+  tooling:
+    name: tooling · scripts and evidence syntax
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - name: Node syntax
+        run: node --check tools/ops-status.mjs
+      - name: JSON evidence files
+        run: |
+          python -m json.tool deploy/aws/deployment-policy.json > /dev/null
+          python -m json.tool deliverables/aws-nitro-attestation-18.json > /dev/null
+          python -m json.tool deliverables/aws-nitro-attestation-18-verification.json > /dev/null
+          python -m json.tool deliverables/ftso-live-check-2026-10-02.json > /dev/null
+      - name: PowerShell syntax
+        shell: pwsh
+        run: |
+          $errors = $null
+          Get-ChildItem deploy/aws/*.ps1 | ForEach-Object {
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $_.FullName, [ref]$null, [ref]$errors
+            ) | Out-Null
+          }
+          if ($errors) { $errors | Format-List; exit 1 }
