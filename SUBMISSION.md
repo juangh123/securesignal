@@ -52,9 +52,10 @@ Everything below was built from zero to working prototype within the hackathon w
 | TEE public key | `04088c6f6e685b84d396521b59d8b8ff794f4d6a27d47d487b716eced258fa76644e36bee0f46525f9920c9b6dd9f9ef1773d6aff610b0f944d29b0624f4cc10b6` |
 | AWS Nitro Enclave PCR0 | `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b` |
 | AWS Nitro Enclave PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
-| Verified result tx (task 17) | `0x50a5eedd0b4ea43cd9e0c2980332c25f078d865952b5b515845bc70f141002e2` |
+| Verified result tx (task 18) | `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04` |
+| Attestation evidence | `deliverables/aws-nitro-attestation-18.json` + verification JSON |
 
-**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, AWS NSM COSE signature verified against the pinned root, attestation `ecrecover` matches the TEE address, on-chain status = Verified.
+**Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, AWS NSM COSE signature verified against the pinned root, attestation `ecrecover` matches the TEE address, on-chain status = Verified. Task 18 also includes a repository evidence bundle under `deliverables/`.
 
 **Testing & distribution status (honest):** 12/12 production smoke assertions on Coston2, 23/23 local end-to-end assertions, and a 2:19 recorded live demo. No external pilot users, paid distribution, or partnership commitments yet; the public live app and open-source repo are the current distribution channels.
 

@@ -15,7 +15,7 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 | PCR0 | `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b` |
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
 | PCR2 | stored in the enclave runtime measurements; read from `nitro-cli describe-enclaves` |
-| Verification | Coston2 production smoke test `12/12` passed: real FTSO, NSM COSE signature, ecrecover, on-chain `Verified` |
+| Verification | Coston2 production smoke test `12/12` passed; task 18 `Verified`; evidence in `deliverables/aws-nitro-attestation-18.json` |
 
 The temporary IAM access keys used for deployment were deleted. The dedicated
 IAM user and least-privilege policy remain for future rotations.

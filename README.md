@@ -82,7 +82,8 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   `task_id + result_hash`、ECIES 公钥与 PCR0 全部验证通过。Coston2 生产冒烟
   **12/12 通过**，task 17 已链上 `Verified`。
   - PCR0: `853316351f15ac48236389561075a8b3d4756d20ac14c77df05a1e8727fdf1ab448422fc91f2d22001bff6ff4562637b`
-  - 验证交易: `0x50a5eedd0b4ea43cd9e0c2980332c25f078d865952b5b515845bc70f141002e2`
+  - 验证交易: `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04`（task 18）
+  - 证据包: `deliverables/aws-nitro-attestation-18.json`
 
 ## 环境变量快速配置
 

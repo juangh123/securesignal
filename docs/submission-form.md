@@ -88,7 +88,7 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | Registered TEE address | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
 
-**Verification:** production smoke test 12/12 on Coston2 using the AWS Nitro Enclave — real FTSO prices, NSM COSE signature, attestation `ecrecover` == TEE address, on-chain status = Verified. Verified result transaction: `0x50a5eedd0b4ea43cd9e0c2980332c25f078d865952b5b515845bc70f141002e2` (`taskId=17`).
+**Verification:** production smoke test 12/12 on Coston2 using the AWS Nitro Enclave — real FTSO prices, NSM COSE signature, attestation `ecrecover` == TEE address, on-chain status = Verified. Verified result transaction: `0xb92493184d1c802128c86caeab4b909b057928fe5203658fa044a89eda398f04` (`taskId=18`). Raw evidence: `deliverables/aws-nitro-attestation-18.json`.
 
 **AWS Nitro Enclaves measurements:**
 
