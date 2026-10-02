@@ -25,11 +25,11 @@
 | # | 事项 | 状态 | 验证证据 / 指引 |
 |---|---|---|---|
 | 1 | Coston2 测试网部署合约 | ✅ | AnalysisRegistry `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482`、FtsoV2Reader `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`；生产冒烟 12/12（`frontend/e2e/e2e-coston2.mjs`） |
-| 2 | tee-service 部署到可公网访问的环境 | ✅ | https://securesignal-tee.onrender.com（`/public-key` 200，已实测） |
+| 2 | tee-service 部署到可公网访问的环境 | ✅ | 真实硬件路径：https://d1tubqcwiwwev5.cloudfront.net（CloudFront → AWS Nitro Enclave，`/health` 返回 `aws-nitro-enclaves`）；dev-simulated Demo：https://securesignal-tee.onrender.com |
 | 3 | 前端部署（Vercel） | ✅ | https://securesignal.vercel.app（英文 UI，已实测） |
 | 4 | 更新 README Live Demo 区块 | ✅ | README.md / README.en.md 已回填真实链接、合约地址、TEE 公钥与视频链接 |
 | 5 | 录制演示视频 | ✅ | `video/dist/SecureSignal_demo_1080p_v3.mp4`（2:19，1080p，英文配音+字幕，含真实 Coston2 交易） |
-| 6 | （可选）真实 LLM key | ✅ | 2026-09-30 已在 Render 配置 DeepSeek `deepseek-flash`（key 走 Dashboard/API，不入库）；线上 `/health` 返回 `llm_configured=true`，`/analyze` 返回 `analysis_mode="llm"` |
+| 6 | （可选）真实 LLM key | ✅ | 2026-09-30 已在 Render 配置 DeepSeek `deepseek-flash`（key 走 Dashboard/API，不入库）；Render Demo 的 `/health` 返回 `llm_configured=true`，`/analyze` 返回 `analysis_mode="llm"`。真实 enclave 路径不配置 LLM key，走规则引擎 |
 | 7 | （可选，加分项）真实硬件 attestation | ✅ | AWS Nitro Enclaves 非 debug 部署（2.5.0 重建）；NSM COSE 签名、证书链、nonce、user_data、ECIES key、PCR0 全部验证通过；task 20 链上 `Verified`（`deliverables/aws-nitro-attestation-20.json` + 独立验证） |
 
 ## 三、评审亮点（提交描述可用）

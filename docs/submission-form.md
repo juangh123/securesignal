@@ -38,7 +38,8 @@ Fallback: GitHub profile `https://github.com/juangh123`
 ---
 
 ## Other useful links for the submission text
-- TEE backend: `https://securesignal-tee.onrender.com` (`/public-key`)
+- TEE backend (real AWS Nitro Enclave, used by the app): `https://d1tubqcwiwwev5.cloudfront.net` (`/health` reports `attestation_mode=aws-nitro-enclaves`)
+- Dev-simulated demo backend (DeepSeek LLM): `https://securesignal-tee.onrender.com`
 - Contracts (Coston2, chainId 114): AnalysisRegistry `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482` · FtsoV2Reader `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a`
 - Registered TEE address: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
 - Example on-chain result (Coston2 tx): `0xe2d4321b7d49aaf5bd1bc9995c6cf0f12a936b3ae424b6460ace3bad60d457b3`
@@ -78,7 +79,8 @@ SecureSignal runs the analysis engine inside a TEE (Trusted Execution Environmen
 Video (2:19): https://youtu.be/1V5yuxIENvc
 
 - Live App: https://securesignal.vercel.app (connect wallet on Flare Coston2 testnet)
-- TEE Backend: https://securesignal-tee.onrender.com (`/public-key`)
+- TEE Backend: https://d1tubqcwiwwev5.cloudfront.net (real AWS Nitro Enclave; `/health` reports `attestation_mode=aws-nitro-enclaves`)
+- Dev-simulated demo backend: https://securesignal-tee.onrender.com (DeepSeek LLM, explicitly labeled `dev-simulated`)
 - Source: https://github.com/juangh123/securesignal
 
 ### Contracts (Coston2 Testnet, chainId 114)

@@ -202,12 +202,16 @@ node tools/ops-status.mjs
   - 登记 TEE 地址: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
   - 生产冒烟测试 **12/12 通过**（`frontend/e2e/e2e-coston2.mjs`）：真实 FTSO 喂价、attestation ecrecover == TEE 地址、链上 status=Verified
 - App: https://securesignal.vercel.app
-- TEE 后端: https://securesignal-tee.onrender.com（`/public-key`、`/health` 与 `/assets` 均已上线；`/health` 返回 `llm_configured=true`、`llm_model=deepseek-flash`；只读巡检 `node tools/ops-status.mjs` 9/9 通过）
+- TEE 后端（App 实际使用，真实硬件证明）: https://d1tubqcwiwwev5.cloudfront.net
+  （`/health` 返回 `version=2.5.0`、`attestation_mode=aws-nitro-enclaves`、PCR0
+  `c126dc6d…`；enclave 内未配置 LLM key，分析走确定性规则引擎，持仓不离开 TEE）
+- 公开 Demo 对照（`dev-simulated` + DeepSeek LLM）: https://securesignal-tee.onrender.com
+  （`/health` 返回 `attestation_mode=dev-simulated`、`llm_configured=true`、`llm_model=deepseek-flash`）
 - 演示视频（2:19，英文配音+字幕，含真实 Coston2 交易）: https://youtu.be/1V5yuxIENvc
 - 视频直链（备用）: https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
 - TEE 公钥: `04088c6f6e685b84d396521b59d8b8ff794f4d6a27d47d487b716eced258fa76644e36bee0f46525f9920c9b6dd9f9ef1773d6aff610b0f944d29b0624f4cc10b6`
 - Contracts (Flare Mainnet): *(未部署)*
-- 一键只读巡检: `node tools/ops-status.mjs`（前端 / TEE 后端 / Coston2 合约交叉核对，不发起交易、不改变链上状态）
+- 一键只读巡检: `REQUIRE_REAL_TEE=1 EXPECT_ATTESTATION_MODE=aws-nitro-enclaves TEE_URL=https://d1tubqcwiwwev5.cloudfront.net node tools/ops-status.mjs`（前端 / TEE 后端 / Coston2 合约交叉核对，不发起交易、不改变链上状态）
 
 ## Roadmap
 1. **已完成**：AWS Nitro Enclaves 真实硬件 attestation（NSM COSE + PCR0 + 链上 12/12 验证）

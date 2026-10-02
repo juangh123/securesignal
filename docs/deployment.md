@@ -415,6 +415,10 @@ export LLM_TOTAL_BUDGET=35                       # 可选，两次尝试合计�
 
 ### 6.1 TEE 服务 → Render
 
+> 本节是公开 `dev-simulated` Demo 的部署方式（可选 DeepSeek LLM）。
+> App 当前实际使用的是 §3.5 的真实 AWS Nitro Enclave CloudFront 端点
+> `https://d1tubqcwiwwev5.cloudfront.net`；Render 端点仅作为对照/降级演示。
+
 仓库根含 `render.yaml`（Blueprint）：Docker 运行时、`dockerContext=./tee-service`、
 健康检查 `/public-key`、非密钥 env 已预填。
 

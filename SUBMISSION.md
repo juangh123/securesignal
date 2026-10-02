@@ -22,7 +22,8 @@ SecureSignal lets users get personalized crypto portfolio risk analysis and reba
 
 ## 5. Demo & Links
 - **Live App:** https://securesignal.vercel.app (connect a wallet on the Flare Coston2 testnet, chainId 114)
-- **TEE Backend:** https://securesignal-tee.onrender.com (`/public-key` returns the registered TEE key)
+- **TEE Backend (used by the app, real hardware attestation):** https://d1tubqcwiwwev5.cloudfront.net (`/health` returns `attestation_mode=aws-nitro-enclaves` and the verified PCR0)
+- **Public dev-simulated demo (DeepSeek LLM):** https://securesignal-tee.onrender.com (`/health` returns `attestation_mode=dev-simulated`, `llm_configured=true`)
 - **Demo Video (2:19, English voiceover + subtitles):** https://youtu.be/1V5yuxIENvc
 - **Direct video fallback:** https://github.com/juangh123/securesignal/raw/main/video/dist/SecureSignal_demo_1080p_v3.mp4
 - **Source:** https://github.com/juangh123/securesignal (contracts/, tee-service/, frontend/, docs/)
