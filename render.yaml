@@ -1,7 +1,11 @@
-# Render Blueprint - SecureSignal TEE 服务（方案 A）
+# Render Blueprint - SecureSignal 公开演示服务（dev-simulated）
 # 使用方式：Render Dashboard -> New -> Blueprint -> 选择本仓库，
 # 或在 New Web Service 时选择 Docker 运行并指向 tee-service/ 目录。
 # 密钥类 env 不入库（sync: false），在 Render Dashboard 手动填写。
+#
+# 这里是公开 Demo，不是生产 TEE：没有任何硬件可信执行环境，
+# attestation 由服务内的 dev-simulated provider 生成。
+# 真实硬件证明路径是 AWS Nitro Enclaves，见 deploy/aws/README.md。
 services:
   - type: web
     name: securesignal-tee
@@ -11,10 +15,19 @@ services:
     plan: free
     healthCheckPath: /public-key
     envVars:
+      # 显式锁定演示模式，避免 ENV/ATTESTATION_PROVIDER 漂移后被误当成生产环境。
+      - key: ENV
+        value: dev # 非 TEE 主机；prod 会强制要求真实 attestation provider
+      - key: ATTESTATION_PROVIDER
+        value: dev-simulated # 输出会如实标注 mode="dev-simulated"
       - key: RPC_URL
         value: https://coston2-api.flare.network/ext/C/rpc
       - key: TEE_IMAGE_DIGEST
-        value: dev # 接入真实 vTPM 后改为镜像 digest（deployment.md 3.3）
+        value: dev # 仅 dev-simulated 标签；AWS 生产路径改用 PCR0
+      - key: ANALYSIS_OFFLINE
+        value: "0" # 在线读真实 Coston2 FTSO 价格
+      - key: ANALYZE_REQUIRE_ONCHAIN_TASK
+        value: "1" # 公开端点防滥用：只分析链上处于 Requested 的任务
       - key: ALLOWED_ORIGINS
         # 部署 Vercel 后改为：https://<你的项目>.vercel.app
         value: https://securesignal.vercel.app,http://localhost:3000,http://localhost:3001

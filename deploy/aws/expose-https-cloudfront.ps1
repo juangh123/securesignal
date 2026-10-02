@@ -162,10 +162,44 @@ $prefixListId = (& $script:Aws ec2 describe-managed-prefix-lists `
     --query "PrefixLists[0].PrefixListId" `
     --output text).Trim()
 if ($prefixListId -and $prefixListId -ne "None") {
-    & $script:Aws ec2 authorize-security-group-ingress `
-        --group-id $SecurityGroupId `
-        --ip-permissions "IpProtocol=tcp,FromPort=$OriginPort,ToPort=$OriginPort,PrefixListIds=[{PrefixListId=$prefixListId,Description=CloudFront origin-facing}]" `
-        --region $Region *> $null
+    $permissions = (& $script:Aws ec2 describe-security-groups `
+        --group-ids $SecurityGroupId `
+        --region $Region `
+        --query "SecurityGroups[0].IpPermissions" `
+        --output json | ConvertFrom-Json)
+    $alreadyAllowed = $false
+    foreach ($permission in @($permissions)) {
+        if ($null -eq $permission.FromPort -or $null -eq $permission.ToPort) {
+            continue
+        }
+        if (
+            $permission.IpProtocol -eq "tcp" -and
+            [int]$permission.FromPort -le $OriginPort -and
+            [int]$permission.ToPort -ge $OriginPort
+        ) {
+            foreach ($entry in @($permission.PrefixListIds)) {
+                if ($entry.PrefixListId -eq $prefixListId) {
+                    $alreadyAllowed = $true
+                }
+            }
+        }
+    }
+    if ($alreadyAllowed) {
+        Write-Host "Security group already allows CloudFront origin-facing access on port $OriginPort"
+    }
+    else {
+        & $script:Aws ec2 authorize-security-group-ingress `
+            --group-id $SecurityGroupId `
+            --ip-permissions "IpProtocol=tcp,FromPort=$OriginPort,ToPort=$OriginPort,PrefixListIds=[{PrefixListId=$prefixListId,Description=CloudFront-origin-facing}]" `
+            --region $Region
+        if ($LASTEXITCODE -ne 0) {
+            throw "failed to authorize the CloudFront origin-facing prefix list ($prefixListId) on security group $SecurityGroupId"
+        }
+        Write-Host "Added CloudFront origin-facing access on port $OriginPort"
+    }
+}
+else {
+    Write-Warning "CloudFront origin-facing prefix list was not found in $Region; the distribution will not be able to reach the origin."
 }
 
 Write-Host ""

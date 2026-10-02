@@ -84,6 +84,12 @@ The script:
 3. Adds the CloudFront origin-facing managed prefix list to the security group.
 4. Prints the `https://<distribution>.cloudfront.net` endpoint.
 
+> **Status (2026-10-02):** the script is committed but has not been executed
+> yet. The temporary AWS credentials used for the enclave deployment were
+> deleted, so no CloudFront distribution or HTTPS endpoint exists at the time
+> of writing. After signing in again, run the command above to publish it and
+> add the returned domain to the deployment table above.
+
 `GET /health` must report `attestation_mode="aws-nitro-enclaves"`. Each
 `POST /analyze` response then contains:
 
@@ -110,3 +116,35 @@ bundle over vsock. The parent is outside the enclave trust boundary and can
 deny service, so this first deployment does not yet use KMS key release. For a
 stronger key lifecycle, move `TEE_PRIVATE_KEY` into KMS and gate `Decrypt` on
 PCR0/PCR3/PCR8.
+
+## Cost and teardown
+
+The ongoing cost is dominated by the always-on `m5.xlarge` parent instance.
+CloudFront adds a low, traffic-based charge; the S3 staging bucket, ECR image,
+Secrets Manager secret, and IAM resources cost little or nothing at rest.
+
+Stopping the instance takes the enclave API offline and stops compute billing
+(the EBS volume and other resources remain):
+
+```powershell
+aws ec2 stop-instances --region us-east-1 --instance-ids i-00987a244d4d6f09d
+```
+
+Terminating it is permanent; the EIF, PCR measurements, and runtime secrets
+would need to be rebuilt from this repository:
+
+```powershell
+aws ec2 terminate-instances --region us-east-1 --instance-ids i-00987a244d4d6f09d
+```
+
+To remove the CloudFront distribution, disable it first, wait for the change to
+deploy, then delete it (the AWS Console performs the same sequence):
+
+```powershell
+aws cloudfront get-distribution-config --id <DISTRIBUTION_ID>
+# set Enabled=false in the returned DistributionConfig and keep the ETag
+aws cloudfront update-distribution --id <DISTRIBUTION_ID> --if-match <ETAG> `
+  --distribution-config file://disabled-config.json
+aws cloudfront wait distribution-deployed --id <DISTRIBUTION_ID>
+aws cloudfront delete-distribution --id <DISTRIBUTION_ID> --if-match <NEW_ETAG>
+```
