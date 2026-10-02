@@ -12,7 +12,7 @@ cryptography==42.0.7
 python-dotenv==1.0.1
 pydantic==2.7.2
 numpy==2.0.0
-pandas==2.2.2
+pandas==3.0.6
 # analysis/llm.py calls the OpenAI-compatible chat completions API directly
 # over HTTP (no openai SDK). Pin matches requirements-lock.txt.
 requests==2.34.2
