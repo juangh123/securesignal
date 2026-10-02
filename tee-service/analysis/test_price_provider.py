@@ -81,6 +81,27 @@ class _FakeCall:
         return self._fn()
 
 
+class _FakeBatch:
+    """Minimal stand-in for web3.py's RequestBatcher."""
+
+    def __init__(self, recorder):
+        self._recorder = recorder
+        self._calls = []
+
+    def add(self, payload):
+        self._calls.append(payload)
+
+    def execute(self):
+        self._recorder["batches"] += 1
+        return [call.call() for call in self._calls]
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        return False
+
+
 class _FakeFunctionsNS:
     """contract.functions.<name>(*args) -> object with .call()"""
 
@@ -147,9 +168,14 @@ class _FakeWeb3:
     def __init__(self, provider=None):
         self.provider = provider
         self.eth = _FakeEth(self)
+        if type(self).recorder is not None:
+            type(self).recorder["providers"].append(provider)
 
     def is_connected(self):
         return type(self).connected
+
+    def batch_requests(self):
+        return _FakeBatch(type(self).recorder)
 
 
 def _reset_fake_web3() -> None:
@@ -159,7 +185,12 @@ def _reset_fake_web3() -> None:
     _FakeWeb3.feed_handler = staticmethod(
         lambda feed_id: (12345678, 4, 1_700_000_000)
     )
-    _FakeWeb3.recorder = {"registry_names": [], "feed_ids": [], "providers": []}
+    _FakeWeb3.recorder = {
+        "registry_names": [],
+        "feed_ids": [],
+        "providers": [],
+        "batches": 0,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -262,6 +293,12 @@ class OnlineMockedTests(_EnvTestCase):
             self.assertEqual(
                 feed_id, RealWeb3.to_bytes(hexstr=price_provider.FEED_IDS[sym])
             )
+
+    def test_batch_reads_share_one_rpc_connection(self):
+        price_provider.get_prices(["BTC", "ETH", "FLR"])
+        self.assertEqual(len(_FakeWeb3.recorder["providers"]), 1)
+        self.assertEqual(_FakeWeb3.recorder["batches"], 1)
+        self.assertEqual(len(_FakeWeb3.recorder["feed_ids"]), 3)
 
     def test_rpc_timeout_is_10_seconds(self):
         captured = {}

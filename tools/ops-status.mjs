@@ -145,6 +145,10 @@ if (health && onchain) {
 if (health) {
   info('[9] relayer configured', String(health.relayer_configured))
   info('[9] llm configured', health.llm_configured ? `true (${health.llm_model ?? 'model?'})` : 'false')
+  if (health.llm_configured) {
+    info('[9] llm per-attempt timeout', `${health.llm_timeout_seconds ?? '?'}s`)
+    info('[9] llm total budget', `${health.llm_total_budget_seconds ?? '?'}s`)
+  }
   info('[9] price mode', String(health.price_mode))
   info('[9] attestation mode', String(health.attestation_mode))
   info('[9] service version', String(health.version))
@@ -196,6 +200,14 @@ if (health && health.attestation_mode === 'aws-nitro-enclaves') {
   } else {
     info('[14] PCR0 deployment record', 'not found in deploy/aws/README.md')
   }
+}
+
+if (health?.llm_configured && Number.isFinite(Number(health.llm_total_budget_seconds))) {
+  check(
+    '[15] LLM budget leaves headroom under CloudFront 60s origin timeout',
+    Number(health.llm_total_budget_seconds) <= 45,
+    `${health.llm_total_budget_seconds}s`,
+  )
 }
 
 if (onchain && Number(onchain.next) > 0) {

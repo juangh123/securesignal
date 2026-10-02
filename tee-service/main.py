@@ -32,9 +32,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from eth_utils import keccak
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from starlette.responses import Response
 
 from analysis import llm, price_provider
 from analysis.engine import analyze_portfolio
@@ -95,6 +96,29 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next) -> Response:
+    """Apply conservative API response headers on every route.
+
+    HSTS is only added when the request arrived over HTTPS (directly or via a
+    TLS-terminating proxy such as CloudFront), so plain-HTTP local dev is not
+    affected.
+    """
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("Referrer-Policy", "no-referrer")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Cache-Control", "no-store")
+    forwarded_proto = (
+        request.headers.get("x-forwarded-proto", "").split(",")[0].strip().lower()
+    )
+    if request.url.scheme == "https" or forwarded_proto == "https":
+        response.headers.setdefault(
+            "Strict-Transport-Security", "max-age=31536000"
+        )
+    return response
 
 
 class AnalysisRequest(BaseModel):
@@ -190,6 +214,14 @@ async def health():
         # Model name only (never the key or base URL). Lets the UI and ops
         # tooling show which engine is actually answering.
         "llm_model": llm.configured_model() if llm.is_configured() else None,
+        # Request budget visible to ops tooling: the whole LLM call must stay
+        # comfortably below the CloudFront origin read timeout (60 s max).
+        "llm_timeout_seconds": (
+            llm.configured_timeout_seconds() if llm.is_configured() else None
+        ),
+        "llm_total_budget_seconds": (
+            llm.configured_total_budget_seconds() if llm.is_configured() else None
+        ),
         "attestation_mode": mode,
         # `image_digest` is kept for older clients. On AWS Nitro the value is
         # actually PCR0, so new callers should use attestation_measurement and

@@ -55,8 +55,9 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
   联机实测：
   - 2026-07-19（BTC/ETH/FLR）：BTC/USD **$64,649.78**、ETH/USD **$1,866.52**、
     FLR/USD **$0.006560**（feed 时间戳 2026-07-19 04:03 UTC，`price_source="coston2-ftso"`）。
-  - 2026-10-02 全量巡检：**31/31 feeds 全部读取成功且新鲜**（age 1–21s），
-    完整 JSON 证据见 `deliverables/ftso-live-check-2026-10-02.json`；
+  - 2026-10-02 全量巡检：**31/31 feeds 全部读取成功且新鲜**（单次 JSON-RPC
+    批量读取，age 1s、耗时 4.88s），完整 JSON 证据见
+    `deliverables/ftso-live-check-2026-10-02.json`；
     可用 `python tee-service/tools/live_ftso_check.py --out <path>` 复跑。
   仅当显式 `ANALYSIS_OFFLINE=1` 时使用 dev fixture 价，且标注 `price_source: "offline-fixture"`。
 - 本地端到端集成验证 **23/23 断言通过**（`frontend/e2e/e2e-local-run.log`）：

@@ -31,16 +31,39 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    symbols = list(price_provider.SUPPORTED_SYMBOLS)
     started_at = time.time()
+    batch: dict[str, tuple[float, int]] = {}
+    batch_error = None
+    try:
+        batch = price_provider._read_online_many(symbols)
+    except Exception as exc:  # noqa: BLE001 - surface and fall back per symbol
+        batch_error = f"{type(exc).__name__}: {exc}"
+
     entries = []
     failures = []
-    for symbol in price_provider.SUPPORTED_SYMBOLS:
-        try:
-            price, feed_timestamp = price_provider._read_online(symbol)
-            # Measure against the read time, not the start of the sweep: fees
-            # update every ~90 s, so later reads legitimately have newer
-            # timestamps than the first one.
-            read_at = time.time()
+    for symbol in symbols:
+        read_at = time.time()
+        price = None
+        feed_timestamp = None
+        error = None
+        if symbol in batch:
+            price, feed_timestamp = batch[symbol]
+        else:
+            # If the batch failed, attribute the error per symbol. Batch
+            # success always contains every requested symbol.
+            try:
+                price, feed_timestamp = price_provider._read_online(symbol)
+            except Exception as exc:  # noqa: BLE001 - report every feed failure
+                error = f"{type(exc).__name__}: {exc}"
+
+        if price is None:
+            entry = {
+                "symbol": symbol,
+                "ok": False,
+                "error": error or batch_error or "feed missing from batch response",
+            }
+        else:
             age_seconds = int(read_at - feed_timestamp)
             ok = (
                 price > 0
@@ -61,12 +84,6 @@ def main() -> int:
                 ).isoformat(),
                 "age_seconds": age_seconds,
             }
-        except Exception as exc:  # noqa: BLE001 - report every feed failure
-            entry = {
-                "symbol": symbol,
-                "ok": False,
-                "error": f"{type(exc).__name__}: {exc}",
-            }
         entries.append(entry)
         if not entry["ok"]:
             failures.append(entry)
@@ -75,6 +92,7 @@ def main() -> int:
         "checked_at": datetime.now(timezone.utc).isoformat(),
         "duration_seconds": round(time.time() - started_at, 2),
         "price_source": price_provider.get_price_source(),
+        "batch_error": batch_error,
         "max_age_seconds": args.max_age_seconds,
         "supported_count": len(price_provider.SUPPORTED_SYMBOLS),
         "ok_count": len(entries) - len(failures),

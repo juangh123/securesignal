@@ -47,6 +47,9 @@ PERFORMANCE
 * 10 s HTTP timeout on every RPC call (RPC_TIMEOUT_SECONDS).
 * 60 s TTL cache (CACHE_TTL_SECONDS) on prices and on the resolved
   FtsoV2 address, to avoid hammering the RPC endpoint.
+* A batch of symbols is read over one provider/connection
+  (_read_online_many), so a 25-asset portfolio does not pay provider setup
+  and chain detection 25 times.
 """
 
 from __future__ import annotations
@@ -214,13 +217,17 @@ def _resolve_ftsov2_address(w3: Web3) -> str:
     return address
 
 
-def _read_online(symbol: str) -> tuple[float, int]:
+def _read_online_many(symbols: list[str]) -> dict[str, tuple[float, int]]:
     """
-    Read one feed on-chain. Returns (price_usd, feed_timestamp_unix).
+    Read several feeds over one RPC connection.
 
-    Raises PriceProviderError on any network / contract / timeout / data
-    failure. Never returns fake data.
+    Returns {symbol: (price_usd, feed_timestamp_unix)}. Raises
+    PriceProviderError on any network / contract / timeout / data failure —
+    never returns fake data.
     """
+    if not symbols:
+        return {}
+
     global _detected_chain_name
     rpc_url = _rpc_url()
     try:
@@ -251,33 +258,81 @@ def _read_online(symbol: str) -> tuple[float, int]:
         ftsov2 = w3.eth.contract(
             address=Web3.to_checksum_address(ftsov2_address), abi=FTSO_V2_ABI
         )
-        feed_id_bytes = Web3.to_bytes(hexstr=FEED_IDS[symbol])
-        value, decimals, timestamp = ftsov2.functions.getFeedById(
-            feed_id_bytes
-        ).call()
-
-        value = int(value)
-        decimals = int(decimals)  # int8; may legally be negative
-        timestamp = int(timestamp)
-
-        if value <= 0:
-            raise PriceProviderError(
-                f"feed {symbol} returned non-positive value {value} "
-                f"(feedId {FEED_IDS[symbol]})"
-            )
-        if timestamp <= 0:
-            raise PriceProviderError(
-                f"feed {symbol} returned invalid timestamp {timestamp}"
-            )
-
-        price_usd = value / (10 ** decimals)
-        return price_usd, timestamp
     except PriceProviderError:
         raise
     except Exception as e:  # network, timeout, ABI decode, ...
         raise PriceProviderError(
-            f"FTSO price read failed for {symbol} via {rpc_url}: {e}"
+            f"FTSO connection/registry setup failed via {rpc_url}: {e}"
         ) from e
+
+    feed_ids = {symbol: Web3.to_bytes(hexstr=FEED_IDS[symbol]) for symbol in symbols}
+    raw_results: list | None = None
+    if callable(getattr(w3, "batch_requests", None)):
+        try:
+            # One JSON-RPC batch for the whole portfolio. The HTTP provider
+            # sorts responses by request id, so results stay aligned.
+            with w3.batch_requests() as batch:
+                for symbol in symbols:
+                    batch.add(ftsov2.functions.getFeedById(feed_ids[symbol]))
+                raw_results = list(batch.execute())
+        except Exception as e:  # noqa: BLE001 - fall back, then report per symbol
+            print(
+                f"[price_provider] batched FTSO read failed ({e}); "
+                "falling back to sequential reads"
+            )
+            raw_results = None
+
+    if raw_results is None:
+        try:
+            raw_results = [
+                ftsov2.functions.getFeedById(feed_ids[symbol]).call()
+                for symbol in symbols
+            ]
+        except PriceProviderError:
+            raise
+        except Exception as e:  # network, timeout, ABI decode, ...
+            raise PriceProviderError(
+                f"FTSO price read failed via {rpc_url}: {e}"
+            ) from e
+
+    if len(raw_results) != len(symbols):
+        raise PriceProviderError(
+            f"FTSO batch returned {len(raw_results)} results for "
+            f"{len(symbols)} symbols"
+        )
+
+    prices: dict[str, tuple[float, int]] = {}
+    for symbol, result in zip(symbols, raw_results):
+        try:
+            value, decimals, timestamp = result
+            value = int(value)
+            decimals = int(decimals)  # int8; may legally be negative
+            timestamp = int(timestamp)
+
+            if value <= 0:
+                raise PriceProviderError(
+                    f"feed {symbol} returned non-positive value {value} "
+                    f"(feedId {FEED_IDS[symbol]})"
+                )
+            if timestamp <= 0:
+                raise PriceProviderError(
+                    f"feed {symbol} returned invalid timestamp {timestamp}"
+                )
+
+            prices[symbol] = (value / (10 ** decimals), timestamp)
+        except PriceProviderError:
+            raise
+        except Exception as e:  # ABI decode, malformed result, ...
+            raise PriceProviderError(
+                f"FTSO price decode failed for {symbol} via {rpc_url}: {e}"
+            ) from e
+
+    return prices
+
+
+def _read_online(symbol: str) -> tuple[float, int]:
+    """Read one feed on-chain. Thin wrapper around _read_online_many."""
+    return _read_online_many([symbol])[symbol]
 
 
 def get_prices(symbols: list[str]) -> dict[str, float]:
@@ -322,14 +377,15 @@ def get_prices(symbols: list[str]) -> dict[str, float]:
             elif sym not in to_fetch:
                 to_fetch.append(sym)
 
-    for sym in to_fetch:
-        price_usd, feed_ts = _read_online(sym)
+    if to_fetch:
+        fetched = _read_online_many(to_fetch)
         with _lock:
-            _price_cache[sym] = (
-                price_usd,
-                feed_ts,
-                time.monotonic() + CACHE_TTL_SECONDS,
-            )
-        result[sym] = price_usd
+            for sym, (price_usd, feed_ts) in fetched.items():
+                _price_cache[sym] = (
+                    price_usd,
+                    feed_ts,
+                    time.monotonic() + CACHE_TTL_SECONDS,
+                )
+                result[sym] = price_usd
 
     return result

@@ -10,7 +10,12 @@ Env config
   LLM_BASE_URL  default ``https://api.openai.com/v1`` (any OpenAI-compatible
                 endpoint works, e.g. DeepSeek / Moonshot / a local mock).
   LLM_MODEL     default ``gpt-4o-mini``.
-  LLM_TIMEOUT   optional request timeout in seconds, default 30.
+  LLM_TIMEOUT   optional per-attempt request timeout in seconds, default 20.
+  LLM_TOTAL_BUDGET
+                optional wall-clock budget for all attempts, default 35 s.
+                The second attempt only runs if the remaining budget allows
+                it, so the whole call stays under the CloudFront origin
+                read timeout in front of the AWS enclosure.
 
 Division of labour
 ------------------
@@ -33,8 +38,9 @@ Contract
     }
 
 Any failure (network, HTTP error, malformed response envelope, non-JSON or
-schema-invalid content) triggers ONE retry; if that also fails, ``LLMError``
-is raised and the engine falls back to the rule engine.
+schema-invalid content) triggers ONE retry while the total wall-clock budget
+allows it; if no attempt can succeed, ``LLMError`` is raised and the engine
+falls back to the rule engine.
 """
 
 from __future__ import annotations
@@ -42,6 +48,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import time
 from typing import Any, Dict, List
 
 import requests
@@ -50,7 +57,12 @@ __all__ = ["LLMError", "configured_model", "is_configured", "analyze"]
 
 DEFAULT_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_MODEL = "gpt-4o-mini"
-DEFAULT_TIMEOUT_SECONDS = 30.0
+DEFAULT_TIMEOUT_SECONDS = 20.0
+DEFAULT_TOTAL_BUDGET_SECONDS = 35.0
+# Hard ceiling: leave at least 15 s of the CloudFront 60 s origin read
+# timeout for FTSO reads, on-chain submission, and network overhead.
+MAX_TOTAL_BUDGET_SECONDS = 45.0
+MIN_ATTEMPT_TIMEOUT_SECONDS = 1.0
 
 RISK_LEVELS = ("low", "medium", "high")
 REBALANCE_ACTIONS = ("increase", "decrease", "hold")
@@ -72,6 +84,29 @@ def is_configured() -> bool:
 def configured_model() -> str:
     """Model that ``analyze`` would call. Readable without a key (for /health)."""
     return os.environ.get("LLM_MODEL", "").strip() or DEFAULT_MODEL
+
+
+def configured_timeout_seconds() -> float:
+    """Per-attempt HTTP timeout actually used (never raises)."""
+    try:
+        value = float(
+            os.environ.get("LLM_TIMEOUT", "").strip() or DEFAULT_TIMEOUT_SECONDS
+        )
+    except ValueError:
+        value = DEFAULT_TIMEOUT_SECONDS
+    return max(0.1, value)
+
+
+def configured_total_budget_seconds() -> float:
+    """Wall-clock budget shared by all attempts (never raises)."""
+    try:
+        value = float(
+            os.environ.get("LLM_TOTAL_BUDGET", "").strip()
+            or DEFAULT_TOTAL_BUDGET_SECONDS
+        )
+    except ValueError:
+        value = DEFAULT_TOTAL_BUDGET_SECONDS
+    return min(max(0.0, value), MAX_TOTAL_BUDGET_SECONDS)
 
 
 SYSTEM_PROMPT = """You are a senior cryptocurrency portfolio analyst — the analysis core of SecureSignal, a privacy-first advisory service running inside a Trusted Execution Environment (TEE).
@@ -119,7 +154,11 @@ def _build_messages(
     ]
 
 
-def _request_completion(messages: List[Dict[str, str]], use_response_format: bool) -> str:
+def _request_completion(
+    messages: List[Dict[str, str]],
+    use_response_format: bool,
+    timeout: float | None = None,
+) -> str:
     """POST /chat/completions and return the assistant message content string."""
     base_url = os.environ.get("LLM_BASE_URL", "").strip() or DEFAULT_BASE_URL
     base_url = base_url.rstrip("/")
@@ -127,10 +166,9 @@ def _request_completion(messages: List[Dict[str, str]], use_response_format: boo
     api_key = os.environ.get("LLM_API_KEY", "").strip()
     if not api_key:
         raise LLMError("LLM_API_KEY is not configured")
-    try:
-        timeout = float(os.environ.get("LLM_TIMEOUT", "").strip() or DEFAULT_TIMEOUT_SECONDS)
-    except ValueError:
-        timeout = DEFAULT_TIMEOUT_SECONDS
+    if timeout is None:
+        timeout = configured_timeout_seconds()
+    timeout = max(0.1, float(timeout))
 
     payload: Dict[str, Any] = {
         "model": model,
@@ -261,8 +299,9 @@ def analyze(
     Run LLM portfolio analysis. Returns the validated judgement dict.
 
     ``holdings`` / ``prices`` are the raw inputs; ``portfolio`` carries the
-    engine-computed ground truth injected into the prompt. On any failure
-    the request is retried ONCE; persistent failure raises LLMError.
+    engine-computed ground truth injected into the prompt. On failure the
+    request is retried ONCE while the total wall-clock budget allows it;
+    persistent failure raises LLMError so the engine can fall back.
     """
     if not is_configured():
         raise LLMError("LLM_API_KEY is not configured")
@@ -270,10 +309,22 @@ def analyze(
     messages = _build_messages(portfolio, risk_profile)
     use_response_format = True
     last_error: LLMError | None = None
+    total_budget = configured_total_budget_seconds()
+    deadline = time.monotonic() + total_budget
+    per_attempt_timeout = configured_timeout_seconds()
 
-    for attempt in (1, 2):
+    for _attempt in (1, 2):
+        remaining = deadline - time.monotonic()
+        if remaining < MIN_ATTEMPT_TIMEOUT_SECONDS:
+            last_error = last_error or LLMError(
+                f"LLM total budget of {total_budget:.1f}s is exhausted"
+            )
+            break
+        attempt_timeout = min(per_attempt_timeout, remaining)
         try:
-            content = _request_completion(messages, use_response_format)
+            content = _request_completion(
+                messages, use_response_format, timeout=attempt_timeout
+            )
             return _validate(_extract_json(content))
         except LLMError as e:
             last_error = e
@@ -282,4 +333,4 @@ def analyze(
             if e.status_code == 400:
                 use_response_format = False
 
-    raise LLMError(f"LLM analysis failed after 1 retry: {last_error}")
+    raise LLMError(f"LLM analysis failed: {last_error}")

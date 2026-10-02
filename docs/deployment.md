@@ -42,7 +42,8 @@
 | `LLM_API_KEY` | 可选 | 未设：LLM 关闭，使用确定性规则引擎（`analysis_mode="rule-fallback"`） | OpenAI 兼容 API key；设置即启用 LLM 分析。见 `analysis/llm.py` | `sk-...` |
 | `LLM_BASE_URL` | 可选 | `https://api.openai.com/v1` | 任意 OpenAI 兼容端点（DeepSeek / Moonshot / 本地 mock 等） | `https://api.deepseek.com/v1` |
 | `LLM_MODEL` | 可选 | `gpt-4o-mini` | 模型名 | `deepseek-flash` |
-| `LLM_TIMEOUT` | 可选 | `30` | LLM 请求超时（秒）；非数字时回退 30 | `60` |
+| `LLM_TIMEOUT` | 可选 | `20` | 单次 LLM HTTP 请求超时（秒）；非数字时回退 20。见 `analysis/llm.py` | `20` |
+| `LLM_TOTAL_BUDGET` | 可选 | `35` | 两次尝试共享的墙钟预算（秒）；剩余预算不足 1 秒时不再发起重试。为避免打穿 CloudFront 60 秒源站读超时，取值被硬性钳制在 45 秒以内 | `35` |
 | `ANALYZE_REQUIRE_ONCHAIN_TASK` | 可选 | 未设 = 开启（`"0"` 关闭） | `/analyze` 是公开无鉴权端点，启用 LLM 后每次调用都产生费用。开启时只分析链上真实处于 `Requested` 的任务，刷接口必须先付 C2FLR gas 注册任务。未配置 relayer（读不到 registry）时门禁自动失效 | `0` |
 | `ANALYZE_TASK_MAX_AGE_SECONDS` | 可选 | `900`（`0` = 不限时） | 任务时效窗口：只分析 `requestedAt` 在窗口内的 `Requested` 任务。防止长期卡在 `Requested` 的僵尸任务被当成免费 LLM 触发器反复调用 | `3600` |
 | `TEE_IMAGE_DIGEST` | 生产推荐 | `dev` | 期望的 Confidential Space workload 镜像 digest；生产必须与 JWT 的 `submods.container.image_digest` 一致，否则 attestation 失败。见 `attestation/vtpm.py` | `sha256:<64 hex>` |
@@ -321,6 +322,10 @@ enclave 自身只监听 HTTP，且安全组最初只放行操作员 IP。公开 
   -Region us-east-1
 ```
 
+分发把源站读超时设为 CloudFront 允许的最大值 **60 秒**。链路内部预算与之对齐：
+FTSO 对整批资产只发一次 JSON-RPC 批量请求（31 feed 实测 4.88 秒），LLM 阶段受
+`LLM_TOTAL_BUDGET`（默认 35 秒）约束，二者相加仍留有足够余量。
+
 AWS 根证书固定在
 `tee-service/attestation/aws_nitro_root_g1.pem`，verifier 会校验
 COSE_Sign1 ES384 签名、证书链、有效期、nonce/user_data/public_key 与 PCR0。
@@ -344,12 +349,15 @@ COSE_Sign1 ES384 签名、证书链、有效期、nonce/user_data/public_key 与
 export LLM_API_KEY=sk-...                        # 唯一必填；设置即启用
 export LLM_BASE_URL=https://api.deepseek.com/v1  # 可选，任意 OpenAI 兼容端点
 export LLM_MODEL=deepseek-flash                  # 可选（DeepSeek 当前可用：deepseek-flash / deepseek-v4-pro）
-export LLM_TIMEOUT=30                            # 可选，秒
+export LLM_TIMEOUT=20                            # 可选，单次尝试超时（秒）
+export LLM_TOTAL_BUDGET=35                       # 可选，两次尝试合计预算（秒）
 ```
 
 行为（与 `analysis/llm.py` / `analysis/engine.py` 核对）：
-- 分工：LLM 只产出判断字段（`risk_score` / `risk_level` / `rebalance` / 中文 `summary`）；全部组合数学（USD 市值、权重）由 engine 确定性计算并作为 ground truth 注入 prompt，连同实际使用的 FTSO 价格。
-- 容错：任何失败（网络 / HTTP 错误 / 输出非 JSON / schema 校验失败）自动重试**一次**；HTTP 400 时第二次请求会去掉 `response_format` JSON mode（兼容部分网关）。再失败则回退规则引擎，响应 `analysis_mode="rule-fallback"` 且 summary 追加「LLM 分析不可用，已回退至规则引擎」。
+- 分工：LLM 只产出判断字段（`risk_score` / `risk_level` / `rebalance` / 英文 `summary`）；全部组合数学（USD 市值、权重）由 engine 确定性计算并作为 ground truth 注入 prompt，连同实际使用的 FTSO 价格。
+- 容错：任何失败（网络 / HTTP 错误 / 输出非 JSON / schema 校验失败）在总预算允许时自动重试**一次**；HTTP 400 时第二次请求会去掉 `response_format` JSON mode（兼容部分网关）。预算耗尽或再次失败则回退规则引擎，响应 `analysis_mode="rule-fallback"` 且 summary 追加「LLM 分析不可用，已回退至规则引擎」。
+- 超时边界：每次请求的超时取 `min(LLM_TIMEOUT, 剩余总预算)`，因此最坏情况下 LLM 阶段不超过 `LLM_TOTAL_BUDGET`。这是为了在 CloudFront（源站读超时最大 60 秒）后面仍能稳定返回；`GET /health` 会暴露实际生效的 `llm_timeout_seconds` / `llm_total_budget_seconds`。
+- 预算实测（2026-10-02）：25 资产真实 Coston2 FTSO 批量读 + 模拟 10 秒 LLM，`/analyze` 全路径 **15.23 秒**（`analysis_mode="llm"`，`price_source="coston2-ftso"`）；31 feed 全量批量读 4.88 秒。
 - 输出契约：成功时 `analysis_mode="llm"`；两种路径输出 schema 完全一致，前端无需区分处理。
 
 ### 4.2 信任模型注意事项（重要）

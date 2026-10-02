@@ -44,3 +44,7 @@ services:
         value: https://api.deepseek.com/v1
       - key: LLM_MODEL
         value: deepseek-flash
+      - key: LLM_TIMEOUT
+        value: "20" # 单次 LLM 请求超时（秒）
+      - key: LLM_TOTAL_BUDGET
+        value: "35" # 两次尝试合计的墙钟预算；保持在 CloudFront 60s 源站超时以内

@@ -87,7 +87,10 @@ else {
                             Quantity = 1
                             Items = @("TLSv1.2")
                         }
-                        OriginReadTimeout = 30
+                        # CloudFront's maximum. /analyze bounds its own LLM
+                        # work (LLM_TOTAL_BUDGET, default 35 s) so a response
+                        # is not killed by the origin read timeout.
+                        OriginReadTimeout = 60
                         OriginKeepaliveTimeout = 5
                     }
                 }

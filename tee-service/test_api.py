@@ -34,6 +34,8 @@ def test_health_reports_non_secret_status():
             "price_mode",
             "llm_configured",
             "llm_model",
+            "llm_timeout_seconds",
+            "llm_total_budget_seconds",
             "attestation_mode",
             "image_digest",
             "attestation_measurement",
@@ -51,6 +53,19 @@ def test_health_reports_non_secret_status():
         flat = str(body)
         assert "PRIVATE_KEY" not in flat
         assert "http://" not in flat and "https://" not in flat
+
+
+def test_security_headers_are_applied():
+    with TestClient(main.app) as c:
+        r = c.get("/health")
+        assert r.headers["x-content-type-options"] == "nosniff"
+        assert r.headers["referrer-policy"] == "no-referrer"
+        assert r.headers["x-frame-options"] == "DENY"
+        assert r.headers["cache-control"] == "no-store"
+        assert "strict-transport-security" not in r.headers
+
+        https = c.get("/health", headers={"x-forwarded-proto": "https"})
+        assert https.headers["strict-transport-security"] == "max-age=31536000"
 
 
 def test_assets_lists_priceable_symbols():

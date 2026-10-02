@@ -73,7 +73,7 @@
 - 离线模式：仅 `ANALYSIS_OFFLINE=1` 用 fixture 价（BTC 65000 / ETH 3500 / FLR 0.02），`price_source="offline-fixture"` 明确标注非真实市价。
 - 单测：offline 5 例 + mocked online 14 例全过；联机用例 `ANALYSIS_LIVE_TEST=1` 门控。
 - **联机实测（2026-07-19，`LiveCoston2Tests` 通过）**：BTC/USD $64,649.78、ETH/USD $1,866.52、FLR/USD $0.006560；feed 时间戳 2026-07-19 04:03 UTC（新鲜度秒级）；`price_source="coston2-ftso"`。
-- **全量巡检（2026-10-02）**：`tools/live_ftso_check.py` 对 `SUPPORTED_SYMBOLS` 全量 `getFeedById` 实读，**31/31 feeds ok**、age 1–21s、`price_source="coston2-ftso"`；证据 `deliverables/ftso-live-check-2026-10-02.json`，可用 `python tee-service/tools/live_ftso_check.py --out <path>` 复跑。
+- **全量巡检（2026-10-02）**：`tools/live_ftso_check.py` 对 `SUPPORTED_SYMBOLS` 全量 `getFeedById` 实读，31 个 feed 合并为**单次 JSON-RPC 批量请求**，**31/31 feeds ok**、age 1s、耗时 4.88s、`price_source="coston2-ftso"`；证据 `deliverables/ftso-live-check-2026-10-02.json`，可用 `python tee-service/tools/live_ftso_check.py --out <path>` 复跑。
 
 ## 遗留外部依赖清单（本地无法闭环，接入手册：`docs/deployment.md`）
 
