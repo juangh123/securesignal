@@ -58,7 +58,14 @@ def _decrypt(request: dict) -> str:
             "AttestationDocument": attestation_document,
         },
     )
-    return base64.b64encode(response["Plaintext"]).decode("ascii")
+    # With a Recipient attestation, KMS returns the plaintext encrypted to the
+    # enclave's RSA key in CiphertextForRecipient (not in Plaintext).
+    encrypted = response.get("CiphertextForRecipient") or response.get("Plaintext")
+    if not encrypted:
+        raise RuntimeError(
+            "KMS Decrypt response did not include CiphertextForRecipient"
+        )
+    return base64.b64encode(encrypted).decode("ascii")
 
 
 def handle_line(line: bytes) -> bytes:
@@ -67,8 +74,13 @@ def handle_line(line: bytes) -> bytes:
         request = json.loads(line.decode("utf-8"))
         if not isinstance(request, dict):
             raise ValueError("request must be a JSON object")
+        print("[kms-proxy] decrypt request received", flush=True)
         return json.dumps({"plaintext": _decrypt(request)}).encode("utf-8") + b"\n"
     except Exception as exc:  # noqa: BLE001 - report any KMS/parse failure
+        print(
+            f"[kms-proxy] error: {type(exc).__name__}: {exc}",
+            flush=True,
+        )
         return (
             json.dumps({"error": f"{type(exc).__name__}: {exc}"}).encode("utf-8")
             + b"\n"

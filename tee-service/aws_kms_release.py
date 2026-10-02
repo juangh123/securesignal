@@ -13,7 +13,9 @@ import os
 import socket
 
 from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives import padding as symmetric_padding
 from cryptography.hazmat.primitives.asymmetric import padding, rsa
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 from attestation import aws_nsm
 
@@ -36,16 +38,96 @@ class KmsReleaseError(RuntimeError):
     pass
 
 
+def _rsa_oaep() -> padding.OAEP:
+    return padding.OAEP(
+        mgf=padding.MGF1(algorithm=hashes.SHA256()),
+        algorithm=hashes.SHA256(),
+        label=None,
+    )
+
+
+def _read_tlv(data: bytes, offset: int, end: int) -> tuple[int, bytes, int]:
+    """Read one DER TLV (definite or indefinite length)."""
+    if offset + 2 > end:
+        raise KmsReleaseError("truncated KMS CMS structure")
+    tag = data[offset]
+    offset += 1
+    length_byte = data[offset]
+    offset += 1
+    if length_byte == 0x80:
+        start = offset
+        while offset < end:
+            if data[offset : offset + 2] == b"\x00\x00":
+                return tag, data[start:offset], offset + 2
+            _, _, offset = _read_tlv(data, offset, end)
+        raise KmsReleaseError("unterminated KMS CMS value")
+    if length_byte & 0x80:
+        count = length_byte & 0x7F
+        if count == 0 or offset + count > end:
+            raise KmsReleaseError("invalid KMS CMS length")
+        length = int.from_bytes(data[offset : offset + count], "big")
+        offset += count
+    else:
+        length = length_byte
+    if offset + length > end:
+        raise KmsReleaseError("truncated KMS CMS value")
+    return tag, data[offset : offset + length], offset + length
+
+
+def _walk_tlvs(data: bytes, offset: int = 0, end: int | None = None):
+    """Yield every (tag, value) in a DER structure, including nested values."""
+    if end is None:
+        end = len(data)
+    while offset < end:
+        tag, value, offset = _read_tlv(data, offset, end)
+        yield tag, value
+        if tag & 0x20:  # constructed: walk into the content
+            yield from _walk_tlvs(value)
+
+
+def _parse_kms_cms(data: bytes) -> tuple[bytes, bytes, bytes]:
+    """Extract (encrypted CEK, AES-CBC IV, encrypted content) from KMS CMS."""
+    octet_strings: list[bytes] = []
+    for tag, value in _walk_tlvs(data):
+        if tag == 0x04:
+            octet_strings.append(value)
+
+    encrypted_key = next(
+        (value for value in octet_strings if len(value) == 256), None
+    )
+    iv = next((value for value in octet_strings if len(value) == 16), None)
+    encrypted_content = max(
+        (value for value in octet_strings if len(value) not in (16, 256)),
+        key=len,
+        default=None,
+    )
+    if (
+        encrypted_key is None
+        or iv is None
+        or encrypted_content is None
+        or len(encrypted_content) == 0
+        or len(encrypted_content) % 16 != 0
+    ):
+        raise KmsReleaseError("unexpected KMS CMS structure")
+    return encrypted_key, iv, encrypted_content
+
+
 def _decrypt_response(private_key: rsa.RSAPrivateKey, encrypted: bytes) -> bytes:
     try:
-        return private_key.decrypt(
-            encrypted,
-            padding.OAEP(
-                mgf=padding.MGF1(algorithm=hashes.SHA256()),
-                algorithm=hashes.SHA256(),
-                label=None,
-            ),
-        )
+        encrypted_key, iv, encrypted_content = _parse_kms_cms(encrypted)
+        content_key = private_key.decrypt(encrypted_key, _rsa_oaep())
+        if len(content_key) != 32:
+            raise KmsReleaseError(
+                f"unexpected KMS content key length {len(content_key)}"
+            )
+        decryptor = Cipher(
+            algorithms.AES(content_key), modes.CBC(iv)
+        ).decryptor()
+        padded = decryptor.update(encrypted_content) + decryptor.finalize()
+        unpadder = symmetric_padding.PKCS7(128).unpadder()
+        return unpadder.update(padded) + unpadder.finalize()
+    except KmsReleaseError:
+        raise
     except Exception as exc:  # noqa: BLE001 - cryptography raises several types
         raise KmsReleaseError(f"failed to decrypt the KMS response: {exc}") from exc
 

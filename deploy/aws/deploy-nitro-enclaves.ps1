@@ -24,6 +24,15 @@ function Invoke-Aws {
     }
 }
 
+function Get-AwsText {
+    param([Parameter(Mandatory = $true)][string[]]$Arguments)
+    $output = & $script:Aws @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "aws failed: aws $($Arguments -join ' ')"
+    }
+    return (($output | Out-String).Trim())
+}
+
 function Get-AwsJson {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
     $raw = & $script:Aws @Arguments
@@ -635,19 +644,23 @@ if ($useKms) {
     Write-Host "PCR0: $pcr0"
 
     $aliasName = "alias/$kmsKeyAlias"
-    $keyId = (& $script:Aws kms list-aliases `
-        --query "Aliases[?AliasName=='$aliasName'].TargetKeyId" `
-        --output text `
-        --region $Region).Trim()
+    $keyId = Get-AwsText @(
+        "kms", "list-aliases",
+        "--query", "Aliases[?AliasName=='$aliasName'].TargetKeyId",
+        "--output", "text",
+        "--region", $Region
+    )
     if (-not $keyId -or $keyId -eq "None") {
-        $keyId = (& $script:Aws kms create-key `
-            --description "SecureSignal TEE key release ($NamePrefix)" `
-            --key-usage ENCRYPT_DECRYPT `
-            --origin AWS_KMS `
-            --tags "TagKey=Project,TagValue=SecureSignal" `
-            --query "KeyMetadata.KeyId" `
-            --output text `
-            --region $Region).Trim()
+        $keyId = Get-AwsText @(
+            "kms", "create-key",
+            "--description", "SecureSignal TEE key release ($NamePrefix)",
+            "--key-usage", "ENCRYPT_DECRYPT",
+            "--origin", "AWS_KMS",
+            "--tags", "TagKey=Project,TagValue=SecureSignal",
+            "--query", "KeyMetadata.KeyId",
+            "--output", "text",
+            "--region", $Region
+        )
         if ($LASTEXITCODE -ne 0 -or -not $keyId) {
             throw "kms create-key failed."
         }
@@ -722,13 +735,15 @@ if ($useKms) {
             [System.Text.UTF8Encoding]::new($false)
         )
         try {
-            $ciphertext = (& $script:Aws kms encrypt `
-                --key-id $keyArn `
-                --plaintext "fileb://$plaintextPath" `
-                --encryption-context "app=securesignal,purpose=tee-key-release" `
-                --query "CiphertextBlob" `
-                --output text `
-                --region $Region).Trim()
+            $ciphertext = Get-AwsText @(
+                "kms", "encrypt",
+                "--key-id", $keyArn,
+                "--plaintext", "fileb://$plaintextPath",
+                "--encryption-context", "app=securesignal,purpose=tee-key-release",
+                "--query", "CiphertextBlob",
+                "--output", "text",
+                "--region", $Region
+            )
             if ($LASTEXITCODE -ne 0 -or -not $ciphertext) {
                 throw "kms encrypt failed."
             }
