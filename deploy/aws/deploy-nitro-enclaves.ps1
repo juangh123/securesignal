@@ -6,6 +6,7 @@ param(
     [string]$ApiCidr = "",
     [string]$KeyName = "",
     [string]$FrontendOrigins = "https://securesignal.vercel.app",
+    [string]$AlertEmail = "",
     [string]$RpcUrl = "https://coston2-api.flare.network/ext/C/rpc",
     [string]$LlmBaseUrl = "https://api.deepseek.com/v1",
     [string]$LlmModel = "deepseek-flash",
@@ -663,7 +664,32 @@ $publicIp = (& $script:Aws ec2 describe-instances `
 # EC2 availability: a failed system status check triggers the built-in recover
 # action (same instance ID and network identity), and a failed instance status
 # check triggers a reboot, after which the enclave watchdog restarts the
-# enclave.
+# enclave. When -AlertEmail is set, both alarms also publish to an SNS topic;
+# the recipient must confirm the email subscription before messages arrive.
+$alertTopicArn = ""
+if ($AlertEmail) {
+    $alertTopicArn = Get-AwsText @(
+        "sns", "create-topic",
+        "--name", "$NamePrefix-alerts",
+        "--query", "TopicArn",
+        "--output", "text",
+        "--region", $Region
+    )
+    Invoke-Aws @(
+        "sns", "subscribe",
+        "--topic-arn", $alertTopicArn,
+        "--protocol", "email",
+        "--notification-endpoint", $AlertEmail,
+        "--region", $Region
+    ) | Out-Null
+}
+$recoverActions = @("arn:aws:automate:$Region:ec2:recover")
+$rebootActions = @("arn:aws:automate:$Region:ec2:reboot")
+if ($alertTopicArn) {
+    $recoverActions += $alertTopicArn
+    $rebootActions += $alertTopicArn
+}
+
 Invoke-Aws @(
     "cloudwatch", "put-metric-alarm",
     "--alarm-name", "$NamePrefix-instance-recover",
@@ -676,7 +702,7 @@ Invoke-Aws @(
     "--threshold", "1",
     "--comparison-operator", "GreaterThanOrEqualToThreshold",
     "--dimensions", "Name=InstanceId,Value=$instanceId",
-    "--alarm-actions", "arn:aws:automate:$Region:ec2:recover",
+    "--alarm-actions", $recoverActions,
     "--region", $Region
 ) | Out-Null
 
@@ -692,7 +718,7 @@ Invoke-Aws @(
     "--threshold", "1",
     "--comparison-operator", "GreaterThanOrEqualToThreshold",
     "--dimensions", "Name=InstanceId,Value=$instanceId",
-    "--alarm-actions", "arn:aws:automate:$Region:ec2:reboot",
+    "--alarm-actions", $rebootActions,
     "--region", $Region
 ) | Out-Null
 

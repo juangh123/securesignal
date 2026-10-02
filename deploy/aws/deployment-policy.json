@@ -65,6 +65,19 @@
       "Resource": "*"
     },
     {
+      "Sid": "DeploymentNotifications",
+      "Effect": "Allow",
+      "Action": [
+        "sns:CreateTopic",
+        "sns:GetTopicAttributes",
+        "sns:ListSubscriptionsByTopic",
+        "sns:SetTopicAttributes",
+        "sns:Subscribe",
+        "sns:TagResource"
+      ],
+      "Resource": "*"
+    },
+    {
       "Sid": "DeploymentRoles",
       "Effect": "Allow",
       "Action": [

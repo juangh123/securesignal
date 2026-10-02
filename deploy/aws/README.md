@@ -172,6 +172,9 @@ recovers without operator action:
   triggers the built-in EC2 recover action; `securesignal-instance-reboot`
   (`StatusCheckFailed_Instance`) reboots the instance, after which the watchdog
   restarts the enclave.
+- Both alarms also publish to the `securesignal-alerts` SNS topic when the
+  deployment is run with `-AlertEmail <address>`. The recipient has to confirm
+  the subscription email before any notification is delivered.
 - The CloudFront origin uses the instance's public DNS name, so an
   operator-initiated stop/start can change the origin address. Re-run
   `expose-https-cloudfront.ps1` after a manual stop/start, or attach a stable
