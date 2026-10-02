@@ -36,10 +36,17 @@ def test_health_reports_non_secret_status():
             "llm_model",
             "attestation_mode",
             "image_digest",
+            "attestation_measurement",
+            "attestation_measurement_type",
         ):
             assert key in body
         assert isinstance(body["relayer_configured"], bool)
         assert isinstance(body["llm_configured"], bool)
+        assert body["attestation_measurement_type"] in {
+            "pcr0",
+            "image_digest",
+            "dev",
+        }
         # The endpoint must never expose key material or raw endpoints.
         flat = str(body)
         assert "PRIVATE_KEY" not in flat

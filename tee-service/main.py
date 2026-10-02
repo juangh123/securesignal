@@ -64,7 +64,7 @@ async def lifespan(_app: FastAPI):
     yield
 
 
-SERVICE_VERSION = "2.4.0"
+SERVICE_VERSION = "2.5.0"
 
 app = FastAPI(title="SecureSignal TEE Service", version=SERVICE_VERSION, lifespan=lifespan)
 
@@ -156,6 +156,21 @@ async def public_key():
     }
 
 
+def _attestation_measurement(mode: str) -> str:
+    """Measured workload identity for the selected attestation provider."""
+    if mode == "aws-nitro-enclaves":
+        return os.getenv("AWS_NITRO_PCR0", "")
+    return os.getenv("TEE_IMAGE_DIGEST", "dev")
+
+
+def _attestation_measurement_type(mode: str) -> str:
+    if mode == "aws-nitro-enclaves":
+        return "pcr0"
+    if mode == "gcp-confidential-space":
+        return "image_digest"
+    return "dev"
+
+
 @app.get("/health")
 async def health():
     """Non-secret operational status for monitoring and ops tooling.
@@ -176,11 +191,12 @@ async def health():
         # tooling show which engine is actually answering.
         "llm_model": llm.configured_model() if llm.is_configured() else None,
         "attestation_mode": mode,
-        "image_digest": (
-            os.getenv("AWS_NITRO_PCR0", "prod")
-            if mode == "aws-nitro-enclaves"
-            else os.getenv("TEE_IMAGE_DIGEST", "dev")
-        ),
+        # `image_digest` is kept for older clients. On AWS Nitro the value is
+        # actually PCR0, so new callers should use attestation_measurement and
+        # attestation_measurement_type instead.
+        "image_digest": _attestation_measurement(mode),
+        "attestation_measurement": _attestation_measurement(mode),
+        "attestation_measurement_type": _attestation_measurement_type(mode),
         # Effective behaviour (false when no registry/relayer is configured,
         # since the task state cannot be read in that case).
         "analyze_requires_onchain_task": _gate_enabled(),

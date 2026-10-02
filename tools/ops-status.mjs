@@ -9,6 +9,7 @@
  * Usage:
  *   node tools/ops-status.mjs
  *   FRONTEND_URL=... TEE_URL=... RPC_URL=... node tools/ops-status.mjs
+ *   EXPECT_ATTESTATION_MODE=aws-nitro-enclaves REQUIRE_REAL_TEE=1 node tools/ops-status.mjs
  *
  * Requires frontend dependencies (viem) installed:
  *   npm --prefix frontend install
@@ -32,6 +33,8 @@ const { createPublicClient, http, defineChain } = viem
 const FRONTEND = (process.env.FRONTEND_URL || 'https://securesignal.vercel.app').replace(/\/+$/, '')
 const TEE = (process.env.TEE_URL || 'https://securesignal-tee.onrender.com').replace(/\/+$/, '')
 const RPC = process.env.RPC_URL || 'https://coston2-api.flare.network/ext/C/rpc'
+const EXPECT_ATTESTATION_MODE = (process.env.EXPECT_ATTESTATION_MODE || '').trim()
+const REQUIRE_REAL_TEE = process.env.REQUIRE_REAL_TEE === '1'
 
 const addresses = JSON.parse(readFileSync(join(__dir, '..', 'frontend', 'src', 'config', 'contract-addresses.json'), 'utf-8'))
 const artifact = JSON.parse(readFileSync(join(__dir, '..', 'tee-service', 'config', 'AnalysisRegistry.json'), 'utf-8'))
@@ -144,7 +147,55 @@ if (health) {
   info('[9] llm configured', health.llm_configured ? `true (${health.llm_model ?? 'model?'})` : 'false')
   info('[9] price mode', String(health.price_mode))
   info('[9] attestation mode', String(health.attestation_mode))
-  info('[9] image digest', String(health.image_digest))
+  info('[9] service version', String(health.version))
+  info('[9] analyze on-chain gate', String(health.analyze_requires_onchain_task))
+  info('[9] image digest (legacy)', String(health.image_digest))
+  info('[9] attestation measurement type', String(health.attestation_measurement_type))
+  info(
+    '[9] attestation measurement',
+    String(health.attestation_measurement ?? health.image_digest ?? '').slice(0, 24) + '...',
+  )
+}
+
+if (health && EXPECT_ATTESTATION_MODE) {
+  check(
+    '[11] attestation mode matches expectation',
+    health.attestation_mode === EXPECT_ATTESTATION_MODE,
+    `expected=${EXPECT_ATTESTATION_MODE} actual=${health.attestation_mode}`,
+  )
+}
+if (health && REQUIRE_REAL_TEE) {
+  const realModes = ['aws-nitro-enclaves', 'gcp-confidential-space']
+  check(
+    '[12] real TEE attestation required',
+    realModes.includes(health.attestation_mode),
+    `mode=${health.attestation_mode}`,
+  )
+}
+if (health && health.attestation_mode === 'aws-nitro-enclaves') {
+  const measurement = String(health.attestation_measurement ?? health.image_digest ?? '').toLowerCase()
+  check(
+    '[13] attestation measurement is a PCR0',
+    /^[0-9a-f]{96}$/.test(measurement),
+    measurement ? measurement.slice(0, 24) + '...' : 'missing',
+  )
+  let recordedPcr0 = null
+  try {
+    const readme = readFileSync(join(__dir, '..', 'deploy', 'aws', 'README.md'), 'utf-8')
+    const match = readme.match(/\|\s*PCR0\s*\|\s*`?([0-9a-fA-F]{96})`?\s*\|/)
+    recordedPcr0 = match ? match[1].toLowerCase() : null
+  } catch {
+    recordedPcr0 = null
+  }
+  if (recordedPcr0) {
+    check(
+      '[14] PCR0 matches deploy/aws/README.md',
+      measurement === recordedPcr0,
+      `recorded=${recordedPcr0.slice(0, 24)}...`,
+    )
+  } else {
+    info('[14] PCR0 deployment record', 'not found in deploy/aws/README.md')
+  }
 }
 
 if (onchain && Number(onchain.next) > 0) {

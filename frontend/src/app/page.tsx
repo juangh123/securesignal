@@ -74,9 +74,12 @@ interface AttestationParsed {
   attestation_audience?: string
   attestation_nonce?: string
   nsm_document?: string
+  nsm_document_sha256?: string
   nsm_nonce?: string
   nsm_user_data?: string
   pcr0?: string
+  pcr1?: string
+  pcr2?: string
   [key: string]: unknown
 }
 
@@ -380,6 +383,7 @@ export default function Home() {
   const [failedStep, setFailedStep] = useState(0)
   const [result, setResult] = useState<AnalysisView | null>(null)
   const [onchainStatus, setOnchainStatus] = useState('')
+  const [pcrCopied, setPcrCopied] = useState(false)
   const [health, setHealth] = useState<ServiceHealth | null>(null)
   const [healthChecked, setHealthChecked] = useState(false)
   const [supportedSymbols, setSupportedSymbols] = useState<string[] | null>(null)
@@ -612,6 +616,76 @@ export default function Home() {
     att?.result_hash && result?.resultHash
       ? normalizePubKeyHex(String(att.result_hash)) === normalizePubKeyHex(String(result.resultHash))
       : undefined
+
+  const copyPcr0 = async () => {
+    const value = att?.pcr0
+    if (!value) return
+    let copied = false
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(value)
+        copied = true
+      }
+    } catch {
+      copied = false
+    }
+    if (!copied) {
+      // Clipboard API needs a secure context; fall back without throwing.
+      try {
+        const area = document.createElement('textarea')
+        area.value = value
+        area.style.position = 'fixed'
+        area.style.opacity = '0'
+        document.body.appendChild(area)
+        area.select()
+        copied = document.execCommand('copy')
+        document.body.removeChild(area)
+      } catch {
+        copied = false
+      }
+    }
+    if (copied) {
+      setPcrCopied(true)
+      window.setTimeout(() => setPcrCopied(false), 1500)
+    }
+  }
+
+  // Self-contained evidence bundle so a judge can verify the attestation
+  // offline without re-querying the TEE service.
+  const downloadEvidence = () => {
+    if (!att || !result) return
+    const taskId = att.task_id ?? result.taskId
+    const bundle = {
+      exported_at: new Date().toISOString(),
+      mode: att.mode ?? null,
+      task_id: taskId,
+      result_hash: att.result_hash ?? result.resultHash ?? null,
+      tee_address: att.tee_address ?? null,
+      timestamp: att.timestamp ?? null,
+      nsm_nonce: att.nsm_nonce ?? null,
+      nsm_user_data: att.nsm_user_data ?? null,
+      pcr0: att.pcr0 ?? null,
+      pcr1: att.pcr1 ?? null,
+      pcr2: att.pcr2 ?? null,
+      nsm_document_sha256: att.nsm_document_sha256 ?? null,
+      nsm_document: att.nsm_document ?? null,
+      signature: att.signature ?? null,
+      attestation: { ...att },
+      response_result_hash: result.resultHash ?? null,
+    }
+    const blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `securesignal-attestation-task-${String(taskId)}.json`
+    document.body.appendChild(anchor)
+    try {
+      anchor.click()
+    } finally {
+      document.body.removeChild(anchor)
+      window.setTimeout(() => URL.revokeObjectURL(url), 0)
+    }
+  }
 
   return (
     <main className="flex min-h-screen flex-col items-center p-12 bg-slate-900 text-slate-100">
@@ -1004,6 +1078,32 @@ export default function Home() {
                         {att.pcr0 && (
                           <p className="break-all">
                             PCR0: <span className="font-mono">{att.pcr0}</span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                void copyPcr0()
+                              }}
+                              title="Copy PCR0"
+                              className="ml-2 align-middle bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-300 text-[10px] font-semibold py-0.5 px-2 rounded"
+                            >
+                              {pcrCopied ? 'Copied' : 'Copy'}
+                            </button>
+                          </p>
+                        )}
+                        {att.pcr1 && (
+                          <p className="break-all">
+                            PCR1: <span className="font-mono">{att.pcr1}</span>
+                          </p>
+                        )}
+                        {att.pcr2 && (
+                          <p className="break-all">
+                            PCR2: <span className="font-mono">{att.pcr2}</span>
+                          </p>
+                        )}
+                        {att.nsm_document_sha256 && (
+                          <p className="break-all">
+                            NSM document SHA-256:{' '}
+                            <span className="font-mono">{att.nsm_document_sha256}</span>
                           </p>
                         )}
                         <details className="text-xs text-slate-400">
@@ -1027,6 +1127,15 @@ export default function Home() {
                         Signature: <span className="font-mono">{att.signature}</span>
                       </p>
                     )}
+                    <p className="mt-2">
+                      <button
+                        type="button"
+                        onClick={downloadEvidence}
+                        className="bg-slate-800 hover:bg-slate-700 border border-slate-600 text-slate-200 text-xs font-semibold py-1.5 px-3 rounded-lg"
+                      >
+                        Download evidence JSON
+                      </button>
+                    </p>
                   </div>
                 ) : result.attestationRaw ? (
                   <pre className="bg-slate-800 p-3 rounded-lg overflow-x-auto text-xs break-all whitespace-pre-wrap">
