@@ -23,7 +23,7 @@
     "typescript": "^5.0.4"
   },
   "dependencies": {
-    "@flarenetwork/flare-periphery-contracts": "^0.1.52",
+    "@flarenetwork/flare-periphery-contracts": "^0.1.53",
     "@openzeppelin/contracts": "^4.9.6",
     "dotenv": "^17.4.2",
     "fp-ts": "^2.16.11",
