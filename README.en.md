@@ -55,6 +55,7 @@ Direct video fallback: https://github.com/juangh123/securesignal/raw/main/video/
 - Registered TEE address: `0xEe4975C290FBF46757A1D90F02c3CF555163556E`
 
 ## Future Roadmap
-- Extend hardware attestation to additional TEE providers and add on-chain image-digest anchoring for automatic key rotation.
+- Completed (2.7.0): on-chain `keccak256(PCR0)` image-digest anchoring plus PCR-conditioned KMS key release; the parent instance only handles KMS ciphertext and can never read the TEE or relayer private keys.
+- Extend hardware attestation to additional TEE providers and add automatic key rotation.
 - Provide a Zero-Knowledge proof mechanism for users to demonstrate their 'Risk Score' to credit protocols without showing absolute balances.
-- Generalize the product to offer a Confidential Oracle service for third-party dApps on Flare Mainnet. 
+- Generalize the product to offer a Confidential Oracle service for third-party dApps on Flare Mainnet.
