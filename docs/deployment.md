@@ -36,7 +36,8 @@
 | 变量 | 必填性 | 默认值 | 说明 | 示例 |
 |---|---|---|---|---|
 | `TEE_PRIVATE_KEY` | 生产**必填** | 未设且 `ENV=prod`：启动直接抛错（**fail-closed**，禁止临时密钥兜底）；仅 dev 模式允许生成进程内临时密钥并打印醒目警告（重启即换钥，链上登记随之失效） | TEE 的 secp256k1 私钥（ECIES 解密 + attestation 签名共用），32 字节 hex，可带 `0x` 前缀。见 `crypto/keys.py` 与 `crypto/test_keys.py` | `0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d`（hardhat account #1，**仅本地**） |
-| `PRIVATE_KEY` | 可选 | 未设：relayer 关闭，响应 `onchain_submitted=false`，启动日志打印 `Relayer NOT configured` | **专用 relayer 账户**私钥（只持有 C2FLR gas，调 `submitResult`）；**不得复用合约 owner/部署账户**，否则 enclave/父实例可调用 `rotateTeeKey`。nonce 已在本进程内串行分配。见 `flare/contracts.py` | `0xac0974...f4f2ff80`（hardhat account #0，**仅本地**） |
+| `PRIVATE_KEY` | 可选 | 未设：relayer 关闭，响应 `onchain_submitted=false`，启动日志打印 `Relayer NOT configured` | **专用 relayer 账户**私钥（只持有 C2FLR gas，调 `submitResult`）；**不得复用合约 owner/部署账户**，否则 enclave/父实例可调用 owner 接口（含 TEE 密钥轮换 `proposeTeeKey`）。nonce 已在本进程内串行分配。见 `flare/contracts.py` | `0xac0974...f4f2ff80`（hardhat account #0，**仅本地**） |
+| `ONCHAIN_RECEIPT_TIMEOUT` | 可选 | `15`（`0` = 不等回执） | relayer 广播 `submitResult` 后等待回执的秒数。响应给出 `onchain_submitted`（已广播）与 `onchain_confirmed`（`true` = 回执成功 / `false` = revert 或广播失败 / `null` = 超时未确认），前端按三态展示。`ipc://`（enclave-vsock）路径自动跳过等待，避免长连接 | `15` |
 | `RPC_URL` | 可选 | `https://coston2-api.flare.network/ext/C/rpc`（relayer 与 FTSO 读价共用同一默认值） | EVM JSON-RPC 端点 | `http://127.0.0.1:8545`（本地） |
 | `ANALYSIS_OFFLINE` | 可选 | 未设 = 在线模式（真实 FTSO 读价） | 恰好等于 `"1"` 时启用 dev fixture 价（BTC 65000 / ETH 3500 / FLR 0.02，**非真实市价**），结果标注 `price_source="offline-fixture"`。见 `analysis/price_provider.py` | `1` |
 | `LLM_API_KEY` | 可选 | 未设：LLM 关闭，使用确定性规则引擎（`analysis_mode="rule-fallback"`） | OpenAI 兼容 API key；设置即启用 LLM 分析。见 `analysis/llm.py` | `sk-...` |
@@ -44,9 +45,18 @@
 | `LLM_MODEL` | 可选 | `gpt-4o-mini` | 模型名 | `deepseek-flash` |
 | `LLM_TIMEOUT` | 可选 | `20` | 单次 LLM HTTP 请求超时（秒）；非数字时回退 20。见 `analysis/llm.py` | `20` |
 | `LLM_TOTAL_BUDGET` | 可选 | `35` | 两次尝试共享的墙钟预算（秒）；剩余预算不足 1 秒时不再发起重试。为避免打穿 CloudFront 60 秒源站读超时，取值被硬性钳制在 45 秒以内 | `35` |
-| `ANALYZE_REQUIRE_ONCHAIN_TASK` | 可选 | 未设 = 开启（`"0"` 关闭） | `/analyze` 是公开无鉴权端点，启用 LLM 后每次调用都产生费用。开启时只分析链上真实处于 `Requested` 的任务，刷接口必须先付 C2FLR gas 注册任务。未配置 relayer（读不到 registry）时门禁自动失效 | `0` |
+| `ANALYZE_REQUIRE_ONCHAIN_TASK` | 可选 | 未设 = 开启（`"0"` 关闭） | `/analyze` 是公开无鉴权端点，启用 LLM 后每次调用都产生费用。开启时只分析链上真实处于 `Requested` 的任务，刷接口必须先付 C2FLR gas 注册任务。**门禁开启但未配置 relayer（读不到 registry）时，若 `ENV=prod` 或已配置 LLM key，服务对该端点 fail-closed（503）**；仅"dev + 无 LLM"的离线环境保持放行，`/health` 的 `analyze_gate_mode` / `analyze_gate_fail_closed` 会如实反映 | `0` |
 | `ANALYZE_TASK_MAX_AGE_SECONDS` | 可选 | `900`（`0` = 不限时） | 任务时效窗口：只分析 `requestedAt` 在窗口内的 `Requested` 任务。防止长期卡在 `Requested` 的僵尸任务被当成免费 LLM 触发器反复调用 | `3600` |
+| `ANALYZE_RESULT_CACHE_SECONDS` | 可选 | `300`（`0` = 关闭缓存） | 同一 `(task_id, ciphertext)` 的重复请求在窗口内直接返回首次成功结果，并发重复请求合并为一次分析（single-flight），避免为同一任务重复支付 LLM 费用。失败结果不缓存 | `300` |
+| `ANALYZE_MAX_CONCURRENCY` | 可选 | `2` | 同时在跑的 `/analyze` 分析上限（信号量），限制 LLM 并发与 CPU/内存峰值 | `2` |
+| `MAX_REQUEST_BODY_BYTES` | 可选 | `262144`（256 KiB） | 请求体上限，由 ASGI 中间件在 JSON 解析前强制（含 chunked 上传），超限返回 413，避免超大 body 进入内存 | `262144` |
+| `ANALYZE_RATE_LIMIT_PER_MINUTE` | 可选 | `30`（`0` = 关闭） | 应用层限速（纵深防御，CloudFront/WAF 之外）：同一客户端 60s 滑动窗口内的 `/analyze` 上限，超限返回 `429` + `Retry-After`。客户端标识优先取 `CF-Connecting-IP`；否则取 `X-Forwarded-For` **最右侧**条目（由最靠近本服务的代理追加，客户端前缀无法伪造），再退 `X-Real-IP`，最后 TCP 对端 | `30` |
+| `ANALYZE_RATE_LIMIT_GLOBAL_PER_MINUTE` | 可选 | `120`（`0` = 关闭） | 全局 60s 窗口内的 `/analyze` 上限，防止多 IP 分散刷接口；被拒请求不消耗全局额度 | `120` |
+| `ANALYZE_TRUST_PROXY_HEADERS` | 可选 | `1`（设为 `0` 关闭） | 是否信任代理头作为客户端标识。经 CloudFront/Render 前置时保持 `1`；服务被直接暴露时必须设 `0`，否则伪造的 `X-Forwarded-For` 可绕过每客户端限速 | `1` |
+| `ANALYZE_TOTAL_BUDGET_SECONDS` | 可选 | `50`（`0` = 不限制） | 单次 `/analyze` 的粗粒度墙钟预算。各步骤仍各自有超时（LLM 预算、FTSO 10s、RPC 10s、NSM 15s）；预算用于裁剪尾巴上的可选等待（relayer 回执），避免叠加拿满 CloudFront 60s 源站读超时。`/health` 回显生效值 | `50` |
+| `FTSO_MAX_FEED_AGE_SECONDS` | 可选 | `300`（`0` = 关闭校验） | 喂价时间戳新鲜度窗口：超过该窗口（或明显来自未来）的 FTSO 喂价视为过期并显式报错，绝不作为"实时价"签名上链 | `300` |
 | `TEE_IMAGE_DIGEST` | 生产推荐 | `dev` | 期望的 Confidential Space workload 镜像 digest；生产必须与 JWT 的 `submods.container.image_digest` 一致，否则 attestation 失败。见 `attestation/vtpm.py` | `sha256:<64 hex>` |
+| `ATTESTATION_SCHEME` | 可选（强制覆盖） | 未设 = 自动探测：先读链上 registry 的 `ATTESTATION_SCHEME()` marker，读不到（旧合约或 RPC 失败）回退 `eip191-legacy` | 链上签名方案：`eip191` / `eip712`（也接受 `eip191-legacy` / `eip712-v2`）。`eip712-v2` 需要能读到 registry 地址与 `chainId`；`/health` 会回显实际生效值。见 §3.6 与 `attestation/vtpm.py` | `eip712` |
 | `GCP_ATTESTATION_AUDIENCE` | 生产可选 | `https://securesignal.app` | Confidential Space OIDC token 的自定义 audience；验证方必须使用同值。 | `https://securesignal.app` |
 | `GCP_ATTESTATION_SOCKET` | 可选 | `/run/container_launcher/teeserver.sock` | Confidential Space launcher 暴露的 Unix socket。 | 默认值 |
 | `GCP_SECRETS_ENABLED` | GCP 部署必填 | `0` | 设为 `1` 时，启动脚本先经 Secret Manager 加载下方映射；缺 mapping 会 fail-closed。 | `1` |
@@ -112,11 +122,24 @@ npx hardhat run scripts/deploy.ts --network coston2
 - 先经 FlareContractRegistry（`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`，所有 Flare 网络同地址）解析官方 `FtsoV2` 地址，失败则**部署中止**（fail-fast）。
 - 依次部署 `FtsoV2Reader` → `AnalysisRegistry`（初始 `expectedImageDigest` 为零值占位）。
 - 把 `{"network":"coston2","AnalysisRegistry":"0x...","FtsoV2Reader":"0x..."}` 同时写入 `frontend/src/config/contract-addresses.json` 与 `tee-service/config/contract-addresses.json`。
-- 控制台最后提示：`NEXT STEP: call rotateTeeKey(...)`。
+- 控制台最后提示：`NEXT STEP: call proposeTeeKey(...) then commitTeeKeyRotation()`。
+- 轮换延迟：localhost 用 0；其他网络默认 48 小时，可用 `TEE_ROTATION_DELAY_SECONDS` 覆盖
+  （上限 365 天）。**公共网络上显式传 0 会被拒绝**（会让时间锁形同虚设），确需关闭时
+  额外设置 `ALLOW_ZERO_TEE_ROTATION_DELAY=1`。
 
-### 2.4 登记 TEE 密钥（rotateTeeKey）
+### 2.4 登记 TEE 密钥（proposeTeeKey → commitTeeKeyRotation）
 
-`AnalysisRegistry` 部署后必须执行 owner 调用 `rotateTeeKey(teePublicKey, imageDigest, teeAddress)`，否则 `teeAddress == 0`，所有 `submitResult` 都会因 `_verifyAttestation` 返回 false 而 revert（`"attestation failed"`）。
+`AnalysisRegistry` 部署后必须由 owner 依次调用 `proposeTeeKey(teePublicKey, imageDigest, teeAddress)`
+与 `commitTeeKeyRotation()`，否则 `teeAddress == 0`，所有 `submitResult` 都会因 `_verifyAttestation`
+返回 false 而 revert（`"attestation failed"`）。
+
+轮换采用两步 + 时间锁：`proposeTeeKey` 只登记公告并发出 `TeeKeyRotationProposed` 事件，
+新的 `activeTeePublicKey` / `teeAddress` 要等 `teeRotationDelay` 秒后由 `commitTeeKeyRotation()`
+才会生效（期间客户端仍加密给旧密钥）；owner 可用 `cancelTeeKeyRotation()` 撤销未生效的公告。
+**首次登记（`teeAddress == 0`）不受延迟限制**，因此新部署可以立即开始服务。延迟在构造时确定
+且不可修改：`deploy.ts` 在 localhost 用 0，其他网络默认 48 小时，可用
+`TEE_ROTATION_DELAY_SECONDS` 覆盖（上限 365 天）。任何延迟生效的轮换都可以被链上监控
+（`pendingTeeKey()` / `teeRotationDelay()`）提前发现。
 
 > `scripts/setup-tee.ts` 已支持网络感知：**localhost/hardhat 网络**自动使用 hardhat dev account #1（仅本地）；**其他网络（如 coston2）**必须从 env 读取 `TEE_PRIVATE_KEY`（0x + 64 hex，与 tee-service 的 `TEE_PRIVATE_KEY` 一致），可选 `TEE_IMAGE_DIGEST`（bytes32 hex，缺省为 `keccak256("dev-image")` 占位，生产应改为真实镜像 digest，见 §3.3）：
 >
@@ -125,11 +148,16 @@ npx hardhat run scripts/deploy.ts --network coston2
 > ```
 >
 > 脚本会回读链上 `activeTeePublicKey` / `expectedImageDigest` / `teeAddress` 并逐一比对。
-> 也可用任意 web3 工具（ethers 脚本 / explorer 写合约）以 owner 身份直接调 `rotateTeeKey`：
+> 也可用任意 web3 工具（ethers 脚本 / explorer 写合约）以 owner 身份走同一两步流程：
 >
 > - `newPublicKey`：TEE 公钥（65 字节未压缩 hex，`0x04` 前缀；服务启动日志 `[main] TEE public key:` 会打印）
 > - `newImageDigest`：`bytes32` 镜像 digest
 > - `newTeeAddress`：TEE 私钥对应地址（启动日志 `[main] TEE address:` 会打印）
+>
+> 若 `commitTeeKeyRotation` 因 `rotation delay not elapsed` 回退，脚本会打印
+> `pendingTeeKey().executableAt`；等到该时间后以 **`SETUP_TEE_COMMIT_ONLY=1`** 重跑
+> （例如 `TEE_PRIVATE_KEY=0x<...> SETUP_TEE_COMMIT_ONLY=1 npx hardhat run scripts/setup-tee.ts --network coston2`）。
+> 不带该变量重跑会重新 propose 并**重置等待窗口**，延迟轮换将永远无法完成。
 
 ### 2.5 已部署实例（Coston2）
 
@@ -140,7 +168,7 @@ npx hardhat run scripts/deploy.ts --network coston2
 | AnalysisRegistry | `0xe27DA7d476DF203D05afA3430fAa5Aefa14CE482` |
 | FtsoV2Reader | `0xDf0858eE9250f859Edd364C9bA1d27FA70A91F5a` |
 | 登记 TEE 地址 | `0xEe4975C290FBF46757A1D90F02c3CF555163556E` |
-| 链上 `expectedImageDigest` | `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` = `keccak256(AWS Nitro PCR0)`（2026-10-03 通过 `rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935` 提交；PCR0 为 48 字节，链上只能存 bytes32 承诺。合约仍只做 EIP-191 验签，不做链上 NSM 验证，真实度量由 NSM document + 链下 verifier 校验，见 §3.5） |
+| 链上 `expectedImageDigest` | `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` = `keccak256(AWS Nitro PCR0)`（2026-10-03 通过 `rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935` 提交；PCR0 为 48 字节，链上只能存 bytes32 承诺。**当前线上合约（v1）仍只做 EIP-191 验签**，v2 版本才升级为 EIP-712 域绑定（见 §3.6）；无论哪个版本都不做链上 NSM 验证，真实度量由 NSM document + 链下 verifier 校验，见 §3.5） |
 | 最近成功任务 | task #22，2026-10-03，链上 `status=Verified`（AWS Nitro Enclave 2.7.0 + KMS key release，证据见 `deliverables/aws-nitro-attestation-22.json`） |
 | 最近公开 Demo 冒烟 | task #19，2026-10-02，链上 `status=Verified`（Render `dev-simulated` + 真实 DeepSeek `analysis_mode="llm"` + 批量 FTSO，12/12；证据见 `deliverables/coston2-smoke-task-19.json`） |
 | 冒烟测试 | `frontend/e2e/e2e-coston2.mjs`（真实 FTSO 喂价 `price_source="coston2-ftso"`、ecrecover == TEE 地址、链上 status=Verified） |
@@ -216,7 +244,8 @@ npm install && npm run build && npm start   # 或 npm run dev
   `/run/container_launcher/teeserver.sock` 向 `http://localhost/v1/token`
   发 `POST`，请求 Google 签名的 OIDC attestation JWT。请求包含自定义
   audience 与绑定 `(task_id, result_hash)` 的 `eat_nonce`；返回 token 同时带有链上
-  ecrecover 所需的 EIP-191 签名。
+  ecrecover 所需的 TEE 签名——v2 合约为 EIP-712 域绑定签名，旧合约为
+  EIP-191（方案选择见 §3.6）。
 
 生产模式是 fail-closed：launcher socket 不存在、token endpoint 失败、audience/nonce
 不匹配或 `TEE_IMAGE_DIGEST` 与 JWT 的
@@ -266,9 +295,10 @@ TEE_IMAGE_DIGEST=sha256:<digest> \
 npx hardhat run scripts/setup-tee.ts --network coston2
 ```
 
-当次黑客松/首期上线采用「链下验证 JWT + owner 调用 `rotateTeeKey`」方案；
-合约仍只验证 EIP-191 签名和登记地址，因此登记流程的审计证据必须保存。
-链上直接验证 JWT 或接入 Flare attestation verifier 属于后续增强。
+当次黑客松/首期上线采用「链下验证 JWT + owner 两步轮换（`proposeTeeKey`/`commitTeeKeyRotation`）」方案；
+合约仍只验证 TEE 签名（当前线上 v1 为 EIP-191，v2 为 EIP-712）和登记地址，
+因此登记流程的审计证据必须保存。链上直接验证 JWT 或接入 Flare attestation
+verifier 属于后续增强。
 
 ### 3.4 信任边界说明
 
@@ -357,7 +387,102 @@ ciphertext 和 attestation-bound 的解密请求；KMS key policy 要求
 协议见 [`kms-key-release.md`](kms-key-release.md)。当前运行的 2.7.0 EIF
 已启用该模式，task 22 验证与链上承诺更新均已完成（见上表）。
 
+### 3.6 链上签名方案：EIP-191（legacy）→ EIP-712 v2
+
+| 方案 | 合约侧标记 | 签名内容 | 域绑定 | 适用 |
+|---|---|---|---|---|
+| `eip191-legacy` | 无 `ATTESTATION_SCHEME()` getter（旧版合约） | `personal_sign(abi.encodePacked(uint256 taskId, bytes32 resultHash))` | 无 | 2026-10-03 起 Coston2 线上已部署的 v1 合约 |
+| `eip712-v2` | `ATTESTATION_SCHEME() == "eip712-v2"` | EIP-712 `Attestation(uint256 taskId, bytes32 resultHash)`，domain `{name:"SecureSignal", version:"2", chainId, verifyingContract}` | chainId + registry 地址（跨链/跨部署重放被拒） | v2 合约源码 `contracts/contracts/AnalysisRegistry.sol`，**尚未部署到 Coston2** |
+
+**服务端如何选择**：`tee-service/attestation/vtpm.py` 的 `attestation_scheme()`
+按 `ATTESTATION_SCHEME` env 覆盖 → 链上 `ATTESTATION_SCHEME()` marker（eth_call）
+→ 回退 `eip191-legacy` 的顺序解析，并把结果写进 `/health.attestation_scheme`
+与每条 attestation JSON 的 `attestation_scheme` 字段（旧服务没有该字段 = legacy）。
+探测结果分三类：**调用成功**读回 marker（确定值，永久缓存）；**调用已执行但 revert**
+（旧合约没有该函数）= 明确的 `eip191-legacy`（确定值，这正是线上 v1 registry 的情况）；
+**传输类失败**（RPC 超时/连不上）才算"未知"，此时结果只缓存 5 分钟再重试。
+因此**不重新部署合约也不会让线上变坏**：服务对旧合约自动使用 legacy 签名。
+签名路径（`strict=True`）只在"未知且无历史确定结论"时拒绝签名（返回 503），
+避免产生链上必然被拒的签名；已知结论或旧合约 revert 的情形都能正常签名。
+
+**升级到 v2 的完整步骤**：
+
+1. 重新部署合约：`cd contracts && npx hardhat run scripts/deploy.ts --network coston2`
+   （自动把新地址写回 `frontend/src/config/contract-addresses.json` 与
+   `tee-service/config/contract-addresses.json`）。
+2. 重新登记 TEE 密钥：`TEE_PRIVATE_KEY=0x<...> TEE_IMAGE_DIGEST=<bytes32> npx hardhat run scripts/setup-tee.ts --network coston2`
+   （两步轮换校验公钥必须 65 字节且 0x04 开头、`imageDigest` 与 `teeAddress`
+   不能为零；公共网络默认 48h 延迟，首次登记免等待）。
+3. 重新部署 TEE 服务与前端（Render / Vercel / CloudFront）：服务读到新 registry 的
+   marker 后自动切换 `eip712-v2`，无需手工设置 env。
+4. 验证：`node tools/ops-status.mjs`（`[8b]` 检查 `/health.attestation_scheme`
+   与链上 marker 一致），再跑 `frontend/e2e/e2e-coston2.mjs` 冒烟（脚本按
+   `attestation_scheme` 自动选择 EIP-712 / EIP-191 恢复方式）。
+
+**回滚**：把两份 `contract-addresses.json` 指回旧 registry 并重新部署服务即可；
+旧合约没有 marker，服务自动退回 `eip191-legacy`。也可显式设置
+`ATTESTATION_SCHEME=eip191` 强制 legacy（不要在 v2 合约上这样做：链上会拒绝
+`submitResult`，`attestation failed`）。
+
 ---
+
+### 3.7 CloudFront/WAF 速率规则（生产建议）
+
+应用层已有 60s 滑动窗口限速（§1.2 的 `ANALYZE_RATE_LIMIT_*`，超限返回 429），
+但 CloudFront 之前的 L3/L4 洪泛与多 IP 分布式刷接口仍建议交给 WAF。下面在
+**us-east-1**（CloudFront 的 WAF scope 固定在该区域）创建"每 IP 5 分钟 2000 请求"
+的限速 ACL 并挂到现有 distribution；执行前请按账号命名/阈值调整，并先在
+非生产 distribution 验证：
+
+```bash
+AWS_REGION=us-east-1
+DIST_ID=<cloudfront-distribution-id>
+DIST_ARN=$(aws cloudfront get-distribution --id "$DIST_ID" --query 'Distribution.ARN' --output text)
+
+ACL_JSON=$(cat <<'JSON'
+{
+  "Name": "securesignal-rate-limit",
+  "Scope": "CLOUDFRONT",
+  "DefaultAction": { "Allow": {} },
+  "VisibilityConfig": {
+    "SampledRequestsEnabled": true,
+    "CloudWatchMetricsEnabled": true,
+    "MetricName": "securesignal-rate-limit"
+  },
+  "Rules": [
+    {
+      "Name": "rate-limit-per-ip",
+      "Priority": 1,
+      "Action": { "Block": {} },
+      "Statement": {
+        "RateBasedStatement": { "Limit": 2000, "AggregateKeyType": "IP" }
+      },
+      "VisibilityConfig": {
+        "SampledRequestsEnabled": true,
+        "CloudWatchMetricsEnabled": true,
+        "MetricName": "rate-limit-per-ip"
+      }
+    }
+  ]
+}
+JSON
+)
+
+ACL_ARN=$(aws wafv2 create-web-acl --cli-input-json "$ACL_JSON" \
+  --region "$AWS_REGION" --query 'Summary.ARN' --output text)
+aws wafv2 associate-web-acl --web-acl-arn "$ACL_ARN" \
+  --resource-arn "$DIST_ARN" --region "$AWS_REGION"
+```
+
+要点：
+
+- `Limit` 是每个聚合键在 **5 分钟**窗口内的请求数（WAF 固定窗口），与应用层 60s 窗口互补；
+  调参时先把 `Block` 换成 `Count` 观察基线，再切阻断。
+- CloudFront 的 WAF ACL 必须在 `us-east-1` 创建；`--resource-arn` 用 distribution ARN。
+- 更新 ACL 需先用 `aws wafv2 get-web-acl --name ... --scope CLOUDFRONT --id ...`
+  获取 lock token；删除前先 `disassociate-web-acl`。
+- 使用 Render 免费实例（§6）时没有 CloudFront 可挂，应用层限速是唯一一道，
+  建议监控 429 与平台指标。
 
 ## 4. LLM 接入
 
@@ -391,7 +516,7 @@ export LLM_TOTAL_BUDGET=35                       # 可选，两次尝试合计�
   a. 在 enclave 内自托管开源模型（如量化后的本地 LLM），数据不出 enclave——成本最高、信任最优；
   b. 使用提供机密推理（confidential inference）的 API 服务；
   c. 接受披露权衡，仅发送聚合后的组合数据（当前实现即如此：不发送地址、交易历史等身份关联信息），并在隐私政策中声明。
-- **确定性兜底**：无论 LLM 是否可用，服务始终可用（规则引擎兜底），且响应以 `analysis_mode` 如实标注走了哪条路径。
+- **确定性兜底**：无论 LLM 是否可用，服务始终可用（规则引擎兜底），且响应以 `analysis_mode` 如实标注走了哪条路径。规则引擎同样读取 `risk_profile`：conservative / moderate / aggressive 分别对应 50% / 60% / 70% 的集中度修剪阈值与 ±8 分风险偏置，未知取值回落到 moderate。
 
 ---
 
@@ -403,7 +528,7 @@ export LLM_TOTAL_BUDGET=35                       # 可选，两次尝试合计�
 | coston2 部署报 insufficient funds / 无签名账户 | `contracts/.env` 缺 `PRIVATE_KEY`，或账户无 C2FLR | 配置 `PRIVATE_KEY`；去 https://faucet.flare.network 领测试币 |
 | `FtsoV2 not found in FlareContractRegistry`（deploy 阶段） | RPC 异常或网络非 Flare 系 | 检查 RPC 连通性；确认 `--network coston2` |
 | tee 日志 `Relayer NOT configured ... onchain_submitted will be false` | `PRIVATE_KEY` 未设或 `config/contract-addresses.json` 缺失/零地址 | 设置 relayer 私钥；重新跑 `deploy.ts` 生成地址文件 |
-| tee 日志 `EPHEMERAL dev key` 警告 | `TEE_PRIVATE_KEY` 未设，进程临时密钥 | 生产必设固定 `TEE_PRIVATE_KEY`；**每次重启换钥后链上登记即失效**，需重新 `rotateTeeKey` |
+| tee 日志 `EPHEMERAL dev key` 警告 | `TEE_PRIVATE_KEY` 未设，进程临时密钥 | 生产必设固定 `TEE_PRIVATE_KEY`；**每次重启换钥后链上登记即失效**，需重新走 `proposeTeeKey` + `commitTeeKeyRotation`（轮换受时间锁约束，首次登记免等待） |
 | 链上 `submitResult` revert：`attestation failed` | 签名者 ≠ 链上 `teeAddress`（TEE 换钥/登记未做）；或签名非 65 字节 | 确认 tee 日志打印的 `TEE address` == 链上 `teeAddress`；执行 §2.4 登记 |
 | tee 日志 `WARNING: on-chain submitResult failed: ...` | relayer 余额不足 / RPC 故障 / nonce 冲突 | 不影响 `/analyze` 响应（`onchain_submitted=false`）；检查 relayer 余额与 RPC |
 | 结果 `{"status":"error","error":"price provider failed: ..."}` | FTSO RPC 不可达 / feed 数据异常（策略：绝不回退假价） | 检查 `RPC_URL` 与网络；本地开发设 `ANALYSIS_OFFLINE=1`（会标注 `offline-fixture`） |
@@ -412,7 +537,7 @@ export LLM_TOTAL_BUDGET=35                       # 可选，两次尝试合计�
 | `analysis_mode="rule-fallback"` 且已配 LLM | LLM key 无效 / 端点不可达 / 输出校验失败（已自动重试一次） | 查 tee 日志 LLMError；验证 key 与 `LLM_BASE_URL`；部分网关不支持 JSON mode（已自动兼容） |
 | `POST /analyze` 413 `encrypted_data exceeds the 131072-character limit` | 请求体超过 128 KB 上限（真实组合密文仅数百字节） | 检查客户端是否误传大对象；上限常量见 `main.py` 的 `MAX_ENCRYPTED_DATA_CHARS` |
 | `POST /analyze` 400 `payload.holdings must contain at most 25 entries` / `holdings symbol ... is invalid` | 明文持仓超过 25 个，或 symbol 不符合 `[A-Z0-9]{1,12}` | 前端 `parseHoldings` 已镜像同一组上限（见 `analysis/engine.py`）；资产过多时请分批分析 |
-| `POST /analyze` 400 `payload.risk_profile must be at most 64 characters` | `risk_profile` 是进入 LLM prompt 的自由文本，已在边界处限长 64 并去除控制字符 | 传短标签（如 `moderate`），不要把长文本塞进该字段 |
+| `POST /analyze` 400 `payload.risk_profile must be at most 64 characters` | `risk_profile` 会同时进入 LLM prompt 与规则引擎（conservative/moderate/aggressive），已在边界处限长 64 并去除控制字符 | 传短标签（如 `moderate`），不要把长文本塞进该字段 |
 | `POST /analyze` 409 `task N is not pending on-chain (status=...)` | 链上任务门禁生效：该 taskId 不存在，或已 `Completed`/`Verified` | 正常客户端先发 `requestAnalysis`，再用返回的 taskId 调用；只有离线开发才设 `ANALYZE_REQUIRE_ONCHAIN_TASK=0` |
 | `POST /analyze` 409 `task N was requested Xs ago, which is older than the 900s analysis window` | 该任务发起太早（例如页面挂了一晚上才提交，或僵尸任务） | 重新发一次 `requestAnalysis` 拿新 taskId；确需放宽就调大 `ANALYZE_TASK_MAX_AGE_SECONDS` |
 | `POST /analyze` 409 `encrypted_data does not match the inputDataHash...` | 提交的密文与创建任务时写入链上的 `inputDataHash` 不一致（任务被抢跑或前端状态错乱） | 重新走一次完整的 `requestAnalysis` → `/analyze` 流程；不要拿旧 taskId 提交不同 payload |

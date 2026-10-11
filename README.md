@@ -31,21 +31,31 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
 ## 实现状态（诚实标注）
 
 **真实实现且已验证：**
-- 合约端 `ecrecover` attestation 验签：`rotateTeeKey`（onlyOwner）登记 TEE 密钥与 `teeAddress`；
+- 合约端 `ecrecover` attestation 验签：`proposeTeeKey` + `commitTeeKeyRotation`（均 onlyOwner，两步 + 时间锁）
+  登记 TEE 密钥与 `teeAddress`（首次登记免等待，公共网络默认 48h 延迟，可链上提前发现轮换）；
   `_verifyAttestation` 校验签名者 == 登记地址；`submitResult` 拒绝伪造签名（含负例测试，
   `npx hardhat test` 全绿）。
 - ECIES 端到端加密：`eciesjs`（浏览器）↔ `eciespy`（TEE 服务），secp256k1，线格式逐字节兼容，
   双向交叉解密测试向量通过。
 - 结果 relayer 上链：TEE 服务以 relayer 身份调 `submitResult(taskId, resultHash, attestation)`，
-  客户端可对链核对 `ResultSubmitted` 事件与 `resultHash`。
+  客户端可对链核对 `ResultSubmitted` 事件与 `resultHash`。响应区分 `onchain_submitted`
+  （已广播）与 `onchain_confirmed`（默认 15s 内拿到回执：`true` 成功 / `false` 失败或 revert /
+  `null` 未确认），前端按三态展示，避免把"已广播"当成"已确认"。
 - **输入强绑定**：TEE 在解密前重算 `keccak256(encrypted_data)`，要求与创建任务时链上记录的
   `inputDataHash` 一致；不一致返回 `409`，链上状态/绑定读不到返回 `503`（fail-closed），
   防止他人用替换 payload 抢占别人的 pending task。
 - **公开端点防滥用**：`/analyze` 是无鉴权公开接口，启用 LLM 后每次调用都产生费用。
   服务默认只分析链上真实处于 `Requested` 状态的任务（`ANALYZE_REQUIRE_ONCHAIN_TASK=0` 可关），
   想刷接口就得先付 gas 注册任务；且任务必须在 `ANALYZE_TASK_MAX_AGE_SECONDS`（默认 900s）时效窗口内，
-  长期卡在 `Requested` 的僵尸任务不会被反复分析。`GET /health` 的 `analyze_requires_onchain_task`
-  反映门禁实际是否生效。
+  长期卡在 `Requested` 的僵尸任务不会被反复分析。门禁开启但 relayer 未配置时，生产或已配置 LLM
+  的环境会对该端点 **fail-closed（503）**，不会静默变成开放的付费 LLM 入口；同一
+  `(task_id, ciphertext)` 的重复/并发请求会命中 300s 结果缓存并合并为一次分析
+  （`ANALYZE_RESULT_CACHE_SECONDS` / `ANALYZE_MAX_CONCURRENCY`），另有
+  `MAX_REQUEST_BODY_BYTES` 在 JSON 解析前拒绝超大请求体，以及应用层限速
+  （`ANALYZE_RATE_LIMIT_PER_MINUTE` / `ANALYZE_RATE_LIMIT_GLOBAL_PER_MINUTE`，
+  超限返回 `429` + `Retry-After`，生产仍建议叠加 CloudFront/WAF 速率规则）。`GET /health` 的
+  `analyze_requires_onchain_task` / `analyze_gate_mode` / `analyze_gate_fail_closed`
+  如实反映门禁状态。
 - **LLM 分析引擎**：OpenAI 兼容 API（env `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`）。
   LLM 只产出判断字段（risk_score / risk_level / rebalance / 英文 summary），组合数学全部由
   `analysis/engine.py` 确定性计算；失败自动重试一次后回退规则引擎，响应以
@@ -63,8 +73,8 @@ SecureSignal 把分析引擎运行在 TEE（Trusted Execution Environment）中�
     `deliverables/ftso-live-check-2026-10-02.json`；
     可用 `python tee-service/tools/live_ftso_check.py --out <path>` 复跑。
   仅当显式 `ANALYSIS_OFFLINE=1` 时使用 dev fixture 价，且标注 `price_source: "offline-fixture"`。
-- 本地端到端集成验证 **23/23 断言通过**（`frontend/e2e/e2e-local-run.log`）：
-  起链 → 部署 → 加密 → `/analyze` → 解密 → 链上 resultHash 一致 → ecrecover 一致。
+- 本地端到端集成验证 **25/25 断言通过**（`tests/run_e2e_all.sh`，CI `e2e-local` 作业每次提交运行）：
+  起链 → 部署 → 两步登记 TEE 密钥 → 加密 → `/analyze` → 解密 → 回执确认 → 链上 resultHash 一致 → ecrecover 一致。
 - 完整 Web 流程：连接钱包 → `requestAnalysis` → 加密持仓 → `POST /analyze` → 解密结果 → 展示。
 - `docker compose up --build` 一键起全栈（含 `deploy` 初始化服务：健康检查 → 部署 → 登记 TEE 密钥）。
 
@@ -183,7 +193,7 @@ npm run dev
 当前链上 `expectedImageDigest` = `keccak256(AWS Nitro PCR0)`
 = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331`
 （`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`）。
-合约本身只做 EIP-191 验签，不会在链上校验 NSM 文档；真实 PCR0 由
+合约本身只验 TEE 结果签名（当前线上 v1 为 EIP-191；v2 源码升级为 EIP-712 域绑定，尚未部署），不会在链上校验 NSM 文档；真实 PCR0 由
 [deploy/aws/README.md](deploy/aws/README.md) 中的 NSM document + 链下 verifier 校验。
 任何 enclave 重建都会改变 PCR0，必须重新提交该链上承诺。
 

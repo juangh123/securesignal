@@ -40,6 +40,14 @@ The flow is as follows:
    calls `submitResult(taskId, resultHash, attestation)` as a relayer.
    On-chain, `_verifyAttestation` uses `ecrecover` to check that the signer
    equals the registered `teeAddress`; mismatches revert.
+   - The signing convention is discovered from the registry itself: v2
+     registries expose `ATTESTATION_SCHEME() == "eip712-v2"` and expect
+     EIP-712 typed data `Attestation(uint256 taskId, bytes32 resultHash)` with
+     domain `{name:"SecureSignal", version:"2", chainId, verifyingContract}`;
+     pre-v2 registries have no marker and only accept the legacy EIP-191
+     `personal_sign` digest over `abi.encodePacked(taskId, resultHash)`.
+     `ATTESTATION_SCHEME=eip191|eip712` can force either convention, and the
+     chosen scheme is echoed in `/health` and in each attestation JSON.
    - In normal local development the token carries
      `mode: "dev-simulated"` and is explicitly labelled as non-production
      evidence.
@@ -62,8 +70,9 @@ The flow is as follows:
 - **Frontend**: Next.js 16 (React 19), wagmi v3 / viem with
   `@web3modal/wagmi` for wallet connection, `eciesjs` for ECIES, TailwindCSS 4.
 - **Smart Contracts**: Solidity 0.8.20 (Hardhat). `AnalysisRegistry`
-  (OpenZeppelin `Ownable`; task anchoring, TEE key registry via
-  `rotateTeeKey`, attestation-verified `submitResult`) and `FtsoV2Reader`
+  (OpenZeppelin `Ownable2Step` + `EIP712`; task anchoring, TEE key registry via
+  `proposeTeeKey`/`commitTeeKeyRotation` two-step key rotation with a
+  constructor-pinned delay, attestation-verified `submitResult`) and `FtsoV2Reader`
   (minimal `IFtsoV2` interface; `@flarenetwork/flare-periphery-contracts`
   available). `FtsoV2` itself is resolved through the canonical
   FlareContractRegistry (`0xaD67FE66660Fb8dFE9d6b1b4240d8650e30F6019`).

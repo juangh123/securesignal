@@ -97,7 +97,7 @@ Video (2:19): https://youtu.be/1V5yuxIENvc
 - PCR0: `f081c1daa049abc23db7b64f82d674d8d3d52230e4526d7916dc4e49ee073453a3856b678db227a9e6591fceb8a61212`
 - PCR1: `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493`
 - PCR2: `f6e06e398c9fbfe2f203c1991ef62b1ee0666245d9750a9b7c360cbe2be9a7a6a264e521f6e6a95acbbf33367fe99a36`
-- On-chain commitment: `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` (`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`; the contract stores the commitment but only enforces the EIP-191 signature)
+- On-chain commitment: `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` (`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`; the contract stores the commitment but only enforces the TEE result signature — EIP-191 on the currently deployed v1 registry, EIP-712 domain-separated signatures on the v2 source revision, which is not deployed yet)
 
 ### Honest Engineering Notes
 - The production attestation path is a real, non-debug AWS Nitro Enclave: the NSM document is checked against the pinned AWS Nitro root certificate, certificate chain, ES384 signature, nonce, user data, ECIES public key, and PCR0.

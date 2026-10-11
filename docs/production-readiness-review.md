@@ -17,7 +17,7 @@
 
 | 领域 | 状态 | 详情与评价 |
 | :--- | :---: | :--- |
-| **功能实现 (Code Completeness)** | ✅ *Pass* | ECIES 加解密链路前后端对齐；合约 `rotateTeeKey` 访问控制 (`onlyOwner`) 规范且经验证测试通过；`ecrecover` 机制正确应用于 Attestation 验签。 |
+| **功能实现 (Code Completeness)** | ✅ *Pass* | ECIES 加解密链路前后端对齐；合约 TEE 密钥轮换为 owner-only 两步流程（`proposeTeeKey`/`commitTeeKeyRotation` + 构造时固定的时间锁延迟，公共网络默认 48h，首次登记免等待）且经验证测试通过；`ecrecover` 机制正确应用于 Attestation 验签。 |
 | **LLM 与 FTSO 引擎 (Engine)** | ✅ *Pass* | LLM与FTSO容错机制清晰，“绝不静默伪造假价或伪造LLM响应”。在异常时能以明确的 `rule-fallback` 退回，状态标注诚实。 |
 | **机密计算 (TEE Attestation)** | ✅ *Pass (2026-10-03)* | 生产路径运行于非 debug 的 AWS Nitro Enclave（2.7.0 重建）；NSM COSE/CBOR 文档已对固定 AWS 根证书验签，证书链、ES384 签名、nonce、`task_id + result_hash` user_data、ECIES 公钥与 PCR0 全部通过。Coston2 task 22 链上 `Verified`，证据见 `deliverables/aws-nitro-attestation-22.json` 与独立 verifier 输出；链上 `expectedImageDigest` 已更新为 `keccak256(PCR0)` 承诺。`/analyze` 已把密文与链上 `inputDataHash` 强绑定（不可读取则 fail-closed）。公共 Render 端点仍明确标注 `dev-simulated`。 |
 | **私钥生命周期 (Key Lifecycle)** | ✅ *Pass（2.7.0 已部署）* | `crypto/keys.py` 在 `ENV=prod` 且缺少/空白 `TEE_PRIVATE_KEY` 时直接抛错（fail-closed）；enclave relayer 已切换为专用 gas-only 账户，relayer nonce 分配已串行化。2.7.0 已启用两阶段 KMS key release：父实例只转发 KMS ciphertext，key policy 用 `kms:RecipientAttestation:PCR0/1/2` 限制 `Decrypt`，enclave 用临时 RSA-2048 + NSM attestation 解封私钥（见 `docs/kms-key-release.md`）。父实例与部署机均无法读取 TEE/relayer 私钥。 |
@@ -38,7 +38,7 @@
 如果不影响黑客松 Demo 发布，以下可作为后续版本的常规优化或设计改进的 Follow-up。
 
 1. **链上验证真正的 TEE 证明**：
-   当前 `AnalysisRegistry` 只校验 EIP-191 TEE 签名；NSM/COSE 验证由链下 verifier 完成，owner 登记 TEE key 的信任假设仍然存在。长期方案是在合约或 Flare attestation 中间层验证 NSM/JWT 证明（含 PCR 白名单），让链上状态不依赖 owner 的人工审查。
+   当前已部署的 `AnalysisRegistry`（v1）只校验 EIP-191 TEE 签名；v2 源码已升级为 EIP-712 域绑定签名（chainId + registry 地址，可防跨部署重放），但链上仍不校验 NSM/COSE——该验证由链下 verifier 完成，owner 登记 TEE key 的信任假设仍然存在。长期方案是在合约或 Flare attestation 中间层验证 NSM/JWT 证明（含 PCR 白名单），让链上状态不依赖 owner 的人工审查。
 2. **KMS key release 的自动化与轮换**：
    两阶段 KMS key release 已在部署脚本/启动器中实现（PCR0/1/2 条件 + RSA-OAEP 响应加密），下一次重建生效。后续可补：KMS key 自动轮换的运维告警、key policy 的最小权限收缩（把父角色 `kms:Decrypt` 的资源范围收窄到具体 key ARN）、以及 KMS key 删除/重建的演练。
 3. **LLM 模型信任边界 (Disclosure)**：

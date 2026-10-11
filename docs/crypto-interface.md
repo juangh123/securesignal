@@ -77,5 +77,8 @@ Transport encoding: **base64** of the bytes above (no `0x` prefix, not hex).
 3. **JSON deserialize**: parse the plaintext and validate it matches the `TeePayload` contract.
 4. **Result encryption**: encrypt the result JSON to `client_pubkey` with `eciespy`,
    base64-encode it, and return it as `encrypted_result` alongside `result_hash` and `attestation`.
+   The `attestation` JSON includes `attestation_scheme` (`eip712-v2` on v2
+   registries, `eip191-legacy` on pre-v2 deployments or older service builds),
+   which tells verifiers which digest to recover the TEE signature over.
 5. **Result decryption**: the frontend decrypts `encrypted_result` with the session
    private key using `eciesjs` and parses the result JSON.
