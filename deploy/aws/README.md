@@ -1,8 +1,12 @@
 # AWS Nitro Enclaves deployment
 
 SecureSignal can run its FastAPI analysis engine inside an AWS Nitro Enclave.
-The enclave obtains a signed NSM attestation document for each task/result pair;
-the existing EIP-191 signature is still used by the Flare registry contract.
+The enclave obtains a signed NSM attestation document for each task/result pair.
+The Flare registry contract verifies a TEE signature over `(taskId, resultHash)`:
+EIP-191 on the currently deployed v1 registry, and EIP-712 (domain-separated by
+chain id + registry address) on the v2 source revision once it is deployed. The
+service picks the convention by reading the registry's `ATTESTATION_SCHEME()`
+marker.
 
 ## Current verified deployment
 
@@ -19,7 +23,7 @@ the existing EIP-191 signature is still used by the Flare registry contract.
 | PCR1 | `4b4d5b3661b3efc12920900c80e126e4ce783c522de6c02a2a5bf7af3a2b9327b86776f188e4be1c1c404a129dbda493` |
 | PCR2 | `f6e06e398c9fbfe2f203c1991ef62b1ee0666245d9750a9b7c360cbe2be9a7a6a264e521f6e6a95acbbf33367fe99a36` |
 | KMS key | `arn:aws:kms:us-east-1:615854521686:key/9206fce2-2bbc-42d9-95c4-8b8958213897` (`Decrypt` restricted to enclave PCR0/PCR1/PCR2 via `kms:RecipientAttestation:*`) |
-| On-chain commitment | `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` (`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`; the contract stores the commitment but still verifies only the EIP-191 signature) |
+| On-chain commitment | `keccak256(PCR0)` = `0xc9ff301894c99edbab0f2e673c0e7363c8de67b481f7466fc43a0333207a7331` (`rotateTeeKey` tx `0x915bf9033f65700edd341aeeb86a59bf604be58515e8a8f0502482d955288935`; the contract stores the commitment but does not verify it — it only checks the TEE result signature, EIP-191 on the deployed v1 registry) |
 | Verification | Coston2 production smoke test `12/12` passed; task 22 `Verified` (`requestAnalysis` `0x09fa733083965ef579aea8e0a9b9da08e0b570c49ebe690662e670bf2a54d13a`, `ResultSubmitted` `0xf25433a4e57611271379c429c63455fcbe319f0df08ccd3b8e42a950a70d8ba8`); evidence in `deliverables/aws-nitro-attestation-22.json` + independent NSM verification |
 
 > **Build provenance (2026-10-03):** this non-debug EIF was rebuilt from the

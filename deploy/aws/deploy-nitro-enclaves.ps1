@@ -811,16 +811,27 @@ if ($useKms) {
                 Resource = "*"
             },
             [ordered]@{
+                Sid = "AllowEnclaveDescribeKey"
+                Effect = "Allow"
+                Principal = @{ AWS = $roleArn }
+                Action = @("kms:DescribeKey")
+                Resource = "*"
+            },
+            [ordered]@{
                 Sid = "AllowEnclaveDecrypt"
                 Effect = "Allow"
                 Principal = @{ AWS = $roleArn }
-                Action = @("kms:Decrypt", "kms:DescribeKey")
+                Action = @("kms:Decrypt")
                 Resource = "*"
                 Condition = @{
                     StringEquals = @{
                         "kms:RecipientAttestation:PCR0" = @($pcr0.ToLower(), $pcr0.ToUpper())
                         "kms:RecipientAttestation:PCR1" = @($pcr1.ToLower(), $pcr1.ToUpper())
                         "kms:RecipientAttestation:PCR2" = @($pcr2.ToLower(), $pcr2.ToUpper())
+                        # Pin the AAD so a ciphertext sealed under a different
+                        # context with the same key cannot be released here.
+                        "kms:EncryptionContext:app" = "securesignal"
+                        "kms:EncryptionContext:purpose" = "tee-key-release"
                     }
                 }
             }
