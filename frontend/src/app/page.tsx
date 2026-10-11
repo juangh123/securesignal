@@ -2,7 +2,14 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useAccount, useChainId, usePublicClient, useSwitchChain, useWriteContract } from 'wagmi'
-import { decodeEventLog, keccak256, stringToHex } from 'viem'
+import {
+  decodeEventLog,
+  encodePacked,
+  keccak256,
+  recoverMessageAddress,
+  recoverTypedDataAddress,
+  stringToHex,
+} from 'viem'
 import type { Abi, Hex } from 'viem'
 import {
   generateSessionKeyPair,
@@ -12,6 +19,8 @@ import {
 } from '@/utils/crypto'
 import addresses from '@/config/contract-addresses.json'
 import AnalysisRegistryABI from '@/config/AnalysisRegistry.json'
+import { assertAnalysisResult, parseHoldings } from '@/utils/portfolio'
+import type { AnalysisResult, RebalanceItem } from '@/utils/portfolio'
 
 const TEE_URL = (process.env.NEXT_PUBLIC_TEE_URL ?? '').trim() || 'http://localhost:8000'
 const REGISTRY_ADDRESS = addresses.AnalysisRegistry as `0x${string}`
@@ -23,44 +32,9 @@ const EXPLORER = 'https://coston2-explorer.flare.network'
 // until the wallet is on this chain.
 const COSTON2_CHAIN_ID = 114
 
-// Client-side mirror of the TEE service's input limits (analysis/engine.py),
-// so oversized or malformed portfolios fail fast with a readable message
-// instead of after a wallet transaction.
-const MAX_HOLDINGS = 25
-const MAX_SYMBOL_LENGTH = 12
-const MAX_AMOUNT = 1e18
-const SYMBOL_RE = new RegExp(`^[A-Z0-9]{1,${MAX_SYMBOL_LENGTH}}$`)
-
 // ---------------------------------------------------------------------------
-// TEE 引擎输出契约（全项目唯一标准，逐字遵守）
+// TEE 引擎输出契约（全项目唯一标准，逐字遵守；类型见 utils/portfolio.ts）
 // ---------------------------------------------------------------------------
-
-interface HoldingItem {
-  symbol: string
-  amount: number
-  value_usd: number
-  weight_pct: number
-}
-
-interface RebalanceItem {
-  action: 'increase' | 'decrease' | 'hold'
-  symbol: string
-  reason: string
-}
-
-interface AnalysisResult {
-  status: 'success' | 'error'
-  analysis_mode: 'llm' | 'rule-fallback'
-  price_source: string
-  prices_used: Record<string, number>
-  total_value_usd: number
-  holdings: HoldingItem[]
-  risk_score: number // 0-100
-  risk_level: 'low' | 'medium' | 'high'
-  rebalance: RebalanceItem[]
-  summary: string
-  error?: string
-}
 
 interface AttestationParsed {
   result_hash?: string
@@ -91,6 +65,12 @@ interface AnalysisView {
   attestation?: AttestationParsed
   attestationRaw?: unknown
   onchainSubmitted?: boolean
+  /** true = receipt confirmed, false = failed/reverted, null/undefined = unknown. */
+  onchainConfirmed?: boolean | null
+  /** Signature recovery result vs the on-chain teeAddress (null = unchecked). */
+  signerVerified?: boolean | null
+  signerRecovered?: string
+  signerExpected?: string
 }
 
 /** Non-secret status exposed by the TEE service's GET /health endpoint. */
@@ -104,7 +84,12 @@ interface ServiceHealth {
   llm_configured: boolean
   llm_model: string | null
   attestation_mode: string
+  /** On-chain signature convention: "eip712-v2" or "eip191-legacy" (absent on pre-v2 services). */
+  attestation_scheme?: string
   image_digest: string
+  /** How the backend's on-chain task gate behaves right now. */
+  analyze_gate_mode?: 'disabled' | 'enforced' | 'unavailable'
+  analyze_gate_fail_closed?: boolean
 }
 
 /** A task that was registered on-chain but whose TEE analysis has not completed. */
@@ -169,44 +154,6 @@ function fmtAmount(n: number): string {
   return n.toLocaleString('en-US', { maximumFractionDigits: 8 })
 }
 
-/** Parse "2 BTC, 10 ETH" style input into { BTC: 2, ETH: 10 }. */
-function parseHoldings(input: string): Record<string, number> {
-  const holdings: Record<string, number> = {}
-  const parts = input
-    .split(/[\n,;]+/)
-    .map((s) => s.trim())
-    .filter(Boolean)
-  for (const part of parts) {
-    const m = part.match(/^([0-9]*\.?[0-9]+)\s*([A-Za-z][A-Za-z0-9]*)$/)
-    if (!m) {
-      throw new Error(`Cannot parse holding: "${part}" — expected format "2 BTC" (amount + symbol)`)
-    }
-    const symbol = m[2].toUpperCase()
-    const amount = Number.parseFloat(m[1])
-    if (!SYMBOL_RE.test(symbol)) {
-      throw new Error(
-        `Invalid symbol "${m[2]}": use 1-${MAX_SYMBOL_LENGTH} letters or digits, e.g. BTC`
-      )
-    }
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new Error(`Invalid amount for holding: "${part}"`)
-    }
-    if (amount > MAX_AMOUNT) {
-      throw new Error(`Amount for ${symbol} is too large (max ${MAX_AMOUNT.toExponential(0)})`)
-    }
-    holdings[symbol] = (holdings[symbol] ?? 0) + amount
-  }
-  if (Object.keys(holdings).length === 0) {
-    throw new Error('Enter at least one holding, e.g. "2 BTC, 10 ETH"')
-  }
-  if (Object.keys(holdings).length > MAX_HOLDINGS) {
-    throw new Error(
-      `Too many holdings (${Object.keys(holdings).length}); the TEE accepts at most ${MAX_HOLDINGS} distinct symbols`
-    )
-  }
-  return holdings
-}
-
 function asRecord(x: unknown): Record<string, unknown> {
   return x !== null && typeof x === 'object' && !Array.isArray(x)
     ? (x as Record<string, unknown>)
@@ -223,6 +170,48 @@ function tryParseJson(x: unknown): AttestationParsed | undefined {
     }
   }
   return asRecord(x) as AttestationParsed
+}
+
+/**
+ * Recover the TEE signer from the attestation signature so the browser can
+ * compare it with the on-chain teeAddress instead of trusting the service.
+ * Returns undefined when the response does not carry a usable signature.
+ */
+async function recoverAttestationSigner(
+  att: AttestationParsed,
+  fallbackTaskId: string,
+  fallbackResultHash?: string
+): Promise<string | undefined> {
+  const signature = typeof att.signature === 'string' ? att.signature : undefined
+  const signedHash = (
+    typeof att.result_hash === 'string' ? att.result_hash : fallbackResultHash
+  ) as Hex | undefined
+  if (!signature || !signedHash || !/^0x[0-9a-fA-F]{130}$/.test(signature)) return undefined
+  const signedTaskId = BigInt(String(att.task_id ?? fallbackTaskId))
+  if (att.attestation_scheme === 'eip712-v2') {
+    return await recoverTypedDataAddress({
+      domain: {
+        name: 'SecureSignal',
+        version: '2',
+        chainId: COSTON2_CHAIN_ID,
+        verifyingContract: REGISTRY_ADDRESS,
+      },
+      types: {
+        Attestation: [
+          { name: 'taskId', type: 'uint256' },
+          { name: 'resultHash', type: 'bytes32' },
+        ],
+      },
+      primaryType: 'Attestation',
+      message: { taskId: signedTaskId, resultHash: signedHash },
+      signature: signature as Hex,
+    })
+  }
+  // Legacy EIP-191 personal_sign over the raw packed (taskId, resultHash).
+  return await recoverMessageAddress({
+    message: { raw: encodePacked(['uint256', 'bytes32'], [signedTaskId, signedHash]) },
+    signature: signature as Hex,
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -283,6 +272,12 @@ function TrustNotice({ health, checked }: { health: ServiceHealth | null; checke
       : health.attestation_mode === 'gcp-confidential-space'
         ? 'GCP Confidential Space attestation'
         : 'dev-simulated attestation'
+  // Reported by the service, which resolves it from the registry itself; older
+  // services only ever produced the legacy EIP-191 signature.
+  const schemeLabel =
+    health.attestation_scheme === 'eip712-v2'
+      ? 'EIP-712 signed (chain-bound)'
+      : 'EIP-191 signed (legacy)'
   return (
     <div className="flex flex-col gap-2 bg-slate-800/80 border border-slate-600 text-slate-300 text-sm p-3 rounded-lg mb-2">
       <div className="flex flex-wrap gap-1.5">
@@ -305,6 +300,15 @@ function TrustNotice({ health, checked }: { health: ServiceHealth | null; checke
         >
           {attestationLabel}
         </Badge>
+        <Badge
+          className={
+            health.attestation_scheme === 'eip712-v2'
+              ? 'bg-emerald-100 text-emerald-800'
+              : 'bg-slate-700 text-slate-200'
+          }
+        >
+          {schemeLabel}
+        </Badge>
       </div>
       {health.llm_configured ? (
         <p>
@@ -319,6 +323,12 @@ function TrustNotice({ health, checked }: { health: ServiceHealth | null; checke
           a third-party model provider.
           {!confidential &&
             ' Attestation is currently dev-simulated, not production-grade enclave evidence.'}
+        </p>
+      )}
+      {health.analyze_gate_fail_closed && (
+        <p className="text-amber-300">
+          <strong>Analysis unavailable:</strong> the backend requires on-chain task verification but
+          its relayer/registry is not configured, so /analyze is refusing requests (fail-closed).
         </p>
       )}
     </div>
@@ -444,7 +454,7 @@ export default function Home() {
     }
 
     const readJson = (path: string) =>
-      fetch(`${TEE_URL}${path}`)
+      fetch(`${TEE_URL}${path}`, { signal: AbortSignal.timeout(8_000) })
         .then((r) => (r.ok ? r.json() : null))
         .catch(() => null)
 
@@ -492,6 +502,9 @@ export default function Home() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ task_id: taskId, encrypted_data: encryptedData }),
+      // Free-tier cold start (~60s) plus the LLM budget must still fit; this
+      // only exists so a dead connection cannot hang the flow forever.
+      signal: AbortSignal.timeout(120_000),
     })
     if (!analyzeResp.ok) {
       const body = await analyzeResp.text().catch(() => '')
@@ -507,19 +520,54 @@ export default function Home() {
       attestation?: unknown
       result_hash?: string
       onchain_submitted?: boolean
+      onchain_confirmed?: boolean | null
     }
     if (!data.encrypted_result) throw new Error('TEE response missing encrypted_result field')
 
     onProgress(5, '7/7 Decrypting result with session key…')
-    const decrypted = decryptResult<AnalysisResult>(session.privateKeyHex, data.encrypted_result)
+    const decrypted = assertAnalysisResult(
+      decryptResult<unknown>(session.privateKeyHex, data.encrypted_result)
+    )
+    const attestation = tryParseJson(data.attestation)
+
+    // Recover the TEE signer locally and compare it with the key registered
+    // on-chain right now, instead of taking the service's word for it.
+    let signerVerified: boolean | null = null
+    let signerRecovered: string | undefined
+    let signerExpected: string | undefined
+    if (attestation && publicClient) {
+      try {
+        signerExpected = (await publicClient.readContract({
+          address: REGISTRY_ADDRESS,
+          abi: REGISTRY_ABI,
+          functionName: 'teeAddress',
+        })) as string
+        signerRecovered = await recoverAttestationSigner(
+          attestation,
+          String(taskId),
+          data.result_hash
+        )
+        if (signerRecovered && signerExpected) {
+          signerVerified =
+            signerRecovered.toLowerCase() === signerExpected.toLowerCase()
+        }
+      } catch {
+        signerVerified = null
+      }
+    }
+
     setResult({
       taskId: String(taskId),
       txHash,
       result: decrypted,
       resultHash: data.result_hash,
-      attestation: tryParseJson(data.attestation),
+      attestation,
       attestationRaw: data.attestation,
       onchainSubmitted: data.onchain_submitted,
+      onchainConfirmed: data.onchain_confirmed,
+      signerVerified,
+      signerRecovered,
+      signerExpected,
     })
     sessionStorage.removeItem(PENDING_TASK_KEY)
     setPendingTask(null)
@@ -604,7 +652,9 @@ export default function Home() {
 
       // 2. Fetch TEE service public key and cross-check against the on-chain value.
       setStatus('2/7 Fetching TEE public key and cross-checking with on-chain value…')
-      const pkResp = await fetch(`${TEE_URL}/public-key`)
+      const pkResp = await fetch(`${TEE_URL}/public-key`, {
+        signal: AbortSignal.timeout(15_000),
+      })
       if (!pkResp.ok) throw new Error(`GET /public-key failed: HTTP ${pkResp.status}`)
       const pkJson = (await pkResp.json()) as { public_key?: string }
       if (!pkJson.public_key) throw new Error('TEE /public-key response missing public_key field')
@@ -1103,9 +1153,19 @@ export default function Home() {
                 </p>
                 <p className="mt-2">
                   {result.onchainSubmitted ? (
-                    <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
-                      Anchored on-chain ✓
-                    </span>
+                    result.onchainConfirmed === true ? (
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-emerald-100 text-emerald-800">
+                        Result receipt confirmed on-chain ✓
+                      </span>
+                    ) : result.onchainConfirmed === false ? (
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-rose-100 text-rose-800">
+                        Not anchored on-chain (relayer transaction failed or reverted) ✗
+                      </span>
+                    ) : (
+                      <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
+                        Relayer transaction submitted — receipt not confirmed yet
+                      </span>
+                    )
                   ) : (
                     <span className="inline-block px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800">
                       Not anchored on-chain (relayer unavailable or task not pending)
@@ -1254,6 +1314,35 @@ export default function Home() {
                       <p className={attHashMatch ? 'text-emerald-700' : 'text-rose-700'}>
                         attestation.result_hash vs response result_hash{' '}
                         {attHashMatch ? 'match ✓' : 'mismatch ✗'}
+                      </p>
+                    )}
+                    {att.signature && (
+                      <p
+                        className={
+                          result.signerVerified === true
+                            ? 'text-emerald-700'
+                            : result.signerVerified === false
+                              ? 'text-rose-700 font-semibold'
+                              : 'text-amber-700'
+                        }
+                      >
+                        {result.signerVerified === true
+                          ? 'Signature recovered to the on-chain teeAddress ✓'
+                          : result.signerVerified === false
+                            ? 'Signature does NOT match the on-chain teeAddress ✗'
+                            : 'Signature not verifiable in this browser session.'}
+                        {result.signerVerified === false && result.signerRecovered && (
+                          <>
+                            {' '}
+                            recovered {result.signerRecovered.slice(0, 12)}…, expected{' '}
+                            {String(result.signerExpected ?? '').slice(0, 12)}…
+                          </>
+                        )}
+                      </p>
+                    )}
+                    {att.signature && att.attestation_scheme !== 'eip712-v2' && (
+                      <p className="text-xs text-amber-700">
+                        Legacy EIP-191 attestation (no chain/contract domain binding).
                       </p>
                     )}
                     {att.signature && (
