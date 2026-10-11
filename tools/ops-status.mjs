@@ -142,6 +142,41 @@ if (health && onchain) {
   check('[8] health.registry_address == configured registry',
     String(health.registry_address).toLowerCase() === String(REGISTRY).toLowerCase(),
     String(health.registry_address))
+
+  // Which convention the service signs with must match what the deployed
+  // registry enforces. Registries deployed before the v2 revision have no
+  // ATTESTATION_SCHEME() marker and only accept EIP-191, so an unreadable
+  // marker means legacy. A missing health field means a pre-v2 service build.
+  const serviceScheme = String(health.attestation_scheme || 'eip191-legacy')
+  let onchainScheme = 'eip191-legacy'
+  try {
+    onchainScheme = await publicClient.readContract({
+      address: REGISTRY, abi: ABI, functionName: 'ATTESTATION_SCHEME',
+    })
+  } catch {
+    // Pre-v2 registry: no ATTESTATION_SCHEME() function to call.
+  }
+  info('[8b] attestation scheme (service)', serviceScheme)
+  check('[8b] service attestation scheme == registry marker',
+    serviceScheme === onchainScheme,
+    `service=${serviceScheme} chain=${onchainScheme}`)
+
+  // Newer registries announce a key rotation before it activates; report a
+  // pending swap so operators can confirm it is expected. Pre-v3 registries
+  // have no pendingTeeKey() function, which the catch handles.
+  try {
+    const pending = await publicClient.readContract({
+      address: REGISTRY, abi: ABI, functionName: 'pendingTeeKey',
+    })
+    const exists = Boolean(pending?.exists ?? pending?.[4])
+    if (exists) {
+      const executableAt = Number(pending.executableAt ?? pending[3])
+      info('[8c] pending TEE key rotation',
+        executableAt ? new Date(executableAt * 1000).toISOString() : 'unknown')
+    }
+  } catch {
+    // Registry predates the two-step rotation flow.
+  }
 }
 
 if (health) {

@@ -9,6 +9,8 @@ on:
     - cron: "*/10 * * * *"
   workflow_dispatch:
 
+permissions: {}
+
 jobs:
   ping:
     name: keep the Render demo warm

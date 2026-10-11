@@ -12,6 +12,10 @@ dist/
 __pycache__/
 *.pyc
 .venv/
+# Coverage artifacts (pytest-cov / coverage.py)
+.coverage
+.coverage.*
+htmlcov/
 
 # Env & secrets
 .env
@@ -51,3 +55,6 @@ video/tmp/
 
 # Local Vercel project link (contains no secrets, but is machine-specific).
 .vercel/
+
+# Local verification artifacts (Playwright CLI output, browser harness scratch).
+output/

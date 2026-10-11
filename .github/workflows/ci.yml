@@ -6,6 +6,9 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: true
@@ -18,8 +21,8 @@ jobs:
       run:
         working-directory: tee-service
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           # Match the production image (python:3.11-slim in tee-service/Dockerfile).
           python-version: "3.11"
@@ -32,7 +35,27 @@ jobs:
       - name: Unit tests (offline — no RPC, no on-chain writes)
         env:
           ANALYSIS_OFFLINE: "1"
-        run: python -m pytest -q
+        # --cov reads .coveragerc (core runtime modules only); the floor sits
+        # below the measured 87% so platform noise cannot flake the job.
+        run: python -m pytest -q --cov --cov-fail-under=80
+      - name: Protocol self-test against a live service (gate inert)
+        # Exercises GET /public-key, the full ECIES roundtrip, result_hash,
+        # attestation ecrecover and the mock-LLM paths against a real uvicorn
+        # process. PRIVATE_KEY is empty so the on-chain gate stays inert and
+        # no chain is needed.
+        env:
+          ANALYSIS_OFFLINE: "1"
+          PRIVATE_KEY: ""
+        run: |
+          python -m uvicorn main:app --host 127.0.0.1 --port 8001 &
+          UVICORN_PID=$!
+          for attempt in $(seq 1 60); do
+            if curl -sf http://127.0.0.1:8001/public-key > /dev/null; then break; fi
+            sleep 1
+          done
+          curl -sf http://127.0.0.1:8001/public-key > /dev/null
+          python test-flow.py http://127.0.0.1:8001
+          kill "$UVICORN_PID"
 
   contracts:
     name: contracts · hardhat test
@@ -41,8 +64,8 @@ jobs:
       run:
         working-directory: contracts
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -59,8 +82,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -69,6 +92,8 @@ jobs:
         run: npm ci
       - name: Lint
         run: npm run lint
+      - name: Unit tests (pure helpers)
+        run: npm run test:unit
       - name: Build
         env:
           # Required at import time by src/config.ts. Any non-empty value is
@@ -80,8 +105,8 @@ jobs:
     name: tooling · scripts and evidence syntax
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
       - name: Node syntax
@@ -89,6 +114,42 @@ jobs:
           node --check tools/ops-status.mjs
           node --check frontend/e2e/e2e-coston2.mjs
           node --check frontend/e2e/e2e-local.mjs
+      - name: Shared config copies stay in sync
+        # The ABI/address JSON is generated once and copied by hand into both
+        # consumers; a drift here silently breaks the contract at runtime.
+        run: |
+          cmp tee-service/config/AnalysisRegistry.json frontend/src/config/AnalysisRegistry.json
+          cmp tee-service/config/contract-addresses.json frontend/src/config/contract-addresses.json
+      - name: Shell script syntax
+        run: bash -n tests/run_e2e_all.sh
+      - name: Requirements lock covers every top-level pin
+        # Guards the documented "regenerate the lock after editing
+        # requirements.txt" rule without re-resolving versions here.
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          def norm(name: str) -> str:
+              return re.sub(r"[-_.]+", "-", name).lower()
+
+          requirements = Path("tee-service/requirements.txt").read_text(encoding="utf-8")
+          lock = Path("tee-service/requirements-lock.txt").read_text(encoding="utf-8")
+          lock_names = {
+              norm(line.split("==")[0])
+              for line in lock.splitlines()
+              if line and not line[0].isspace() and not line.startswith("#")
+          }
+          pins = [
+              line.strip()
+              for line in requirements.splitlines()
+              if line.strip() and not line.startswith("#") and "==" in line
+          ]
+          missing = [pin for pin in pins if norm(pin.split("==")[0]) not in lock_names]
+          if missing:
+              raise SystemExit("lock is missing top-level pins: " + ", ".join(missing))
+          print(f"lock covers {len(pins)} top-level pins")
+          PY
       - name: JSON evidence files
         run: |
           python -m json.tool deploy/aws/deployment-policy.json > /dev/null
@@ -135,8 +196,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "22"
           cache: npm
@@ -165,6 +226,38 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Build the production image
         run: docker build -t securesignal-tee:ci ./tee-service
+
+  e2e-local:
+    # Full local flow: hardhat chain -> deploy + TEE key registration ->
+    # TEE service (fixture prices) -> requestAnalysis -> ECIES -> /analyze ->
+    # decrypt -> signature recovery -> on-chain resultHash check.
+    # This is the only job that exercises the real cross-component contract.
+    name: e2e · local chain + TEE + client
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: |
+            contracts/package-lock.json
+            frontend/package-lock.json
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: |
+            tee-service/requirements.txt
+            tee-service/requirements-dev.txt
+      - name: Install dependencies
+        run: |
+          npm ci --prefix contracts
+          npm ci --prefix frontend
+          pip install -r tee-service/requirements-dev.txt
+      - name: Run the end-to-end suite
+        run: bash tests/run_e2e_all.sh

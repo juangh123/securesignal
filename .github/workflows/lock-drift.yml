@@ -1,0 +1,56 @@
+# Advisory lock-drift report. Resolves the dependency closure inside
+# python:3.11-slim so linux/amd64 platform markers (e.g. uvloop) are handled
+# correctly, then shows how a regenerated requirements-lock.txt would differ.
+# This job never fails the build: read the run summary to decide when to land
+# a reviewed dependency update (container smoke test required before merging).
+name: lock-drift
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  lock-drift:
+    name: requirements-lock drift (advisory)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Resolve the closure inside python:3.11-slim
+        id: resolve
+        continue-on-error: true
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp \
+            -v "$PWD:/w" -w /w python:3.11-slim sh -c '
+              pip install --quiet --upgrade pip &&
+              pip install --dry-run --ignore-installed -r tee-service/requirements.txt --report /w/lock-report.json &&
+              python tee-service/tools/gen_requirements_lock.py /w/lock-report.json /w/lock-candidate.txt
+            '
+      - name: Publish the drift summary
+        run: |
+          # Compare package entries only: the checked-in lock carries an extra
+          # explanatory header line the generator does not reproduce.
+          grep -v '^#' tee-service/requirements-lock.txt > lock-current.entries
+          if [ -f lock-candidate.txt ]; then
+            grep -v '^#' lock-candidate.txt > lock-candidate.entries
+          fi
+          {
+            echo "## requirements-lock drift"
+            echo
+            if [ ! -f lock-candidate.entries ]; then
+              echo "Resolution did not finish (see the previous step); no drift report this run."
+            elif diff -u lock-current.entries lock-candidate.entries > lock.diff; then
+              echo "No drift: the checked-in lock matches a fresh linux/amd64 resolution."
+            else
+              echo "A fresh linux/amd64 resolution differs from the checked-in lock:"
+              echo
+              echo '```diff'
+              sed -n '1,300p' lock.diff
+              echo '```'
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+          rm -f lock-report.json lock-candidate.txt lock-current.entries lock-candidate.entries lock.diff
