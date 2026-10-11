@@ -64,6 +64,38 @@ function writeAddressConfig(networkName: string, addresses: Record<string, strin
   }
 }
 
+/**
+ * Rotation delay passed to the constructor. Public networks default to 48h so
+ * a key swap is announced on-chain before it can sign anything (first-time
+ * registration is exempt inside the contract); localhost rotates instantly.
+ * Override with TEE_ROTATION_DELAY_SECONDS (integer seconds, max 365 days).
+ */
+function readRotationDelay(networkName: SupportedNetwork): bigint {
+  const raw = (process.env.TEE_ROTATION_DELAY_SECONDS ?? "").trim();
+  if (raw) {
+    if (!/^\d+$/.test(raw)) {
+      throw new Error("TEE_ROTATION_DELAY_SECONDS must be an integer number of seconds");
+    }
+    const value = BigInt(raw);
+    if (value > 365n * 24n * 60n * 60n) {
+      throw new Error("TEE_ROTATION_DELAY_SECONDS must not exceed 365 days");
+    }
+    if (
+      value === 0n &&
+      networkName !== "localhost" &&
+      (process.env.ALLOW_ZERO_TEE_ROTATION_DELAY ?? "").trim() !== "1"
+    ) {
+      throw new Error(
+        "TEE_ROTATION_DELAY_SECONDS=0 would disable the key-rotation timelock on " +
+          "a public network. Set a positive delay, or set " +
+          "ALLOW_ZERO_TEE_ROTATION_DELAY=1 to override deliberately."
+      );
+    }
+    return value;
+  }
+  return networkName === "localhost" ? 0n : 48n * 60n * 60n;
+}
+
 async function main() {
   const networkName = network.name as SupportedNetwork;
   if (!SUPPORTED_NETWORKS.includes(networkName)) {
@@ -73,6 +105,13 @@ async function main() {
   }
 
   const [deployer] = await ethers.getSigners();
+  if (!deployer) {
+    throw new Error(
+      `No signer available on network "${networkName}". ` +
+        "For coston2 set PRIVATE_KEY in contracts/.env; " +
+        "for localhost start the node first (npx hardhat node)."
+    );
+  }
   console.log(`Network: ${networkName} (chainId ${network.config.chainId ?? "unknown"})`);
   console.log("Deploying contracts with the account:", deployer.address);
 
@@ -86,12 +125,21 @@ async function main() {
   const ftsoV2ReaderAddress = await ftsoV2Reader.getAddress();
   console.log("FtsoV2Reader deployed to:", ftsoV2ReaderAddress);
 
-  // Deploy AnalysisRegistry. Initial image digest is a placeholder;
-  // the owner must call rotateTeeKey(pubkey, imageDigest, teeAddress)
-  // to register the real TEE before results can be submitted.
+  // Deploy AnalysisRegistry. Initial image digest is a placeholder; the owner
+  // must proposeTeeKey(pubkey, imageDigest, teeAddress) and then call
+  // commitTeeKeyRotation() to register the real TEE before results can be
+  // submitted (first registration skips the rotation delay).
   const initialImageDigest = ethers.ZeroHash;
+  const rotationDelay = readRotationDelay(networkName);
+  console.log(
+    `TEE rotation delay: ${rotationDelay}s` +
+      (rotationDelay > 0n ? " (first registration is exempt)" : "")
+  );
   const AnalysisRegistry = await ethers.getContractFactory("AnalysisRegistry");
-  const analysisRegistry = await AnalysisRegistry.deploy(initialImageDigest);
+  const analysisRegistry = await AnalysisRegistry.deploy(
+    initialImageDigest,
+    rotationDelay
+  );
   await analysisRegistry.waitForDeployment();
   const analysisRegistryAddress = await analysisRegistry.getAddress();
   console.log("AnalysisRegistry deployed to:", analysisRegistryAddress);
@@ -103,8 +151,8 @@ async function main() {
 
   console.log("Deployment complete.");
   console.log(
-    "NEXT STEP: call rotateTeeKey(teePublicKey, imageDigest, teeAddress) as owner " +
-      "to register the TEE signing key."
+    "NEXT STEP: call proposeTeeKey(teePublicKey, imageDigest, teeAddress) then " +
+      "commitTeeKeyRotation() as owner to register the TEE signing key."
   );
 }
 

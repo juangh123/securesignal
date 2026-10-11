@@ -3,8 +3,10 @@ import * as fs from "fs";
 import * as path from "path";
 
 /**
- * Register the TEE key on the deployed AnalysisRegistry via rotateTeeKey
- * (owner-only).
+ * Register the TEE key on the deployed AnalysisRegistry via the two-step
+ * rotation flow (owner-only): proposeTeeKey() then commitTeeKeyRotation().
+ * First-time registration is exempt from the rotation delay; re-registering a
+ * key on a production registry only activates after teeRotationDelay seconds.
  *
  * - localhost: uses Hardhat account #1 as the TEE key (well-known dev
  *   private key), so tee-service can be started with the same key.
@@ -19,6 +21,11 @@ import { network } from "hardhat";
 
 const DEV_TEE_PRIVATE_KEY =
   "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d";
+
+// Delayed rotations need two runs: propose once, wait for executableAt, then
+// commit with this flag. Re-running the plain script would propose again and
+// restart the delay window.
+const COMMIT_ONLY = (process.env.SETUP_TEE_COMMIT_ONLY ?? "").trim() === "1";
 
 const TEE_PRIVATE_KEY =
   network.name === "localhost" || network.name === "hardhat"
@@ -66,9 +73,43 @@ async function main() {
     deployer
   );
 
-  const tx = await registry.rotateTeeKey(teePublicKey, imageDigest, teeAddress);
-  const receipt = await tx.wait();
-  console.log("rotateTeeKey tx:", receipt.hash);
+  if (COMMIT_ONLY) {
+    console.log(
+      "SETUP_TEE_COMMIT_ONLY=1: skipping proposeTeeKey and committing the pending rotation."
+    );
+  } else {
+    const proposeTx = await registry.proposeTeeKey(
+      teePublicKey,
+      imageDigest,
+      teeAddress
+    );
+    const proposeReceipt = await proposeTx.wait();
+    if (!proposeReceipt) {
+      throw new Error("proposeTeeKey transaction was not mined");
+    }
+    console.log("proposeTeeKey tx:", proposeReceipt.hash);
+  }
+
+  try {
+    const commitTx = await registry.commitTeeKeyRotation();
+    const commitReceipt = await commitTx.wait();
+    if (!commitReceipt) {
+      throw new Error("commitTeeKeyRotation transaction was not mined");
+    }
+    console.log("commitTeeKeyRotation tx:", commitReceipt.hash);
+  } catch (error) {
+    const pending = await registry.pendingTeeKey();
+    const pendingExists = Boolean(pending.exists);
+    const guidance = pendingExists
+      ? `A rotation is pending until executableAt=${pending.executableAt}; wait ` +
+        "until then and re-run with SETUP_TEE_COMMIT_ONLY=1 (running the plain " +
+        "script again would propose anew and restart the delay)."
+      : "No rotation is pending; run the script without SETUP_TEE_COMMIT_ONLY " +
+        "to propose one first.";
+    throw new Error(
+      `commitTeeKeyRotation failed (${(error as Error).message}). ${guidance}`
+    );
+  }
 
   // Read back on-chain state for verification
   const onchainPub: string = await registry.activeTeePublicKey();
