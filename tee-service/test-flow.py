@@ -36,8 +36,10 @@ from coincurve import PrivateKey
 from ecies import decrypt as ecies_decrypt
 from ecies import encrypt as ecies_encrypt
 from eth_account import Account
-from eth_account.messages import encode_defunct
-from eth_utils import keccak
+from eth_account.messages import encode_defunct, encode_typed_data
+from eth_utils import keccak, to_checksum_address
+
+from flare import contracts as relayer
 
 BASE_URL = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8000"
 
@@ -306,20 +308,49 @@ def main() -> int:
     assert token["result_hash"] == resp["result_hash"]
     assert token["mode"] == "dev-simulated"
 
-    # EIP-191 personal_sign over the RAW 64-byte packed message
-    # abi.encodePacked(uint256 taskId, bytes32 resultHash) — prefix "\n64",
-    # matching AnalysisRegistry._verifyAttestation exactly.
-    packed64 = (1).to_bytes(32, "big") + bytes.fromhex(resp["result_hash"][2:])
-    assert len(packed64) == 64
-    recovered = Account.recover_message(
-        encode_defunct(primitive=packed64), signature=token["signature"]
-    )
+    # The service reports which on-chain convention the signature follows
+    # (older builds omit the field and only spoke EIP-191).
+    scheme = token.get("attestation_scheme", "eip191-legacy")
+    result_hash_bytes = bytes.fromhex(resp["result_hash"][2:])
+    if scheme == "eip712-v2":
+        # Domain-separated: {name, version, chainId, verifyingContract}, type
+        # Attestation(uint256 taskId, bytes32 resultHash) — matching
+        # AnalysisRegistry._verifyAttestation (_hashTypedDataV4).
+        domain = {
+            "name": "SecureSignal",
+            "version": "2",
+            "chainId": int(relayer.registry_chain_id()),
+            "verifyingContract": to_checksum_address(relayer.registry_address()),
+        }
+        signable = encode_typed_data(
+            domain_data=domain,
+            message_types={
+                "Attestation": [
+                    {"name": "taskId", "type": "uint256"},
+                    {"name": "resultHash", "type": "bytes32"},
+                ]
+            },
+            message_data={"taskId": 1, "resultHash": result_hash_bytes},
+        )
+        recovered = Account.recover_message(
+            signable, signature=token["signature"]
+        )
+    else:
+        # EIP-191 personal_sign over the RAW 64-byte packed message
+        # abi.encodePacked(uint256 taskId, bytes32 resultHash) — prefix "\n64",
+        # matching the pre-v2 AnalysisRegistry._verifyAttestation exactly.
+        packed64 = (1).to_bytes(32, "big") + result_hash_bytes
+        assert len(packed64) == 64
+        recovered = Account.recover_message(
+            encode_defunct(primitive=packed64), signature=token["signature"]
+        )
     assert recovered.lower() == token["tee_address"].lower(), (
-        f"attestation signature recovers to {recovered}, "
+        f"attestation signature ({scheme}) recovers to {recovered}, "
         f"expected {token['tee_address']}"
     )
     print(f"[5] attestation OK: mode={token['mode']}, "
-          f"tee_address={token['tee_address']}, signature verified via ecrecover")
+          f"scheme={scheme}, tee_address={token['tee_address']}, "
+          f"signature verified via ecrecover")
 
     print(f"[6] onchain_submitted = {resp.get('onchain_submitted')} "
           f"(relayer {'configured' if resp.get('onchain_submitted') else 'not configured — expected locally'})")

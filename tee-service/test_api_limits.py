@@ -28,6 +28,13 @@ def _offline_registry(monkeypatch):
     monkeypatch.setattr(main.relayer, "is_configured", lambda: False)
     monkeypatch.delenv("ANALYZE_REQUIRE_ONCHAIN_TASK", raising=False)
     monkeypatch.delenv("ANALYZE_TASK_MAX_AGE_SECONDS", raising=False)
+    # The gate's dev-permissive path only applies when no LLM key is present;
+    # pin that here so a developer .env can never change what these assert.
+    monkeypatch.setattr(main.llm, "is_configured", lambda: False)
+    # Keep the functional tests hermetic: throttling has its own test module.
+    monkeypatch.setenv("ANALYZE_RATE_LIMIT_PER_MINUTE", "0")
+    monkeypatch.setenv("ANALYZE_RATE_LIMIT_GLOBAL_PER_MINUTE", "0")
+    main._reset_analyze_caches()
 
 
 def _post(payload: dict):
@@ -51,6 +58,35 @@ def test_rejects_invalid_base64():
     r = _post({"task_id": 0, "encrypted_data": "not base64!!"})
     assert r.status_code == 400
     assert "base64" in r.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# CORS
+# ---------------------------------------------------------------------------
+
+
+def _get_health_with_origin(origin: str):
+    with TestClient(main.app) as c:
+        return c.get("/health", headers={"Origin": origin})
+
+
+def test_cors_allows_loopback_dev_origin_on_any_port():
+    """`next dev -p 3100` must reach the API (the public Render demo is ENV=dev)."""
+    if main._dev_origin_regex is None:
+        pytest.skip("ENV=prod: loopback origins are intentionally not allowed")
+    r = _get_health_with_origin("http://localhost:3100")
+    assert r.headers.get("access-control-allow-origin") == "http://localhost:3100"
+
+
+def test_cors_allows_production_frontend_origin():
+    origin = "https://securesignal.vercel.app"
+    r = _get_health_with_origin(origin)
+    assert r.headers.get("access-control-allow-origin") == origin
+
+
+def test_cors_rejects_unknown_origin():
+    r = _get_health_with_origin("https://not-securesignal.example")
+    assert "access-control-allow-origin" not in r.headers
 
 
 # ---------------------------------------------------------------------------
@@ -108,6 +144,15 @@ def test_rejects_stale_requested_task():
         r = _post({"task_id": 0, "encrypted_data": INVALID_B64})
     assert r.status_code == 409
     assert "analysis window" in r.json()["detail"]
+
+
+def test_requested_at_zero_fails_closed():
+    """No verifiable requestedAt means the age window cannot be enforced."""
+    is_conf, task_state = _with_gate((1, 0))
+    with is_conf, task_state:
+        r = _post({"task_id": 3, "encrypted_data": INVALID_B64})
+    assert r.status_code == 503
+    assert "requestedAt" in r.json()["detail"]
 
 
 def test_age_window_can_be_disabled():

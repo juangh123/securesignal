@@ -13,22 +13,25 @@
  *  5. Decrypt encrypted_result with session SK
  *  6. Assert analysis content / price_source
  *  7. Recompute keccak256(result_json) == response result_hash
- *  8. EIP-191 ecrecover(attestation signature) == registered teeAddress
+ *  8. ecrecover(attestation signature) == registered teeAddress, using the
+ *     scheme the service reports (attestation_scheme):
+ *       - eip191-legacy: personal_sign over raw 64-byte abi.encodePacked
+ *       - eip712-v2:     EIP-712 Attestation(uint256 taskId, bytes32 resultHash)
  *  9. Assert onchain_submitted == true; on-chain tasks(taskId).status == 3
  *     (Verified) and resultHash matches.
  *
- * Case A uses holdings {BTC, ETH, DOGE} — DOGE is NOT in the provider's
- * FEED_IDS, so it exercises the explicit error path (no fake price);
+ * Case A uses holdings {BTC, ETH, ZZZ} — ZZZ is NOT in the provider's
+ * SUPPORTED_SYMBOLS, so it exercises the explicit error path (no fake price);
  * Case B uses {BTC, ETH}.
  *
- * REGRESSION NOTE (Stage A): FLR is now supported by the price provider
- * (FEED_IDS/FIXTURE_PRICES), so the pre-Stage-A Case A assertion
- * "FLR unsupported -> error" was stale; the unsupported-asset case now
- * uses DOGE to preserve the same honest-error coverage.
+ * REGRESSION NOTE: the unsupported-asset ticker has been updated twice as the
+ * provider's coverage grew (FLR, then DOGE became supported). Keep it aligned
+ * with analysis/price_provider.py SUPPORTED_SYMBOLS.
  */
 
 import { createPublicClient, createWalletClient, http, keccak256, stringToBytes, stringToHex,
-         encodePacked, recoverMessageAddress, parseEventLogs, encodeFunctionData } from 'viem';
+         encodePacked, recoverMessageAddress, recoverTypedDataAddress, parseEventLogs,
+         encodeFunctionData } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { hardhat } from 'viem/chains';
 import { encrypt, decrypt, PrivateKey } from 'eciesjs';
@@ -91,12 +94,10 @@ async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
     address: REGISTRY, abi: ABI, functionName: 'activeTeePublicKey',
   });
   const svc = await (await fetch(`${TEE}/public-key`)).json();
-  let pubkeyFromBackend = "0x" + svc.public_key;
-  if (svc.public_key.startsWith('04')) {
-    pubkeyFromBackend = "0x" + svc.public_key.slice(2);
-  } else if (svc.public_key.startsWith('0x')) {
-    pubkeyFromBackend = svc.public_key;
-  }
+  // /public-key returns the full 65-byte uncompressed key (04 prefix) as bare
+  // hex; the chain returns 0x-prefixed hex. Normalize both to bare hex — the
+  // previous version stripped the 04 prefix and failed against a correct key.
+  const pubkeyFromBackend = ('0x' + svc.public_key.replace(/^0x/, '')).toLowerCase();
   const derivedAddress = await publicClient.readContract({
     address: REGISTRY, abi: ABI, functionName: 'teeAddress',
   });
@@ -176,8 +177,12 @@ async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
     `recomputed=${recomputed.slice(0, 18)}... resp=${data.result_hash.slice(0, 18)}...`);
 
     
-  // 8. Attestation ecrecover == teeAddress (EIP-191 personal_sign over
-    //    raw 64-byte abi.encodePacked(uint256 taskId, bytes32 resultHash), prefix "\n64")
+  // 8. Attestation ecrecover == teeAddress. Which digest to recover over
+    //    depends on the scheme the service used:
+    //      eip191-legacy -> personal_sign over raw 64-byte abi.encodePacked
+    //                       (uint256 taskId, bytes32 resultHash), prefix "\n64"
+    //      eip712-v2     -> EIP-712 Attestation(uint256 taskId, bytes32 resultHash)
+    //                       under domain {SecureSignal, 2, chainId, registry}
     let attObj = typeof data.attestation === 'string' && data.attestation.startsWith('{') ? JSON.parse(data.attestation) : (typeof data.attestation === 'object' ? data.attestation : {});
     let finalSignature = attObj.signature || data.attestation;
     if (typeof finalSignature === 'object' && finalSignature.signature) {
@@ -190,19 +195,52 @@ async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
        finalSignature = '0x' + finalSignature;
     }
 
-    const packedBytes = encodePacked(['uint256', 'bytes32'], [BigInt(attObj.task_id || data.task_id), attObj.result_hash || data.result_hash]);
+    const attTaskId = BigInt(attObj.task_id || data.task_id);
+    const attResultHash = attObj.result_hash || data.result_hash;
+    // Missing field means a pre-v2 service build => legacy convention.
+    const scheme = attObj.attestation_scheme || 'eip191-legacy';
       try {
-           const recovered = await recoverMessageAddress({
-           message: { raw: packedBytes },
-           signature: finalSignature,
-         });
-          check(`${label} [8] ecrecover(attestation) == on-chain teeAddress`,
+           let recovered;
+           if (scheme === 'eip712-v2') {
+             recovered = await recoverTypedDataAddress({
+               domain: {
+                 name: 'SecureSignal',
+                 version: '2',
+                 chainId: BigInt(await publicClient.getChainId()),
+                 verifyingContract: REGISTRY,
+               },
+               types: {
+                 Attestation: [
+                   { name: 'taskId', type: 'uint256' },
+                   { name: 'resultHash', type: 'bytes32' },
+                 ],
+               },
+               primaryType: 'Attestation',
+               message: { taskId: attTaskId, resultHash: attResultHash },
+               signature: finalSignature,
+             });
+           } else {
+             const packedBytes = encodePacked(['uint256', 'bytes32'], [attTaskId, attResultHash]);
+             recovered = await recoverMessageAddress({
+               message: { raw: packedBytes },
+               signature: finalSignature,
+             });
+           }
+          check(`${label} [8] ecrecover(attestation) == on-chain teeAddress (scheme=${scheme})`,
            recovered.toLowerCase() === onchainTeeAddr.toLowerCase(),
           `recovered=${recovered} tee=${onchainTeeAddr}`);
       } catch (e) {
          console.log(`Failed to recover address: ${e.message}`);
-         check(`${label} [8] ecrecover(attestation) == on-chain teeAddress`, false, `Exception: ${e.message}`);
+         check(`${label} [8] ecrecover(attestation) == on-chain teeAddress (scheme=${scheme})`, false, `Exception: ${e.message}`);
       }
+
+    // 8b. Attestation payload must bind the same task/result the response did.
+    check(`${label} [8b] attestation fields consistent (task_id, result_hash, tee_address, mode)`,
+      BigInt(attObj.task_id) === BigInt(data.task_id) &&
+      String(attObj.result_hash).toLowerCase() === String(data.result_hash).toLowerCase() &&
+      String(attObj.tee_address).toLowerCase() === String(onchainTeeAddr).toLowerCase() &&
+      !!attObj.mode,
+      `att.task_id=${attObj.task_id} att.result_hash=${String(attObj.result_hash).slice(0, 18)}... mode=${attObj.mode}`);
 
     // 9. On-chain submission verification
     //    If the TEE relayer already submitted (onchain_submitted === true),
@@ -213,6 +251,9 @@ async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
 
     if (data.onchain_submitted === true) {
       check(`${label} [9a] onchain_submitted == true (via TEE relayer)`, true);
+      check(`${label} [9a2] onchain_confirmed == true (receipt observed)`,
+        data.onchain_confirmed === true,
+        `onchain_confirmed=${data.onchain_confirmed}`);
     } else {
       const txData = encodeFunctionData({
         abi: ABI,
@@ -259,9 +300,9 @@ async function runCase(label, holdings, { expectAnalysisError = null } = {}) {
 
 console.log('Registry:', REGISTRY, '| network:', addresses.network);
 
-// Case A — unsupported asset (DOGE not in FEED_IDS) -> explicit error path
-await runCase('Case A (unsupported asset DOGE -> explicit error)',
-  { BTC: 0.5, ETH: 2, DOGE: 100 }, { expectAnalysisError: 'DOGE' });
+// Case A — unsupported asset (ZZZ not in SUPPORTED_SYMBOLS) -> explicit error path
+await runCase('Case A (unsupported asset ZZZ -> explicit error)',
+  { BTC: 0.5, ETH: 2, ZZZ: 100 }, { expectAnalysisError: 'ZZZ' });
 
 // Case B — engine-supported holdings, full happy-path assertions
 await runCase('Case B (BTC+ETH full happy path)',

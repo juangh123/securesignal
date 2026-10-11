@@ -36,12 +36,18 @@ def _clear_caches() -> None:
         price_provider._detected_chain_name = None
 
 
+def _fresh_ts() -> int:
+    """Feed timestamp that always passes the freshness window."""
+    return int(time.time()) - 5
+
+
 class _EnvTestCase(unittest.TestCase):
     """Save/restore env and module caches around every test."""
 
     def setUp(self) -> None:
         self._saved_env = {
-            k: os.environ.get(k) for k in ("ANALYSIS_OFFLINE", "RPC_URL")
+            k: os.environ.get(k)
+            for k in ("ANALYSIS_OFFLINE", "RPC_URL", "FTSO_MAX_FEED_AGE_SECONDS")
         }
         _clear_caches()
 
@@ -162,7 +168,7 @@ class _FakeWeb3:
     connected = True
     chain_id_value = 114  # Coston2
     registry_result = FTSO_ADDR
-    feed_handler = staticmethod(lambda feed_id: (12345678, 4, 1_700_000_000))
+    feed_handler = staticmethod(lambda feed_id: (12345678, 4, _fresh_ts()))
     recorder = None
 
     def __init__(self, provider=None):
@@ -183,7 +189,7 @@ def _reset_fake_web3() -> None:
     _FakeWeb3.chain_id_value = 114
     _FakeWeb3.registry_result = FTSO_ADDR
     _FakeWeb3.feed_handler = staticmethod(
-        lambda feed_id: (12345678, 4, 1_700_000_000)
+        lambda feed_id: (12345678, 4, _fresh_ts())
     )
     _FakeWeb3.recorder = {
         "registry_names": [],
@@ -314,11 +320,14 @@ class OnlineMockedTests(_EnvTestCase):
         self.assertEqual(captured.get("timeout"), 10)
 
     def test_negative_decimals_scaling(self):
-        _FakeWeb3.feed_handler = staticmethod(lambda fid: (5, -1, 1_700_000_000))
+        _FakeWeb3.feed_handler = staticmethod(lambda fid: (5, -1, _fresh_ts()))
         self.assertAlmostEqual(price_provider.get_prices(["BTC"])["BTC"], 50.0)
 
     def test_source_label_online(self):
         # Before any read: URL heuristic (default RPC -> coston2).
+        # Pin the default endpoint so the assertion does not depend on the
+        # caller's environment (the e2e runner exports a localhost RPC_URL).
+        os.environ.pop("RPC_URL", None)
         self.assertEqual(price_provider.get_price_source(), "coston2-ftso")
         price_provider.get_prices(["BTC"])
         # After a successful read: chainId 114 detected -> still coston2.
@@ -355,6 +364,17 @@ class OnlineMockedTests(_EnvTestCase):
         with self.assertRaises(price_provider.PriceProviderError):
             price_provider.get_prices(["BTC"])
 
+    def test_rpc_url_secrets_are_not_echoed_on_failure(self):
+        os.environ["RPC_URL"] = "http://127.0.0.1:1/ext/C/rpc?apikey=SUPERSECRET"
+        _FakeWeb3.connected = False
+
+        with self.assertRaises(price_provider.PriceProviderError) as ctx:
+            price_provider.get_prices(["BTC"])
+
+        message = str(ctx.exception)
+        self.assertNotIn("SUPERSECRET", message)
+        self.assertIn("http://127.0.0.1:1", message)
+
     def test_zero_address_registry_raises(self):
         _FakeWeb3.registry_result = price_provider.ZERO_ADDRESS
         with self.assertRaises(price_provider.PriceProviderError):
@@ -369,6 +389,30 @@ class OnlineMockedTests(_EnvTestCase):
         _FakeWeb3.feed_handler = staticmethod(lambda fid: (100, 8, 0))
         with self.assertRaises(price_provider.PriceProviderError):
             price_provider.get_prices(["BTC"])
+
+    def test_stale_feed_timestamp_raises(self):
+        stale = int(time.time()) - (
+            price_provider.DEFAULT_MAX_FEED_AGE_SECONDS + 60
+        )
+        _FakeWeb3.feed_handler = staticmethod(lambda fid: (100, 8, stale))
+        with self.assertRaises(price_provider.PriceProviderError) as ctx:
+            price_provider.get_prices(["BTC"])
+        self.assertIn("stale", str(ctx.exception))
+
+    def test_freshness_window_can_be_disabled(self):
+        os.environ["FTSO_MAX_FEED_AGE_SECONDS"] = "0"
+        stale = int(time.time()) - 86_400
+        _FakeWeb3.feed_handler = staticmethod(lambda fid: (100, 8, stale))
+        self.assertAlmostEqual(
+            price_provider.get_prices(["BTC"])["BTC"], 100 / 10**8
+        )
+
+    def test_future_feed_timestamp_raises(self):
+        future = int(time.time()) + price_provider.MAX_FUTURE_FEED_SKEW_SECONDS + 60
+        _FakeWeb3.feed_handler = staticmethod(lambda fid: (100, 8, future))
+        with self.assertRaises(price_provider.PriceProviderError) as ctx:
+            price_provider.get_prices(["BTC"])
+        self.assertIn("future", str(ctx.exception))
 
     def test_contract_revert_raises_no_fallback(self):
         def revert(fid):

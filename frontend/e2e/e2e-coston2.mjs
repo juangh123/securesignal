@@ -14,7 +14,8 @@
  */
 
 import { createPublicClient, createWalletClient, http, keccak256, stringToBytes, stringToHex,
-         encodePacked, recoverMessageAddress, parseEventLogs, defineChain } from 'viem';
+         encodePacked, recoverMessageAddress, recoverTypedDataAddress, parseEventLogs,
+         defineChain } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { encrypt, decrypt, PrivateKey } from 'eciesjs';
 import { readFileSync, writeFileSync } from 'fs';
@@ -139,13 +140,62 @@ check('[7] keccak256(result_json) == response result_hash',
   recomputed.toLowerCase() === data.result_hash.toLowerCase(),
   `recomputed=${recomputed.slice(0, 18)}... resp=${data.result_hash.slice(0, 18)}...`);
 
-// 8. Attestation ecrecover == teeAddress (EIP-191 "\n64" over packed taskId||resultHash)
-const att = JSON.parse(data.attestation);
-const packed = encodePacked(['uint256', 'bytes32'], [BigInt(data.task_id), data.result_hash]);
-const recovered = await recoverMessageAddress({ message: { raw: packed }, signature: att.signature });
-check('[8] ecrecover(attestation) == on-chain teeAddress',
+// 8. Attestation ecrecover == teeAddress. The digest to recover over depends on
+//    the scheme the service signed with, reported as attestation_scheme:
+//      eip191-legacy -> personal_sign over raw 64-byte abi.encodePacked
+//                       (uint256 taskId, bytes32 resultHash), prefix "\n64"
+//      eip712-v2     -> EIP-712 Attestation(uint256 taskId, bytes32 resultHash)
+//                       under domain {SecureSignal, 2, chainId, registry}
+//    A service build from before the v2 migration omits the field, which means
+//    legacy EIP-191.
+const att = typeof data.attestation === 'string' && data.attestation.startsWith('{')
+  ? JSON.parse(data.attestation)
+  : (typeof data.attestation === 'object' ? data.attestation : {});
+const attTaskId = BigInt(att.task_id ?? data.task_id);
+const attResultHash = att.result_hash ?? data.result_hash;
+const scheme = att.attestation_scheme || 'eip191-legacy';
+const recovered = scheme === 'eip712-v2'
+  ? await recoverTypedDataAddress({
+      domain: {
+        name: 'SecureSignal',
+        version: '2',
+        chainId: BigInt(coston2.id),
+        verifyingContract: REGISTRY,
+      },
+      types: {
+        Attestation: [
+          { name: 'taskId', type: 'uint256' },
+          { name: 'resultHash', type: 'bytes32' },
+        ],
+      },
+      primaryType: 'Attestation',
+      message: { taskId: attTaskId, resultHash: attResultHash },
+      signature: att.signature,
+    })
+  : await recoverMessageAddress({
+      message: {
+        raw: encodePacked(['uint256', 'bytes32'], [attTaskId, attResultHash]),
+      },
+      signature: att.signature,
+    });
+check(`[8] ecrecover(attestation) == on-chain teeAddress (scheme=${scheme})`,
   recovered.toLowerCase() === onchainTeeAddr.toLowerCase(),
   `recovered=${recovered} tee=${onchainTeeAddr}`);
+
+// 8b. The registry's own marker must agree with what the service signed.
+//     Registries deployed before the v2 revision have no marker and only ever
+//     accepted EIP-191, so an unreadable marker means legacy.
+let onchainScheme = 'eip191-legacy';
+try {
+  onchainScheme = await publicClient.readContract({
+    address: REGISTRY, abi: ABI, functionName: 'ATTESTATION_SCHEME',
+  });
+} catch {
+  // Pre-v2 registry: no ATTESTATION_SCHEME() function to call.
+}
+check('[8b] service attestation scheme == registry marker',
+  scheme === onchainScheme,
+  `service=${scheme} chain=${onchainScheme}`);
 
 // 9. On-chain submission + task state (wait for relayer tx to mine)
 check('[9a] onchain_submitted == true', data.onchain_submitted === true);

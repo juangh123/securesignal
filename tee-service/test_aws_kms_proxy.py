@@ -8,7 +8,7 @@ import aws_kms_proxy
 
 class _FakeKms:
     def __init__(self, response=None, error=None):
-        self.response = response or {"Plaintext": b"released-secret"}
+        self.response = response or {"CiphertextForRecipient": b"released-secret"}
         self.error = error
         self.calls = []
 
@@ -52,6 +52,17 @@ def test_handle_line_reports_kms_errors(monkeypatch):
 
     assert "error" in response
     assert "access denied" in response["error"]
+
+
+def test_rejects_plaintext_only_response(monkeypatch):
+    """A downgrade to KMS Plaintext would expose the secret to the parent."""
+    fake = _FakeKms(response={"Plaintext": b"released-secret"})
+    monkeypatch.setattr(aws_kms_proxy, "_kms_client", lambda: fake)
+
+    response = json.loads(aws_kms_proxy.handle_line(json.dumps(_request()).encode()))
+
+    assert "error" in response
+    assert "CiphertextForRecipient" in response["error"]
 
 
 def test_handle_line_rejects_non_object_json():

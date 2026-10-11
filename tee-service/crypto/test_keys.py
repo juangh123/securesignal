@@ -27,6 +27,16 @@ def test_prod_missing_key_fails_closed(monkeypatch):
         keys.init_keys()
 
 
+@pytest.mark.parametrize("env_value", ["PROD", "Prod", " prod "])
+def test_prod_spelling_variants_fail_closed(monkeypatch, env_value):
+    """The dev fallback must never trigger because ENV was spelled oddly."""
+    monkeypatch.delenv("TEE_PRIVATE_KEY", raising=False)
+    monkeypatch.setenv("ENV", env_value)
+
+    with pytest.raises(RuntimeError, match="production"):
+        keys.init_keys()
+
+
 def test_prod_blank_key_fails_closed(monkeypatch):
     monkeypatch.setenv("TEE_PRIVATE_KEY", "   ")
     monkeypatch.setenv("ENV", "prod")

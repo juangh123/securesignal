@@ -176,6 +176,85 @@ class TestRetryAndFailurePolicy(_EnvTestCase):
             self._analyze()
 
 
+class TestOutputSemantics(_EnvTestCase):
+    """The model output is a contract: symbols, level/score and size are pinned."""
+
+    @mock.patch("analysis.llm.requests.post")
+    def test_rejects_hallucinated_symbols(self, post) -> None:
+        bad = dict(
+            VALID_JUDGEMENT,
+            rebalance=[
+                {"action": "hold", "symbol": "DOGE", "reason": "not in portfolio"}
+            ],
+        )
+        post.return_value = _FakeResponse(200, _completion(json.dumps(bad)))
+
+        with self.assertRaises(llm.LLMError):
+            self._analyze()
+
+    @mock.patch("analysis.llm.requests.post")
+    def test_rejects_missing_portfolio_symbols(self, post) -> None:
+        bad = dict(
+            VALID_JUDGEMENT,
+            rebalance=[{"action": "hold", "symbol": "BTC", "reason": "only one"}],
+        )
+        post.return_value = _FakeResponse(200, _completion(json.dumps(bad)))
+
+        with self.assertRaises(llm.LLMError):
+            self._analyze()
+
+    @mock.patch("analysis.llm.requests.post")
+    def test_rejects_duplicate_symbols(self, post) -> None:
+        bad = dict(
+            VALID_JUDGEMENT,
+            rebalance=[
+                {"action": "hold", "symbol": "BTC", "reason": "first"},
+                {"action": "decrease", "symbol": "BTC", "reason": "second"},
+                {"action": "hold", "symbol": "ETH", "reason": "ok"},
+            ],
+        )
+        post.return_value = _FakeResponse(200, _completion(json.dumps(bad)))
+
+        with self.assertRaises(llm.LLMError):
+            self._analyze()
+
+    @mock.patch("analysis.llm.requests.post")
+    def test_corrects_inconsistent_risk_level(self, post) -> None:
+        inconsistent = dict(VALID_JUDGEMENT, risk_score=85, risk_level="low")
+        post.return_value = _FakeResponse(
+            200, _completion(json.dumps(inconsistent))
+        )
+
+        out = self._analyze()
+
+        self.assertEqual(out["risk_score"], 85)
+        self.assertEqual(out["risk_level"], "high")
+
+    @mock.patch("analysis.llm.requests.post")
+    def test_rejects_overlong_text_fields(self, post) -> None:
+        long_summary = dict(
+            VALID_JUDGEMENT, summary="x" * (llm.MAX_SUMMARY_CHARS + 1)
+        )
+        post.return_value = _FakeResponse(200, _completion(json.dumps(long_summary)))
+        with self.assertRaises(llm.LLMError):
+            self._analyze()
+
+        long_reason = dict(
+            VALID_JUDGEMENT,
+            rebalance=[
+                {
+                    "action": "hold",
+                    "symbol": "BTC",
+                    "reason": "y" * (llm.MAX_REBALANCE_REASON_CHARS + 1),
+                },
+                {"action": "hold", "symbol": "ETH", "reason": "ok"},
+            ],
+        )
+        post.return_value = _FakeResponse(200, _completion(json.dumps(long_reason)))
+        with self.assertRaises(llm.LLMError):
+            self._analyze()
+
+
 class TestTimeBudget(_EnvTestCase):
     def test_defaults_are_exposed(self) -> None:
         self.assertEqual(

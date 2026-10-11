@@ -84,6 +84,53 @@ def test_parse_real_kms_cms_structure():
     assert len(content) % 16 == 0
 
 
+def test_parse_kms_cms_ignores_stray_octet_strings():
+    """Size-based guessing would pick the decoys; the OID walk must not."""
+    private_key = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    decoy_key = bytes(range(256))  # first 256-byte OCTET STRING
+    decoy_iv = bytes(range(16))  # first 16-byte OCTET STRING
+    real_key = private_key.public_key().encrypt(b"k" * 32, _oaep())
+    real_iv = b"\x11" * 16
+    ciphertext = b"\x22" * 32
+    oid_rsa_oaep = bytes.fromhex("06092a864886f70d010107")
+    oid_aes_cbc = bytes.fromhex("060960864801650304012a")
+
+    inner = (
+        _der(0x04, decoy_key)
+        + _der(0x04, decoy_iv)
+        + oid_rsa_oaep
+        + _der(0x30, b"")
+        + _der(0x04, real_key)
+        + oid_aes_cbc
+        + _der(0x04, real_iv)
+        + _der(0xA0, _der(0x04, ciphertext))
+    )
+
+    encrypted_key, iv, content = aws_kms_release._parse_kms_cms(
+        _der(0x30, inner)
+    )
+
+    assert encrypted_key == real_key
+    assert iv == real_iv
+    assert content == ciphertext
+
+
+def test_parse_kms_cms_rejects_non_oaep_recipient():
+    oid_rsa_pkcs1 = bytes.fromhex("06092a864886f70d010101")
+    oid_aes_cbc = bytes.fromhex("060960864801650304012a")
+    inner = (
+        oid_rsa_pkcs1
+        + _der(0x30, b"")
+        + _der(0x04, b"\x01" * 256)
+        + oid_aes_cbc
+        + _der(0x04, b"\x02" * 16)
+        + _der(0xA0, _der(0x04, b"\x03" * 16))
+    )
+
+    with pytest.raises(aws_kms_release.KmsReleaseError, match="RSA-OAEP"):
+        aws_kms_release._parse_kms_cms(_der(0x30, inner))
+
+
 class _FakeSocket:
     def __init__(self, response_factory):
         self._response_factory = response_factory
@@ -201,4 +248,36 @@ def test_release_bundle_requires_the_tee_key(monkeypatch):
         "TEE_PRIVATE_KEY_CIPHERTEXT": "",
     }
     with pytest.raises(aws_kms_release.KmsReleaseError):
+        aws_kms_release.release_bundle(bundle)
+
+
+def test_release_bundle_rejects_plaintext_secrets_in_kms_mode(monkeypatch):
+    """A plaintext key next to KMS_KEY_RELEASE=1 means the sealed blob was skipped."""
+    monkeypatch.setattr(
+        aws_kms_release, "release_key", lambda **kwargs: b"0x" + b"44" * 32
+    )
+    bundle = {
+        "KMS_KEY_RELEASE": "1",
+        "KMS_KEY_ID": "arn:aws:kms:us-east-1:123456789012:key/test",
+        "TEE_PRIVATE_KEY": "0x" + "aa" * 32,
+        "TEE_PRIVATE_KEY_CIPHERTEXT": "sealed",
+    }
+
+    with pytest.raises(aws_kms_release.KmsReleaseError, match="plaintext"):
+        aws_kms_release.release_bundle(bundle)
+
+
+def test_release_bundle_requires_the_relayer_key(monkeypatch):
+    monkeypatch.setattr(
+        aws_kms_release, "release_key", lambda **kwargs: b"0x" + b"55" * 32
+    )
+    bundle = {
+        "KMS_KEY_RELEASE": "1",
+        "KMS_KEY_ID": "arn:aws:kms:us-east-1:123456789012:key/test",
+        "TEE_PRIVATE_KEY_CIPHERTEXT": "sealed-tee",
+    }
+
+    with pytest.raises(
+        aws_kms_release.KmsReleaseError, match="PRIVATE_KEY_CIPHERTEXT"
+    ):
         aws_kms_release.release_bundle(bundle)
