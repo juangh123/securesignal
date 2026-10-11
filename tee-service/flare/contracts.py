@@ -13,21 +13,46 @@ Contract call (see plan.md):
   where `attestation` is the 65-byte TEE secp256k1 signature over
   (task_id, result_hash); the contract verifies it via ecrecover against
   the registered teeAddress.
+
+Signature convention:
+  Registries deployed from the v2 revision expose ATTESTATION_SCHEME() and
+  expect EIP-712 typed data (`eip712-v2`); earlier deployments only accept the
+  EIP-191 personal_sign digest and expose no marker. `registry_attestation_scheme`
+  lets the TEE service discover which one it is talking to instead of guessing.
 """
 
 import json
 import os
 import threading
+import time
 from pathlib import Path
 from typing import Optional
 
 from web3 import Web3
+from web3.exceptions import ContractLogicError
 
-from flare.rpc import make_provider
+from flare.rpc import make_provider, safe_rpc_label
 
 DEFAULT_RPC_URL = "https://coston2-api.flare.network/ext/C/rpc"
 CONFIG_DIR = Path(__file__).resolve().parent.parent / "config"
 ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
+
+# On-chain attestation signature conventions (single source of truth; the
+# attestation module re-exports these).
+SCHEME_EIP712_V2 = "eip712-v2"
+SCHEME_EIP191_LEGACY = "eip191-legacy"
+
+# Minimal ABI for the v2 scheme marker. Registries predating the marker have no
+# such function, so the eth_call reverts and the caller falls back to legacy.
+_ATTESTATION_SCHEME_ABI = [
+    {
+        "inputs": [],
+        "name": "ATTESTATION_SCHEME",
+        "outputs": [{"internalType": "string", "name": "", "type": "string"}],
+        "stateMutability": "view",
+        "type": "function",
+    }
+]
 
 
 class RelayerNotConfigured(RuntimeError):
@@ -37,13 +62,37 @@ class RelayerNotConfigured(RuntimeError):
 _submit_lock = threading.Lock()
 _nonce_lock = threading.Lock()
 _next_nonce: dict[str, int] = {}
+# Nonces whose broadcast failed, queued so the next allocation fills the gap
+# instead of leaving a hole the chain would stall on.
+_failed_nonces: dict[str, set[int]] = {}
+MAX_FAILED_NONCES_PER_ACCOUNT = 32
+_warning_lock = threading.Lock()
+_last_warning_at = 0.0
+WARNING_INTERVAL_SECONDS = 60.0
+
+
+def _warn_throttled(context: str, exc: Exception) -> None:
+    """Report a relayer/RPC failure at most once per minute.
+
+    These helpers swallow exceptions by design (callers fail closed), so
+    without a log line an RPC outage or a broken config file is invisible.
+    """
+    global _last_warning_at
+    now = time.monotonic()
+    with _warning_lock:
+        if now - _last_warning_at < WARNING_INTERVAL_SECONDS:
+            return
+        _last_warning_at = now
+    print(f"[relayer] {context}: {type(exc).__name__}: {exc}", flush=True)
 
 
 def _allocate_nonce(w3: Web3, address: str) -> int:
     """Allocate a unique nonce for this process.
 
     ``pending`` includes transactions already broadcast by this process; the
-    cache covers RPCs that only implement ``latest`` or briefly lag behind.
+    cache covers RPCs that only implement ``latest`` or briefly lag behind. A
+    nonce whose broadcast failed is handed out first so the sequence stays
+    gap-free (a hole would stall every later transaction from this account).
     """
     key = address.lower()
     try:
@@ -51,6 +100,19 @@ def _allocate_nonce(w3: Web3, address: str) -> int:
     except Exception:
         node_nonce = int(w3.eth.get_transaction_count(address))
     with _nonce_lock:
+        failed = _failed_nonces.get(key)
+        while failed:
+            nonce = min(failed)
+            failed.discard(nonce)
+            if nonce >= node_nonce:
+                if not failed:
+                    _failed_nonces.pop(key, None)
+                _next_nonce[key] = max(_next_nonce.get(key, 0), nonce + 1)
+                return nonce
+            # Stale: the chain already moved past this slot (some later
+            # transaction consumed it), so reusing it would be rejected.
+        if failed is not None:
+            _failed_nonces.pop(key, None)
         cached = _next_nonce.get(key, 0)
         nonce = max(node_nonce, cached)
         _next_nonce[key] = nonce + 1
@@ -58,11 +120,17 @@ def _allocate_nonce(w3: Web3, address: str) -> int:
 
 
 def _release_nonce(address: str, nonce: int) -> None:
-    """Return a nonce to the cache after a failed broadcast."""
+    """Queue a nonce for reuse after a failed broadcast/signing attempt.
+
+    Rolling the counter back here would be wrong once a newer nonce has been
+    allocated (that would later hand out a nonce already in flight); queueing
+    the exact failed value keeps the sequence gap-free instead.
+    """
     key = address.lower()
     with _nonce_lock:
-        if _next_nonce.get(key, 0) > nonce:
-            _next_nonce[key] = nonce
+        failed = _failed_nonces.setdefault(key, set())
+        if len(failed) < MAX_FAILED_NONCES_PER_ACCOUNT:
+            failed.add(nonce)
 
 
 def _load_abi() -> list:
@@ -85,7 +153,8 @@ def is_configured() -> bool:
         return False
     try:
         addr = _load_registry_address()
-    except Exception:
+    except Exception as exc:
+        _warn_throttled("registry address config unreadable", exc)
         return False
     return bool(addr) and addr.lower() != ZERO_ADDRESS.lower()
 
@@ -94,18 +163,79 @@ def registry_address() -> str:
     """Return the configured AnalysisRegistry address, or "" if unset."""
     try:
         return _load_registry_address()
-    except Exception:
+    except Exception as exc:
+        _warn_throttled("registry address config unreadable", exc)
         return ""
 
 
+def registry_attestation_scheme(
+    rpc_url: Optional[str] = None, timeout: float = 3.0
+) -> Optional[str]:
+    """Read the registry's ``ATTESTATION_SCHEME`` marker (v2 revisions only).
+
+    Returns the marker string (e.g. ``"eip712-v2"``), or None when the registry
+    cannot be read or predates the marker. Callers must treat None as "unknown",
+    not as "legacy is fine": the TEE service falls back to the legacy convention
+    because that is what every registry deployed before the marker accepts.
+
+    ``timeout`` is deliberately short: this runs on the /health and signing
+    paths, and a slow RPC must not stall analysis requests.
+    """
+    try:
+        address = _load_registry_address()
+        if not address or address.lower() == ZERO_ADDRESS.lower():
+            return None
+        rpc_url = rpc_url or os.environ.get("RPC_URL", DEFAULT_RPC_URL)
+        w3 = Web3(make_provider(rpc_url, timeout=timeout))
+        contract = w3.eth.contract(
+            address=Web3.to_checksum_address(address),
+            abi=_ATTESTATION_SCHEME_ABI,
+        )
+        return str(contract.functions.ATTESTATION_SCHEME().call())
+    except ContractLogicError:
+        # The call executed and reverted: the selector does not exist on this
+        # registry, i.e. it predates the v2 marker. That is a *definitive*
+        # legacy answer, not an inconclusive probe, and it is what the live
+        # Coston2 registry (v1) returns.
+        return SCHEME_EIP191_LEGACY
+    except Exception as exc:
+        _warn_throttled("ATTESTATION_SCHEME probe failed", exc)
+        return None
+
+
+def registry_chain_id(rpc_url: Optional[str] = None) -> Optional[int]:
+    """Chain id of the configured RPC, or None when it cannot be read.
+
+    Needed as part of the EIP-712 domain so a signature is bound to one chain.
+    """
+    try:
+        rpc_url = rpc_url or os.environ.get("RPC_URL", DEFAULT_RPC_URL)
+        return int(Web3(make_provider(rpc_url, timeout=10)).eth.chain_id)
+    except Exception as exc:
+        _warn_throttled("chain id read failed", exc)
+        return None
+
+
 def _parse_task_result(task) -> tuple[int, int, str]:
-    """Parse a Task struct into ``(status, requestedAt, inputDataHash)``."""
-    raw_hash = task[1]
+    """Parse a Task struct into ``(status, requestedAt, inputDataHash)``.
+
+    Named fields are preferred because web3 returns an attribute-accessible
+    tuple for named ABI outputs: a future struct reordering then cannot
+    silently shift status/hash values. Plain tuples still fall back to the
+    positional layout.
+    """
+    status = getattr(task, "status", None)
+    requested_at = getattr(task, "requestedAt", None)
+    raw_hash = getattr(task, "inputDataHash", None)
+    if status is None or requested_at is None or raw_hash is None:
+        raw_hash = task[1]
+        status = task[5]
+        requested_at = task[3]
     if isinstance(raw_hash, (bytes, bytearray)):
         input_hash = "0x" + bytes(raw_hash).hex()
     else:
         input_hash = str(raw_hash)
-    return int(task[5]), int(task[3]), input_hash.lower()
+    return int(status), int(requested_at), input_hash.lower()
 
 
 def task_state_with_input(
@@ -130,7 +260,8 @@ def task_state_with_input(
         )
         task = contract.functions.tasks(int(task_id)).call()
         return _parse_task_result(task)
-    except Exception:
+    except Exception as exc:
+        _warn_throttled(f"task state read failed for task {task_id}", exc)
         return None
 
 
@@ -179,7 +310,7 @@ def submit_result(
     # web3.py's IPCProvider can report is_connected False on a short-lived
     # bridge connection; let the actual transaction call surface the error.
     if not rpc_url.startswith("ipc://") and not w3.is_connected():
-        raise ConnectionError(f"Cannot connect to RPC {rpc_url}")
+        raise ConnectionError(f"Cannot connect to RPC {safe_rpc_label(rpc_url)}")
 
     account = w3.eth.account.from_key(private_key)
     contract = w3.eth.contract(
@@ -231,3 +362,43 @@ def submit_result(
     # transaction is already broadcast; callers and ops tooling can follow the
     # returned hash. This keeps the vsock/TCP relay connection short-lived.
     return tx_hash.hex()
+
+
+def wait_for_receipt(
+    tx_hash: str,
+    timeout: float = 15.0,
+    rpc_url: Optional[str] = None,
+) -> Optional[bool]:
+    """Poll for a transaction receipt within ``timeout`` seconds.
+
+    Returns True when the transaction was mined successfully, False when it
+    was mined and reverted, and None when the outcome is still unknown (not
+    mined in time, polling impossible, or a malformed receipt).
+
+    The enclave-local ``ipc://`` relay is skipped on purpose: keeping a vsock
+    connection open for the whole poll window is exactly what the broadcast
+    path avoids.
+    """
+    if timeout <= 0:
+        return None
+    rpc_url = rpc_url or os.environ.get("RPC_URL", DEFAULT_RPC_URL)
+    if rpc_url.startswith("ipc://"):
+        return None
+    try:
+        w3 = Web3(make_provider(rpc_url, timeout=max(5.0, float(timeout))))
+    except Exception:
+        return None
+
+    deadline = time.monotonic() + float(timeout)
+    while time.monotonic() < deadline:
+        try:
+            receipt = w3.eth.get_transaction_receipt(tx_hash)
+        except Exception:
+            receipt = None
+        if receipt is not None:
+            try:
+                return int(receipt.get("status", 0)) == 1
+            except (AttributeError, TypeError, ValueError):
+                return None
+        time.sleep(1.0)
+    return None

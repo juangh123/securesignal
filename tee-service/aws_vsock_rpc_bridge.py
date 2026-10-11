@@ -1,32 +1,14 @@
 """Relay enclave Unix-socket JSON-RPC to the parent over vsock."""
 
 import os
-import select
 import socket
 import threading
+
+from vsock_relay import relay
 
 PARENT_CID = int(os.environ.get("AWS_NITRO_PARENT_CID", "3"))
 PARENT_PORT = int(os.environ.get("RPC_VSOCK_PORT", "8500"))
 RPC_SOCKET = os.environ.get("RPC_SOCKET", "/tmp/coston2-rpc.sock")
-BUFFER_SIZE = 64 * 1024
-
-
-def relay(left: socket.socket, right: socket.socket) -> None:
-    sockets = [left, right]
-    try:
-        while True:
-            readable, _, _ = select.select(sockets, [], [], 30.0)
-            if not readable:
-                continue
-            for source in readable:
-                data = source.recv(BUFFER_SIZE)
-                if not data:
-                    return
-                target = right if source is left else left
-                target.sendall(data)
-    finally:
-        left.close()
-        right.close()
 
 
 def handle(connection: socket.socket) -> None:

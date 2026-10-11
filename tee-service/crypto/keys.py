@@ -43,7 +43,10 @@ def _load_private_key() -> bytes:
         _private_key_bytes = key
         print("[keys] TEE private key loaded from env TEE_PRIVATE_KEY")
     else:
-        if os.environ.get("ENV") == "prod":
+        # Match the normalisation used by main.py / attestation.vtpm: a
+        # deployment that sets ENV=PROD must not silently fall back to an
+        # ephemeral dev key.
+        if os.environ.get("ENV", "").strip().lower() == "prod":
             raise RuntimeError("CRITICAL: TEE_PRIVATE_KEY is missing in production. Refusing to fallback to ephemeral key (Fail-closed).")
             
         _private_key_bytes = secrets.token_bytes(32)

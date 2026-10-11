@@ -49,6 +49,18 @@ __all__ = ["analyze_portfolio"]
 
 RISK_LEVELS = ("low", "medium", "high")
 
+# Risk-profile sensitivity for the deterministic engine: the profile shifts the
+# score and the concentration threshold, so a conservative user gets tighter
+# advice than an aggressive one for the same portfolio. Unknown/free-form
+# profiles fall back to "moderate".
+PROFILE_RISK_BIAS = {"conservative": 8.0, "moderate": 0.0, "aggressive": -8.0}
+PROFILE_TRIM_THRESHOLD_PCT = {
+    "conservative": 50.0,
+    "moderate": 60.0,
+    "aggressive": 70.0,
+}
+DEFAULT_RISK_PROFILE = "moderate"
+
 # Input limits. The payload is decrypted ECIES plaintext produced by the
 # browser client, so it is untrusted: cap its shape before it reaches the
 # price provider, the LLM prompt, or the deterministic math.
@@ -65,6 +77,12 @@ def _error(message: str) -> Dict[str, Any]:
     return {"status": "error", "error": message}
 
 
+def _profile_key(risk_profile: str) -> str:
+    """Map free-form profile text onto a supported profile."""
+    key = (risk_profile or "").strip().lower()
+    return key if key in PROFILE_RISK_BIAS else DEFAULT_RISK_PROFILE
+
+
 def _rule_based_analysis(
     holdings_detail: List[Dict[str, Any]],
     total_value_usd: float,
@@ -75,9 +93,13 @@ def _rule_based_analysis(
 
     Returns the same judgement fields the LLM path returns:
     risk_score / risk_level / rebalance / summary.
+
+    ``risk_profile`` shifts the score and the concentration threshold, so
+    "conservative" flags the same portfolio earlier than "aggressive".
     """
     n = len(holdings_detail)
     weights = [h["weight_pct"] for h in holdings_detail]
+    profile = _profile_key(risk_profile)
 
     # Concentration risk via a normalized Herfindahl index:
     # 0.0 = perfectly diversified across n assets, 1.0 = single-asset portfolio.
@@ -88,7 +110,7 @@ def _rule_based_analysis(
         concentration = 1.0
     concentration = max(0.0, min(1.0, concentration))
 
-    score = 25.0 + 50.0 * concentration
+    score = 25.0 + 50.0 * concentration + PROFILE_RISK_BIAS[profile]
 
     # Single-ecosystem bump: FLR is a smaller-cap, single-chain asset.
     flr_weight = next(
@@ -107,13 +129,14 @@ def _rule_based_analysis(
     else:
         risk_level = "high"
 
+    trim_threshold = PROFILE_TRIM_THRESHOLD_PCT[profile]
     top = max(holdings_detail, key=lambda h: h["weight_pct"])
-    concentrated = top["weight_pct"] >= 60.0 and n > 1
+    concentrated = top["weight_pct"] >= trim_threshold and n > 1
 
     rebalance: List[Dict[str, str]] = []
     for h in holdings_detail:
         symbol, weight = h["symbol"], h["weight_pct"]
-        if weight >= 60.0:
+        if weight >= trim_threshold:
             rebalance.append(
                 {
                     "action": "decrease",
@@ -148,7 +171,8 @@ def _rule_based_analysis(
     summary = (
         f"Portfolio total value is about ${total_value_usd:,.2f} across {n} assets. "
         f"The largest position is {top['symbol']} at {top['weight_pct']:.1f}%. "
-        f"Under the concentration heuristic, the risk score is {risk_score}/100 ({level_en})."
+        f"Under the {profile} risk profile, the concentration heuristic scores "
+        f"{risk_score}/100 ({level_en})."
     )
     if concentrated:
         summary += " Portfolio concentration is high; consider trimming single-asset exposure."

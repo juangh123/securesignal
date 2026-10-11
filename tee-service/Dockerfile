@@ -1,5 +1,8 @@
 # ── NSM helper: official AWS Nitro Enclaves API ─────────────────────────────
-FROM rust:1.98-slim-bookworm AS nsm-builder
+# Pinned by digest like the python base below: nsm-attest is copied into the
+# enclave image, so a floating rust tag would drift PCR0 on upstream rebuilds.
+# Refresh deliberately (docker buildx imagetools inspect rust:1.98-slim-bookworm).
+FROM rust:1.98-slim-bookworm@sha256:ff521445a372125ed4f76e1453a1f8098f2d05332d1601d30db1c1f62757e730 AS nsm-builder
 
 WORKDIR /build
 COPY aws-nsm-helper/Cargo.toml ./

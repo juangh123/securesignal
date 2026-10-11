@@ -40,6 +40,9 @@ FAILURE POLICY
 --------------
 * Any network / RPC / contract / timeout / bad-data failure raises
   PriceProviderError. There is NO silent fallback to fake prices.
+* Stale or future-dated feed timestamps also raise: a frozen feed must not be
+  signed as a live price. The freshness window defaults to 300 s and can be
+  tuned (or disabled with 0) via ``FTSO_MAX_FEED_AGE_SECONDS``.
 * Unknown symbols raise ValueError before any network access.
 
 PERFORMANCE
@@ -61,7 +64,7 @@ from typing import Any
 
 from web3 import Web3
 
-from flare.rpc import make_provider
+from flare.rpc import make_provider, redact_rpc_url, safe_rpc_label
 
 __all__ = [
     "SUPPORTED_SYMBOLS",
@@ -75,6 +78,12 @@ __all__ = [
 DEFAULT_RPC_URL = "https://coston2-api.flare.network/ext/C/rpc"
 RPC_TIMEOUT_SECONDS = 10
 CACHE_TTL_SECONDS = 60.0
+# FTSO v2 feeds update roughly every 90 s; five minutes tolerates a couple of
+# missed update rounds without ever presenting a frozen feed as live.
+DEFAULT_MAX_FEED_AGE_SECONDS = 300
+# Small clock skew between the local host and the chain is tolerated, but a
+# feed timestamp in the future must not be treated as fresh.
+MAX_FUTURE_FEED_SKEW_SECONDS = 120
 
 # FlareContractRegistry — same address on all Flare networks (Coston2 / Flare).
 # See https://dev.flare.network/network/solidity-reference/
@@ -165,6 +174,17 @@ def _rpc_url() -> str:
     return os.environ.get("RPC_URL", "").strip() or DEFAULT_RPC_URL
 
 
+def _max_feed_age_seconds() -> int:
+    """Freshness window for feed timestamps; 0 disables the check."""
+    raw = os.environ.get("FTSO_MAX_FEED_AGE_SECONDS", "").strip()
+    if not raw:
+        return DEFAULT_MAX_FEED_AGE_SECONDS
+    try:
+        return max(0, int(raw))
+    except ValueError:
+        return DEFAULT_MAX_FEED_AGE_SECONDS
+
+
 def _chain_label_from_url(url: str) -> str:
     """Best-effort chain label from the RPC URL, before any chainId lookup."""
     u = url.lower()
@@ -230,6 +250,13 @@ def _read_online_many(symbols: list[str]) -> dict[str, tuple[float, int]]:
 
     global _detected_chain_name
     rpc_url = _rpc_url()
+    # Error messages travel into logs and the signed result JSON, so only the
+    # scheme+host of the endpoint may appear (provider URLs can carry keys).
+    safe_rpc = safe_rpc_label(rpc_url)
+
+    def redact(text) -> str:
+        return redact_rpc_url(str(text), rpc_url)
+
     try:
         w3 = Web3(make_provider(rpc_url, timeout=RPC_TIMEOUT_SECONDS))
         if not w3.is_connected():
@@ -237,10 +264,10 @@ def _read_online_many(symbols: list[str]) -> dict[str, tuple[float, int]]:
                 probe = w3.provider.make_request("web3_clientVersion", [])
             except Exception as exc:
                 raise PriceProviderError(
-                    f"cannot connect to RPC {rpc_url}: {exc}"
+                    f"cannot connect to RPC {safe_rpc}: {redact(exc)}"
                 ) from exc
             raise PriceProviderError(
-                f"cannot connect to RPC {rpc_url}: {probe}"
+                f"cannot connect to RPC {safe_rpc}: {redact(probe)}"
             )
 
         # Chain detection — only used for the "<chain>-ftso" source label.
@@ -262,7 +289,7 @@ def _read_online_many(symbols: list[str]) -> dict[str, tuple[float, int]]:
         raise
     except Exception as e:  # network, timeout, ABI decode, ...
         raise PriceProviderError(
-            f"FTSO connection/registry setup failed via {rpc_url}: {e}"
+            f"FTSO connection/registry setup failed via {safe_rpc}: {redact(e)}"
         ) from e
 
     feed_ids = {symbol: Web3.to_bytes(hexstr=FEED_IDS[symbol]) for symbol in symbols}
@@ -292,7 +319,7 @@ def _read_online_many(symbols: list[str]) -> dict[str, tuple[float, int]]:
             raise
         except Exception as e:  # network, timeout, ABI decode, ...
             raise PriceProviderError(
-                f"FTSO price read failed via {rpc_url}: {e}"
+                f"FTSO price read failed via {safe_rpc}: {redact(e)}"
             ) from e
 
     if len(raw_results) != len(symbols):
@@ -319,12 +346,25 @@ def _read_online_many(symbols: list[str]) -> dict[str, tuple[float, int]]:
                     f"feed {symbol} returned invalid timestamp {timestamp}"
                 )
 
+            now = int(time.time())
+            max_age = _max_feed_age_seconds()
+            if max_age > 0 and timestamp < now - max_age:
+                raise PriceProviderError(
+                    f"feed {symbol} is stale: timestamp {timestamp} is "
+                    f"{now - timestamp}s old (limit {max_age}s)"
+                )
+            if timestamp > now + MAX_FUTURE_FEED_SKEW_SECONDS:
+                raise PriceProviderError(
+                    f"feed {symbol} timestamp {timestamp} is in the future "
+                    f"(more than {MAX_FUTURE_FEED_SKEW_SECONDS}s ahead)"
+                )
+
             prices[symbol] = (value / (10 ** decimals), timestamp)
         except PriceProviderError:
             raise
         except Exception as e:  # ABI decode, malformed result, ...
             raise PriceProviderError(
-                f"FTSO price decode failed for {symbol} via {rpc_url}: {e}"
+                f"FTSO price decode failed for {symbol} via {safe_rpc}: {redact(e)}"
             ) from e
 
     return prices

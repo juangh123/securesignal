@@ -1,4 +1,9 @@
-"""Parent-side JSON-RPC gateway from Nitro Enclaves vsock to HTTPS RPC."""
+"""Parent-side JSON-RPC gateway from Nitro Enclaves vsock to HTTPS RPC.
+
+The upstream timeout defaults to 20 s and can be tuned with
+``RPC_UPSTREAM_TIMEOUT``; it bounds a single enclave-issued call so a hung
+upstream cannot stall the whole request path.
+"""
 
 import json
 import os
@@ -13,6 +18,17 @@ UPSTREAM_URL = os.environ.get(
     "https://coston2-api.flare.network/ext/C/rpc",
 )
 MAX_REQUEST_BYTES = 4 * 1024 * 1024
+DEFAULT_UPSTREAM_TIMEOUT_SECONDS = 20.0
+
+
+def _upstream_timeout() -> float:
+    raw = os.environ.get("RPC_UPSTREAM_TIMEOUT", "").strip()
+    if not raw:
+        return DEFAULT_UPSTREAM_TIMEOUT_SECONDS
+    try:
+        return max(1.0, float(raw))
+    except ValueError:
+        return DEFAULT_UPSTREAM_TIMEOUT_SECONDS
 
 
 def forward(request_body: bytes) -> bytes:
@@ -22,7 +38,7 @@ def forward(request_body: bytes) -> bytes:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(request, timeout=30.0) as response:
+    with urllib.request.urlopen(request, timeout=_upstream_timeout()) as response:
         return response.read()
 
 

@@ -15,6 +15,90 @@ KMS_BOOTSTRAP_TIMEOUT_SECONDS = int(
     os.environ.get("KMS_BOOTSTRAP_TIMEOUT_SECONDS", "1200")
 )
 
+# Environment keys the parent may inject into the enclave process. Anything
+# else is dropped with a warning, and interpreter/runtime hijacking keys are
+# rejected outright, so a compromised or buggy parent cannot rewrite how the
+# service starts.
+ALLOWED_ENV_KEYS = frozenset(
+    {
+        "ENV",
+        "PORT",
+        "RPC_URL",
+        "ALLOWED_ORIGINS",
+        "ANALYSIS_OFFLINE",
+        "ANALYZE_REQUIRE_ONCHAIN_TASK",
+        "ANALYZE_TASK_MAX_AGE_SECONDS",
+        "ANALYZE_RESULT_CACHE_SECONDS",
+        "ANALYZE_MAX_CONCURRENCY",
+        "MAX_REQUEST_BODY_BYTES",
+        "ONCHAIN_RECEIPT_TIMEOUT",
+        "FTSO_MAX_FEED_AGE_SECONDS",
+        "TEE_PRIVATE_KEY",
+        "TEE_PRIVATE_KEY_CIPHERTEXT",
+        "PRIVATE_KEY",
+        "PRIVATE_KEY_CIPHERTEXT",
+        "LLM_API_KEY",
+        "LLM_API_KEY_CIPHERTEXT",
+        "LLM_BASE_URL",
+        "LLM_MODEL",
+        "LLM_TIMEOUT",
+        "LLM_TOTAL_BUDGET",
+        "TEE_IMAGE_DIGEST",
+        "ATTESTATION_PROVIDER",
+        "ATTESTATION_SCHEME",
+        "KMS_KEY_RELEASE",
+        "KMS_KEY_ID",
+        "KMS_REGION",
+        "KMS_VSOCK_PORT",
+        "KMS_BOOTSTRAP_PENDING",
+        "KMS_BOOTSTRAP_TIMEOUT_SECONDS",
+        "AWS_NITRO_ENCLAVES",
+        "AWS_NSM_HELPER",
+        "AWS_NITRO_SECRET_PORT",
+        "AWS_NITRO_PARENT_CID",
+        "RPC_VSOCK_PORT",
+        "ENCLAVE_PORT",
+        "APP_DIR",
+        "APP_SOCKET",
+        "GCP_SECRETS_ENABLED",
+        "GOOGLE_CLOUD_PROJECT",
+    }
+)
+ALLOWED_ENV_PREFIXES = ("AWS_NITRO_", "GCP_SECRET_", "GCP_ATTESTATION_")
+DENIED_ENV_KEYS = frozenset(
+    {
+        "PATH",
+        "PYTHONPATH",
+        "PYTHONHOME",
+        "PYTHONSTARTUP",
+        "LD_PRELOAD",
+        "LD_LIBRARY_PATH",
+        "NODE_OPTIONS",
+        "BASH_ENV",
+        "SHELLOPTS",
+        "IFS",
+    }
+)
+
+
+def apply_bundle(bundle: dict) -> list[str]:
+    """Copy an allowlisted runtime bundle into ``os.environ``.
+
+    Returns the skipped (unknown) keys so the caller can warn about them.
+    Raises ValueError for non-string entries or reserved interpreter keys.
+    """
+    skipped: list[str] = []
+    for key, value in bundle.items():
+        if not isinstance(key, str) or not isinstance(value, str):
+            raise ValueError("bundle keys and values must be strings")
+        if key in DENIED_ENV_KEYS:
+            raise ValueError(f"refusing to inject reserved environment key {key}")
+        if key in ALLOWED_ENV_KEYS or key.startswith(ALLOWED_ENV_PREFIXES):
+            os.environ[key] = value
+        else:
+            skipped.append(key)
+    return skipped
+
 
 def read_bundle() -> dict:
     last_error: Exception | None = None
@@ -75,11 +159,13 @@ def main() -> None:
         print(f"[aws-nitro] fatal: {exc}", file=sys.stderr)
         raise SystemExit(1)
 
-    for key, value in bundle.items():
-        if not isinstance(key, str) or not isinstance(value, str):
-            print("[aws-nitro] fatal: bundle keys and values must be strings", file=sys.stderr)
-            raise SystemExit(1)
-        os.environ[key] = value
+    try:
+        skipped = apply_bundle(bundle)
+    except ValueError as exc:
+        print(f"[aws-nitro] fatal: {exc}", file=sys.stderr)
+        raise SystemExit(1)
+    for key in skipped:
+        print(f"[aws-nitro] ignoring unknown bundle key: {key}", file=sys.stderr)
     os.environ.setdefault("ATTESTATION_PROVIDER", "aws-nitro-enclaves")
     os.environ.setdefault("ENV", "prod")
 

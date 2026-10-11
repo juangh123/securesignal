@@ -66,6 +66,10 @@ MIN_ATTEMPT_TIMEOUT_SECONDS = 1.0
 
 RISK_LEVELS = ("low", "medium", "high")
 REBALANCE_ACTIONS = ("increase", "decrease", "hold")
+# Output-size guards: the model must not smuggle unbounded text into the
+# signed, on-chain-committed result JSON.
+MAX_REBALANCE_REASON_CHARS = 300
+MAX_SUMMARY_CHARS = 2000
 
 
 class LLMError(RuntimeError):
@@ -233,8 +237,23 @@ def _extract_json(content: str) -> Dict[str, Any]:
     return obj
 
 
-def _validate(obj: Dict[str, Any]) -> Dict[str, Any]:
-    """Validate + normalize the LLM analysis dict. Raises LLMError if invalid."""
+def _level_for_score(score: int) -> str:
+    if score < 40:
+        return "low"
+    if score < 70:
+        return "medium"
+    return "high"
+
+
+def _validate(
+    obj: Dict[str, Any], expected_symbols: set[str] | None = None
+) -> Dict[str, Any]:
+    """Validate + normalize the LLM analysis dict. Raises LLMError if invalid.
+
+    ``expected_symbols`` is the portfolio the model was asked to cover; when it
+    is provided the rebalance list must contain exactly one entry per asset and
+    nothing else, so a hallucinated ticker can never reach the signed result.
+    """
     # risk_score: int in [0, 100] (a numeric value is rounded to int)
     score = obj.get("risk_score")
     if isinstance(score, bool) or not isinstance(score, (int, float)):
@@ -280,12 +299,48 @@ def _validate(obj: Dict[str, Any]) -> Dict[str, Any]:
     summary = obj.get("summary")
     if not isinstance(summary, str) or not summary.strip():
         raise LLMError("summary must be a non-empty string")
+    summary = summary.strip()
+    if len(summary) > MAX_SUMMARY_CHARS:
+        raise LLMError(
+            f"summary is too long ({len(summary)} > {MAX_SUMMARY_CHARS} chars)"
+        )
+
+    for index, item in enumerate(norm_rebalance):
+        if len(item["reason"]) > MAX_REBALANCE_REASON_CHARS:
+            raise LLMError(
+                f"rebalance[{index}].reason is too long "
+                f"({len(item['reason'])} > {MAX_REBALANCE_REASON_CHARS} chars)"
+            )
+
+    if expected_symbols is not None:
+        expected = {symbol.upper() for symbol in expected_symbols}
+        seen = [item["symbol"] for item in norm_rebalance]
+        unknown = sorted(set(seen) - expected)
+        if unknown:
+            raise LLMError(f"rebalance covers unknown symbols: {unknown}")
+        missing = sorted(expected - set(seen))
+        if missing:
+            raise LLMError(f"rebalance is missing portfolio symbols: {missing}")
+        duplicates = sorted({symbol for symbol in seen if seen.count(symbol) > 1})
+        if duplicates:
+            raise LLMError(f"rebalance has duplicate symbols: {duplicates}")
+
+    # Keep score and level self-consistent (the prompt requires it); a
+    # mismatch is corrected deterministically instead of failing the call.
+    consistent_level = _level_for_score(score)
+    if level != consistent_level:
+        print(
+            f"[llm] correcting risk_level {level!r} to {consistent_level!r} "
+            f"for risk_score {score}",
+            flush=True,
+        )
+        level = consistent_level
 
     return {
         "risk_score": score,
         "risk_level": level,
         "rebalance": norm_rebalance,
-        "summary": summary.strip(),
+        "summary": summary,
     }
 
 
@@ -325,7 +380,9 @@ def analyze(
             content = _request_completion(
                 messages, use_response_format, timeout=attempt_timeout
             )
-            return _validate(_extract_json(content))
+            return _validate(
+                _extract_json(content), expected_symbols=set(holdings)
+            )
         except LLMError as e:
             last_error = e
             # Some compatible gateways reject response_format with HTTP 400 —

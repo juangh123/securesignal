@@ -5,8 +5,12 @@ import hashlib
 import os
 import subprocess
 
+import cbor2
+
 DEFAULT_HELPER_PATH = "/usr/local/bin/nsm-attest"
 NSM_DEVICE_PATH = "/dev/nsm"
+# COSE_Sign1 tag used by every NSM attestation document.
+COSE_SIGN1_TAG = 18
 
 
 class NsmAttestationError(RuntimeError):
@@ -73,14 +77,65 @@ def attestation_fields(
         user_data=user_data,
         public_key=public_key,
     )
+    pcrs = _document_pcrs(
+        document, nonce=nonce, user_data=user_data, public_key=public_key
+    )
     fields = {
         "nsm_document": base64.b64encode(document).decode("ascii"),
         "nsm_document_sha256": hashlib.sha256(document).hexdigest(),
         "nsm_nonce": nonce.hex(),
         "nsm_user_data": user_data.hex(),
     }
-    for pcr in range(0, 9):
-        value = os.environ.get(f"AWS_NITRO_PCR{pcr}", "").strip()
-        if value:
-            fields[f"pcr{pcr}"] = value.lower()
+    # PCR values come from the signed document itself, not from the parent's
+    # environment: the env copy is only used as an expected-value cross-check.
+    for index in sorted(pcrs):
+        fields[f"pcr{index}"] = pcrs[index]
+    for index in range(0, 9):
+        expected = os.environ.get(f"AWS_NITRO_PCR{index}", "").strip().lower()
+        if expected and pcrs.get(index) != expected:
+            raise NsmAttestationError(
+                f"AWS_NITRO_PCR{index} does not match the signed NSM document"
+            )
     return fields
+
+
+def _document_pcrs(
+    document: bytes,
+    *,
+    nonce: bytes,
+    user_data: bytes,
+    public_key: bytes | None,
+) -> dict[int, str]:
+    """Extract the PCRs (and verify the request bindings) from an NSM document.
+
+    The document is a COSE_Sign1 structure whose payload carries the PCR map
+    together with the nonce/user_data/public_key the caller asked for. The
+    full signature-chain check stays in tools/verify_aws_nitro_attestation.py;
+    here we only reject documents that obviously do not belong to this request.
+    """
+    try:
+        decoded = cbor2.loads(document)
+    except Exception as exc:  # noqa: BLE001 - cbor2 raises several types
+        raise NsmAttestationError(f"NSM document is not valid CBOR: {exc}") from exc
+    if getattr(decoded, "tag", None) != COSE_SIGN1_TAG:
+        raise NsmAttestationError("NSM document is not a COSE_Sign1 structure")
+    try:
+        body = getattr(decoded, "value", decoded)
+        _protected, _unprotected, payload_bytes, _signature = body
+        payload = cbor2.loads(payload_bytes)
+        pcrs = {
+            int(index): bytes(value).hex() for index, value in payload["pcrs"].items()
+        }
+    except Exception as exc:  # noqa: BLE001 - malformed CBOR shapes vary
+        raise NsmAttestationError(f"NSM document payload is malformed: {exc}") from exc
+    if not pcrs:
+        raise NsmAttestationError("NSM document contains no PCR measurements")
+    if payload.get("nonce") != nonce:
+        raise NsmAttestationError("NSM document nonce does not match the request")
+    if payload.get("user_data") != user_data:
+        raise NsmAttestationError("NSM document user_data does not match the request")
+    if public_key is not None and payload.get("public_key") != public_key:
+        raise NsmAttestationError(
+            "NSM document public_key does not match the request"
+        )
+    return pcrs

@@ -1,31 +1,13 @@
 """Relay AF_VSOCK connections from the parent to the local FastAPI port."""
 
 import os
-import select
 import socket
 import threading
 
+from vsock_relay import relay
+
 ENCLAVE_PORT = int(os.environ.get("ENCLAVE_PORT", "8000"))
 APP_SOCKET = os.environ.get("APP_SOCKET", "/tmp/securesignal.sock")
-BUFFER_SIZE = 64 * 1024
-
-
-def relay(left: socket.socket, right: socket.socket) -> None:
-    sockets = [left, right]
-    try:
-        while True:
-            readable, _, _ = select.select(sockets, [], [], 30.0)
-            if not readable:
-                continue
-            for source in readable:
-                data = source.recv(BUFFER_SIZE)
-                if not data:
-                    return
-                target = right if source is left else left
-                target.sendall(data)
-    finally:
-        left.close()
-        right.close()
 
 
 def handle(connection: socket.socket) -> None:

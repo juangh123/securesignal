@@ -58,12 +58,15 @@ def _decrypt(request: dict) -> str:
             "AttestationDocument": attestation_document,
         },
     )
-    # With a Recipient attestation, KMS returns the plaintext encrypted to the
-    # enclave's RSA key in CiphertextForRecipient (not in Plaintext).
-    encrypted = response.get("CiphertextForRecipient") or response.get("Plaintext")
+    # With a Recipient attestation, KMS must return the plaintext encrypted to
+    # the enclave's RSA key in CiphertextForRecipient. A plaintext response
+    # means the attestation-based release silently degraded to "the parent can
+    # read the TEE key", so refuse it instead of forwarding the secret.
+    encrypted = response.get("CiphertextForRecipient")
     if not encrypted:
         raise RuntimeError(
-            "KMS Decrypt response did not include CiphertextForRecipient"
+            "KMS Decrypt response did not include CiphertextForRecipient; "
+            "refusing to forward a plaintext secret to the enclave"
         )
     return base64.b64encode(encrypted).decode("ascii")
 
