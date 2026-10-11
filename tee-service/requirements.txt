@@ -6,13 +6,13 @@ uvicorn==0.30.1
 web3==7.12.1
 eciespy==0.4.6
 eth-account==0.13.7
-eth-utils>=2.0.0
-coincurve>=18.0.0
+# Pinned to the versions in requirements-lock.txt so regenerating the lock is
+# deterministic (the previous ">=" pins re-resolved to whatever was newest).
+eth-utils==6.0.0
+coincurve==21.0.0
 cryptography==42.0.7
 python-dotenv==1.0.1
 pydantic==2.7.2
-numpy==2.0.0
-pandas==3.0.6
 # analysis/llm.py calls the OpenAI-compatible chat completions API directly
 # over HTTP (no openai SDK). Pin matches requirements-lock.txt.
 requests==2.34.2

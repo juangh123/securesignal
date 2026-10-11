@@ -15,11 +15,17 @@ Usage (from repo root, pip>=23):
 Notes:
   - Step 1 resolves on the host, so Windows-only marker deps (pywin32,
     colorama) may appear; they are dropped by DROP below.
+  - The reverse case matters too: resolving on Windows silently drops
+    POSIX-only marker deps (e.g. uvloop, which uvicorn uses on Linux). Run
+    step 1 inside python:3.11-slim (or the CI docker job's platform) for a
+    byte-accurate lock; this tool warns when the host is not Linux and when
+    the new lock drops entries the previous one had.
   - Step 2 does not download wheels; it reads the PyPI JSON API and picks the
     file pip would select inside python:3.11-slim (Debian bookworm, glibc
     2.36), recording the best wheel hash plus the sdist hash as fallback.
 """
 import json
+import platform
 import re
 import sys
 import time
@@ -84,6 +90,7 @@ def main():
     )
     lines = []
     problems = []
+    written: set[str] = set()
     for name, version in items:
         if name in DROP:
             print(f"SKIP (windows-only): {name}=={version}")
@@ -117,7 +124,33 @@ def main():
         hash_str = " \\\n    ".join(f"--hash=sha256:{h}" for h in hashes)
         lines.append(f"{name}=={version} \\")
         lines.append(f"    {hash_str}")
+        written.add(name)
         time.sleep(0.05)
+
+    if platform.system() != "Linux":
+        print(
+            f"WARNING: the dependency report was resolved on {platform.system()}; "
+            "sys_platform-gated packages (e.g. uvloop on Linux) may be missing. "
+            "Resolve inside python:3.11-slim for a byte-accurate lock."
+        )
+    existing: set[str] = set()
+    try:
+        with open(out_path, encoding="utf-8") as fh:
+            for line in fh:
+                if line and not line[0].isspace() and not line.startswith("#") and "==" in line:
+                    existing.add(norm(line.split("==")[0]))
+    except FileNotFoundError:
+        pass
+    dropped = sorted(existing - written - {norm(name) for name in DROP})
+    if dropped:
+        print(
+            "WARNING: this lock would drop entries the previous one had: "
+            + ", ".join(dropped)
+        )
+        print(
+            "         If those are platform-marker dependencies, re-run step 1 "
+            "on linux/amd64."
+        )
 
     header = (
         "# requirements-lock.txt — hashed lockfile for reproducible Docker builds.\n"

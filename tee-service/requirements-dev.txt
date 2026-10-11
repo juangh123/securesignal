@@ -5,3 +5,5 @@
 #   python -m pytest -q
 -r requirements.txt
 pytest==9.1.1
+# Coverage gate for the core runtime modules (see .coveragerc).
+pytest-cov==7.1.0

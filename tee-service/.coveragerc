@@ -1,0 +1,21 @@
+[run]
+# Coverage-gate scope: the core runtime modules exercised by the offline test
+# suite. Platform-specific deployment helpers (vsock/KMS bridges, GCP secret
+# bootstrap) have their own tests plus CI syntax checks; folding them into one
+# percentage here would dilute the signal instead of guarding these paths.
+source =
+    main
+    analysis
+    attestation
+    crypto
+    flare
+omit =
+    */test_*.py
+    */__init__.py
+
+[report]
+show_missing = False
+skip_covered = True
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
