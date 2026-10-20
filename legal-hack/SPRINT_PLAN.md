@@ -1,5 +1,9 @@
 # Legal Hack 2026 冲刺计划 — SecureSignal → 法律科技赛道
 
+> **历史资料，不属于当前项目范围。** 当前仓库的提交目标是 Flare Summer Signal，
+> Bounty 2: Confidential Compute Apps。本文件只保留另一赛事的规划记录，不应作为
+> README、SUBMISSION.md 或 DoraHacks Flare BUIDL 的评审依据。
+
 > 生成日期：2026-09-05 · 赛事信息复核：2026-10-02 · 目标赛事：BLI Legal Tech Hackathon 2（DoraHacks）
 
 ---

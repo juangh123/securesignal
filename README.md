@@ -4,6 +4,12 @@
 
 **Flare Summer Signal Hackathon — Bounty 2: Confidential Compute Apps**
 
+> **提交范围：** 本项目当前只针对 Flare Summer Signal（DoraHacks BUIDL
+> [`47690`](https://dorahacks.io/build/47690)）。仓库中的 BLI/Legal Hack 材料是历史
+> 记录，不属于本提交的范围或评审叙事。最终验收使用
+> `node tools/flare-release-check.mjs`，发布门禁说明见
+> [docs/flare-release.md](docs/flare-release.md)。
+
 ## 问题
 今天想获得个性化加密组合建议，意味着要把全部持仓与策略交给一个你无法审计的中心化服务。
 
@@ -203,7 +209,7 @@ npm run dev
 tee-service pytest、contracts hardhat、frontend lint/build、脚本/证据语法校验，并额外构建生产 Docker 镜像（不推送）。
 [`.github/workflows/live-health.yml`](.github/workflows/live-health.yml) 每 30 分钟只读巡检线上前端、
 CloudFront、Coston2 注册表、真实 TEE 模式、PCR0、链上 `keccak256(PCR0)` 承诺与 relayer 余额；
-失败会通过 GitHub 通知仓库 watcher。同一套巡检（带 3 次重试）也随每次 push 到 `main` 在 CI 中运行，
+这些巡检默认是「提示」而非「阻断」：线上后端与 relayer 属于仓库之外的依赖，停机会如实打印每条检查结果，但不会把工作流标红；把仓库变量 `LIVE_STRICT` 设为 `true` 即恢复为阻断并通知 watcher。同一套巡检（带 3 次重试）也随每次 push 到 `main` 在 CI 中运行，
 因此不依赖 GitHub schedule 的准时性。依赖更新由 [`.github/dependabot.yml`](.github/dependabot.yml) 每周检查 npm/pip/Docker/Actions。
 
 ```bash

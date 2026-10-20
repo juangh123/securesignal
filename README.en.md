@@ -6,6 +6,12 @@
 
 *中文 README 见 [README.md](README.md)*
 
+> **Submission scope:** This repository targets the Flare Summer Signal submission
+> (DoraHacks BUIDL [`47690`](https://dorahacks.io/build/47690)). The historical
+> BLI/Legal Hack plan is not part of this submission. Run
+> `node tools/flare-release-check.mjs` for the release gate; see
+> [docs/flare-release.md](docs/flare-release.md).
+
 ## Overview
 Getting personalized crypto portfolio advice today means handing your full holdings and strategy to a centralized service you cannot audit. This exposes users to front-running, privacy breaches, and targeted attacks.
 

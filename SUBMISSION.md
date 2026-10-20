@@ -2,7 +2,12 @@
 
 **Bounty:** Bounty 2 — Confidential Compute Apps
 **Event:** Flare Summer Signal (online hackathon) · deadline 2026-08-14 19:59 UTC+8
+**DoraHacks BUIDL:** [47690](https://dorahacks.io/build/47690)
 **GitHub:** https://github.com/juangh123/securesignal
+
+> This document is the canonical submission narrative for the Flare event. BLI/Legal
+> Hack material elsewhere in the repository is retained only as historical context
+> and is not part of this submission.
 
 ---
 
@@ -68,7 +73,7 @@ part of the original hackathon submission):
 
 **Verification:** `frontend/e2e/e2e-coston2.mjs` production smoke test passes 12/12 against live Coston2 — real FTSO prices through the enclave-local RPC bridge, attestation `ecrecover` matches the TEE address, on-chain status = Verified. The NSM COSE/CBOR document from that run was verified separately against the pinned AWS Nitro root (certificate chain, ES384 signature, nonce, user data, ECIES public key, PCR0); task 22's raw evidence and verification output are in `deliverables/aws-nitro-attestation-22.json` and `deliverables/aws-nitro-attestation-22-verification.json`. On this build the runtime bundle contains only KMS ciphertext, and the KMS key policy allows `Decrypt` only for attestations matching PCR0/PCR1/PCR2, so the parent instance never sees the TEE or relayer private keys.
 
-**Testing & distribution status (honest):** 12/12 production smoke assertions on Coston2, 25/25 local end-to-end assertions (`tests/run_e2e_all.sh`, also wired into CI), 190 passing TEE-service unit tests with an 80% coverage gate, and a 2:19 recorded live demo. No external pilot users, paid distribution, or partnership commitments yet; the public live app and open-source repo are the current distribution channels.
+**Testing & distribution status (honest):** 12/12 production smoke assertions on Coston2, 25/25 local end-to-end assertions (`tests/run_e2e_all.sh`, also wired into CI), 206 passing TEE-service tests (1 skipped, 87.64% coverage) with an 80% coverage gate, and a 2:19 recorded live demo. No external pilot users, paid distribution, or partnership commitments yet; the public live app and open-source repo are the current distribution channels.
 
 ## 9. Honest Engineering Notes
 - **Attestation:** the verified production path is a real AWS Nitro Enclave. We validate the NSM COSE/CBOR document against the pinned AWS Nitro root certificate, the certificate chain, ES384 signature, nonce, user data, ECIES public key, and measured PCR0. The public Render endpoint can still choose the explicitly labelled `dev-simulated` mode for demos.

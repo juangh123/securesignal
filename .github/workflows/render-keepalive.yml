@@ -14,19 +14,34 @@ permissions: {}
 jobs:
   ping:
     name: keep the Render demo warm
+    # Advisory by default: this guards a free-tier demo outside this repo, so an
+    # unreachable or retired Render service is reported rather than failing the
+    # workflow. Set the repository variable LIVE_STRICT=true to make it blocking.
+    continue-on-error: ${{ vars.LIVE_STRICT != 'true' }}
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Three attempts, each long enough to ride out a full free-tier cold start.
+    timeout-minutes: 10
     steps:
-      - name: Ping /public-key (retry through cold start if needed)
+      - name: Ping /public-key (ride out a free-tier cold start)
+        # GitHub heavily throttles high-frequency `schedule` triggers: this cron
+        # has been firing roughly every 4-6 hours, not every 10 minutes, so the
+        # free-tier demo is asleep by the time we arrive and the request has to
+        # wait out a cold start.
+        #
+        # Guard curl's exit status explicitly. GitHub runs `run:` steps as
+        # `bash -e`, so an unguarded `code=$(curl ...)` aborts the entire step on
+        # curl's first non-zero exit code (28 = --max-time exceeded) and the
+        # retries below never execute. That dead retry loop is what turned a slow
+        # cold start into an intermittent red run.
         run: |
           for attempt in 1 2 3; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 60 \
-              https://securesignal-tee.onrender.com/public-key)
+            code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 120 \
+              https://securesignal-tee.onrender.com/public-key) || code=000
             echo "attempt ${attempt}: HTTP ${code}"
             if [ "${code}" = "200" ]; then
               exit 0
             fi
-            sleep 20
+            sleep 15
           done
-          echo "Render demo did not return HTTP 200" >&2
+          echo "Render demo did not return HTTP 200 after 3 attempts" >&2
           exit 1

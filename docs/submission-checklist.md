@@ -1,16 +1,19 @@
 # SecureSignal 黑客松提交清单
 
 > Flare Summer Signal Hackathon — Bounty 2: Confidential Compute Apps
-> 状态日期：2026-10-02（提交材料复核与提交后证据补充）。Flare Summer Signal 已于 2026-08-14 19:59 截止（BUIDL 47690）；BLI Legal Tech Hackathon 2 截止 2026-11-01 01:01（DoraHacks）。✅ = 已完成并有验证证据；⏳ = 等待外部凭据/人工操作。
+> 状态日期：2026-10-21（Flare 提交范围与发布验收复核）。Flare Summer Signal 已于
+> 2026-08-14 19:59 UTC+8 截止，提交 BUIDL 为
+> [`47690`](https://dorahacks.io/build/47690)。本清单只适用于 Flare 赛事；仓库中的
+> BLI/Legal Hack 材料仅作历史记录，不参与本次提交说明。✅ = 已完成并有验证证据。
 
 ## 一、代码与功能（✅ 全部完成）
 
 | 项 | 状态 | 验证证据 |
 |---|---|---|
 | ECIES 端到端加密（eciesjs ↔ eciespy） | ✅ | 双向交叉解密测试向量通过（`frontend/e2e/`） |
-| 合约 attestation 验签（ecrecover） | ✅ | `npx hardhat test` 32/32（含伪造签名、高 s/v 越界、跨部署域分离负例） |
+| 合约 attestation 验签（ecrecover） | ✅ | `npx hardhat test` 33/33（含伪造签名、高 s/v 越界、跨部署域分离负例） |
 | TEE 密钥两步轮换（`proposeTeeKey`/`commitTeeKeyRotation`）onlyOwner + 时间锁 | ✅ | 负例与时间锁测试覆盖（首次登记免等待） |
-| TEE 服务单元测试 + 覆盖率门槛 | ✅ | `pytest` 190 passed / 1 skipped；核心运行时覆盖率 87%，CI 门槛 80%（`.coveragerc`） |
+| TEE 服务单元测试 + 覆盖率门槛 | ✅ | `pytest` 206 passed / 1 skipped；核心运行时覆盖率 87.64%，CI 门槛 80%（`.coveragerc`） |
 | 公开端点加固 | ✅ | 链上任务门禁 fail-closed、single-flight + 结果缓存、每 IP/全局限速（429）、请求体上限、分析总预算；见 README「公开端点防滥用」 |
 | CI 供应链与一致性 | ✅ | actions 按 commit SHA 固定；ABI/地址副本 `cmp`、依赖锁覆盖、`bash -n`、live-health、e2e-local 全流程作业 |
 | 结果 relayer 上链（submitResult） | ✅ | 端到端断言链上 status=Verified |

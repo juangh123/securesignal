@@ -14,6 +14,11 @@ permissions:
 jobs:
   live-health:
     name: live TEE + on-chain health
+    # Advisory by default: the enclave, the relayer and Coston2 are external
+    # dependencies, so their downtime is reported here rather than failing the
+    # workflow. Set the repository variable LIVE_STRICT=true to make a failed
+    # check blocking (and therefore notifying) again.
+    continue-on-error: ${{ vars.LIVE_STRICT != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

@@ -186,8 +186,13 @@ def test_wait_for_receipt_skips_ipc_and_zero_timeout(monkeypatch):
 
 def test_task_state_failure_is_logged_once_per_window(monkeypatch, capsys):
     """Silent fail-closed paths must still leave an operational trace."""
-    monkeypatch.setattr(contracts, "_last_warning_at", 0.0)
+    # None is the "no warning yet" sentinel; a numeric one is ambiguous on a host
+    # whose monotonic clock is younger than the throttle interval (a freshly
+    # booted CI runner), which is what made this assertion flaky.
+    monkeypatch.setattr(contracts, "_last_warning_at", None)
     monkeypatch.setattr(contracts, "_load_registry_address", lambda: "0x" + "11" * 20)
+    ticks = iter((1.0, 2.0))
+    monkeypatch.setattr(contracts.time, "monotonic", lambda: next(ticks))
 
     def boom(*_args, **_kwargs):
         raise ConnectionError("rpc down")

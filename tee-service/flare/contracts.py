@@ -67,7 +67,11 @@ _next_nonce: dict[str, int] = {}
 _failed_nonces: dict[str, set[int]] = {}
 MAX_FAILED_NONCES_PER_ACCOUNT = 32
 _warning_lock = threading.Lock()
-_last_warning_at = 0.0
+# None = "no warning emitted yet". A numeric sentinel is ambiguous against a host
+# whose monotonic clock is younger than the interval: a freshly booted runner
+# reports time.monotonic() < WARNING_INTERVAL_SECONDS, which used to swallow the
+# first warning after every boot.
+_last_warning_at: Optional[float] = None
 WARNING_INTERVAL_SECONDS = 60.0
 
 
@@ -80,7 +84,10 @@ def _warn_throttled(context: str, exc: Exception) -> None:
     global _last_warning_at
     now = time.monotonic()
     with _warning_lock:
-        if now - _last_warning_at < WARNING_INTERVAL_SECONDS:
+        if (
+            _last_warning_at is not None
+            and now - _last_warning_at < WARNING_INTERVAL_SECONDS
+        ):
             return
         _last_warning_at = now
     print(f"[relayer] {context}: {type(exc).__name__}: {exc}", flush=True)

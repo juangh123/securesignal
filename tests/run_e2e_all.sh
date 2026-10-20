@@ -11,10 +11,44 @@ set -e
 HARDHAT_PID=""
 TEE_PID=""
 
+terminate_tree() {
+  local pid="$1"
+  if [ -z "$pid" ]; then
+    return
+  fi
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      # Git Bash backgrounds a Windows launcher; kill its full process tree so
+      # the Hardhat child cannot keep port 8545 open after the test exits.
+      taskkill //PID "$pid" //T //F >/dev/null 2>&1 || true
+      ;;
+    *)
+      kill "$pid" >/dev/null 2>&1 || true
+      ;;
+  esac
+}
+
+stop_windows_port() {
+  local port="$1"
+  if command -v powershell.exe >/dev/null 2>&1; then
+    powershell.exe -NoProfile -Command \
+      "Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id \$_.OwningProcess -Force -ErrorAction SilentlyContinue }" \
+      >/dev/null 2>&1 || true
+  fi
+}
+
 cleanup() {
   echo "-> Cleaning up background processes..."
-  if [ -n "$TEE_PID" ]; then kill "$TEE_PID" 2>/dev/null || true; fi
-  if [ -n "$HARDHAT_PID" ]; then kill "$HARDHAT_PID" 2>/dev/null || true; fi
+  terminate_tree "$TEE_PID"
+  terminate_tree "$HARDHAT_PID"
+  case "$(uname -s)" in
+    MINGW*|MSYS*|CYGWIN*)
+      # The Windows launchers can detach their children from the shell job, so
+      # also stop only the two ports reserved by this test suite.
+      stop_windows_port 3000
+      stop_windows_port 8545
+      ;;
+  esac
 }
 trap cleanup EXIT
 

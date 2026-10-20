@@ -112,6 +112,7 @@ jobs:
       - name: Node syntax
         run: |
           node --check tools/ops-status.mjs
+          node --check tools/flare-release-check.mjs
           node --check frontend/e2e/e2e-coston2.mjs
           node --check frontend/e2e/e2e-local.mjs
       - name: Shared config copies stay in sync
@@ -191,8 +192,16 @@ jobs:
     # GitHub's schedule trigger is best-effort and has not started these cron
     # workflows reliably, so also verify the live deployment on every push to
     # main. Read-only: no transactions, no AWS mutations.
+    #
+    # Advisory by default. The live demo backend and the Coston2 relayer are
+    # external to this repository: a stopped EC2 instance (which also moves the
+    # CloudFront origin), a spun-down free-tier demo, or an unfunded relayer
+    # would otherwise turn every push to main red for reasons no commit here can
+    # fix. The job still runs and prints every check; set the repository
+    # variable LIVE_STRICT=true to make these failures blocking again.
     name: live TEE + on-chain health
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    continue-on-error: ${{ vars.LIVE_STRICT != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

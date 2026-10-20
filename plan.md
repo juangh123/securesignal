@@ -2,7 +2,7 @@
 
 > 基于 2026-07-18 完成度审计（总完成度约 30–35%）。目标：打通端到端真实链路，落地核心安全价值，工程化收尾。
 >
-> **状态总览（2026-10-02 更新）**：Stage 1 ✅ 完成（合约安全修复 / ECIES 端到端加密 / 结果上链 relayer）；Stage 2 ✅ 完成（本地端到端验证 23/23 断言通过）；Stage 3 ✅ 完成（工程化收尾，见下文验收勾选）；Stage A ✅ 完成（LLM 分析引擎）；Stage B ✅ 完成（FTSO 真实读价联机实测）。**线上已启用真实 LLM**（2026-09-30：Render 配置 DeepSeek `deepseek-flash`，`/health` 的 `llm_configured=true`、`analysis_mode="llm"`）。**真实 TEE 代码链路已完成两条**：GCP Confidential Space（OIDC JWT + launcher socket）和 AWS Nitro Enclaves（NSM COSE/CBOR + PCR + vsock + verifier）。**AWS Nitro Enclaves 已完成真实部署与联机验证**：Coston2 冒烟测试 12/12 通过（真实 FTSO、NSM attestation、ecrecover、链上 `Verified`）；当前运行 PCR0 见 `deploy/aws/README.md`。
+> **状态总览（2026-10-21 更新）**：Flare 提交范围已冻结。Stage 1 ✅ 完成（合约安全修复 / ECIES 端到端加密 / 结果上链 relayer）；Stage 2 ✅ 完成（本地端到端验证 25/25 断言通过）；Stage 3 ✅ 完成（工程化收尾，见下文验收勾选）；Stage A ✅ 完成（LLM 分析引擎）；Stage B ✅ 完成（FTSO 真实读价联机实测）。**线上已启用真实 LLM**（2026-09-30：Render 配置 DeepSeek `deepseek-flash`，`/health` 的 `llm_configured=true`、`analysis_mode="llm"`）。**真实 TEE 代码链路已完成两条**：GCP Confidential Space（OIDC JWT + launcher socket）和 AWS Nitro Enclaves（NSM COSE/CBOR + PCR + vsock + verifier）。**AWS Nitro Enclaves 已完成真实部署与联机验证**：Coston2 冒烟测试 12/12 通过（真实 FTSO、NSM attestation、ecrecover、链上 `Verified`）；当前运行 PCR0 见 `deploy/aws/README.md`。最终提交验收使用 `node tools/flare-release-check.mjs`。
 
 > **2026-10-02 公开 Demo 2.5.0 冒烟**：真实 DeepSeek `analysis_mode="llm"` + 单请求批量 FTSO，task 19 链上 `Verified`，12/12（证据 `deliverables/coston2-smoke-task-19.json`）。
 
@@ -53,7 +53,7 @@
 - [x] `npx hardhat test` 全绿（含权限/签名负例）— Stage 1 完成
 - [x] 本地 hardhat 部署后两份地址配置为真实地址 — Stage 2 验证
 - [x] test-vector.json 双向交叉解密成功 — Stage 2 验证
-- [x] 模拟前端脚本 → /analyze → 解密成功 → 链上 result_hash 一致 — Stage 2 验证（23/23 断言）
+- [x] 模拟前端脚本 → /analyze → 解密成功 → 链上 result_hash 一致 — Stage 2 验证（25/25 断言）
 - [x] FTSO 失败时服务报错而非返回假价 — Stage 1 engine 策略（仅 `ANALYSIS_OFFLINE=1` 显式使用 fixture 且标注 `price_source`）
 - [x] `npm run build` 通过 — Stage 1 完成
 - [x] README 无虚假声明 — Stage 3 完成（真实实现与 dev-simulated 分列，Live Demo 标注待部署）
