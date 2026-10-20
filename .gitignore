@@ -58,3 +58,9 @@ video/tmp/
 
 # Local verification artifacts (Playwright CLI output, browser harness scratch).
 output/
+
+# Local evidence from other hackathons and duplicate screenshot exports.
+# Keep the files on disk for history, but do not mix them into the Flare release.
+deliverables/dorahacks-bli-*.png
+deliverables/dorahacks-build47690-bli-description-*.png
+deliverables/dorahacks-flare-builds-2026-10-11.png
