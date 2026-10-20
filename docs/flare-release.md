@@ -31,6 +31,14 @@ The gate checks required evidence, shared contract addresses, the public
 frontend, the real TEE health contract, on-chain registry state, relayer balance,
 and the two demo video links. It performs no transactions and writes no files.
 
+## Dependency Posture
+
+CI enforces `npm audit --omit=dev --audit-level=high` for both frontend and
+contracts. The Flare release has zero high/critical production dependency
+findings. Historical advisories below that threshold, and development-only
+Hardhat/WalletConnect advisories, remain visible in full `npm audit` output but
+do not block the release.
+
 ## Trust Boundary
 
 The Flare registry verifies the registered TEE result signature on-chain.

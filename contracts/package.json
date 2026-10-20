@@ -12,7 +12,12 @@
     "register:tee:local": "hardhat run scripts/setup-tee.ts --network localhost",
     "export:abi": "hardhat run scripts/export-abi.ts"
   },
-  "keywords": ["flare", "confidential-compute", "tee", "attestation"],
+  "keywords": [
+    "flare",
+    "confidential-compute",
+    "tee",
+    "attestation"
+  ],
   "author": "SecureSignal",
   "license": "MIT",
   "devDependencies": {
@@ -23,12 +28,8 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@flarenetwork/flare-periphery-contracts": "^0.1.53",
     "@openzeppelin/contracts": "^4.9.6",
-    "dotenv": "^17.4.2",
-    "fp-ts": "^2.16.11",
-    "io-ts": "^2.2.22",
-    "node-fetch": "^3.3.2"
+    "dotenv": "^17.4.2"
   },
   "directories": {
     "test": "test"
