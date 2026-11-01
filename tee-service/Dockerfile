@@ -2,7 +2,7 @@
 # Pinned by digest like the python base below: nsm-attest is copied into the
 # enclave image, so a floating rust tag would drift PCR0 on upstream rebuilds.
 # Refresh deliberately (docker buildx imagetools inspect rust:1.98-slim-bookworm).
-FROM rust:1.98-slim-bookworm@sha256:ff521445a372125ed4f76e1453a1f8098f2d05332d1601d30db1c1f62757e730 AS nsm-builder
+FROM rust:1.99-slim-bookworm@sha256:24707e70a4f1e23d9a7b25202ec43126d28a52294b96aad5c670df1fd1f1d400 AS nsm-builder
 
 WORKDIR /build
 COPY aws-nsm-helper/Cargo.toml ./
@@ -22,7 +22,7 @@ RUN cargo build --release --locked
 #     | grep -i docker-content-digest
 # NOTE: the 3.11-slim tag is rebuilt upstream over time; refresh this digest
 # deliberately, never silently.
-FROM python:3.11-slim@sha256:db3ff2e1800a8581e2c48a27c3995339d47bdf046da21c7627accd3d51053a93
+FROM python:3.15-slim@sha256:94d3426f1def7db4a106a232ac121bfd975393e5dfd40a619b955fae45fe7913
 
 WORKDIR /app
 
